@@ -8,7 +8,11 @@ import pytest
 
 from app.models import AssetUpload, Case, Finding, ReviewerStatus
 from app.repositories.assets import CloudStorageAssetRepository
-from app.repositories.cases import CaseRepositoryNotFound, FirestoreCaseRepository
+from app.repositories.cases import (
+    CaseRepositoryNotFound,
+    FirestoreCaseRepository,
+    InMemoryCaseRepository,
+)
 
 
 class FakeSnapshot:
@@ -80,7 +84,9 @@ class FakeDocument:
             raise RuntimeError("Firestore is unavailable")
         self._client.documents[self._path] = dict(document)
 
-    def get(self) -> FakeSnapshot:
+    def get(self, *, transaction: FakeTransaction | None = None) -> FakeSnapshot:
+        if transaction is not None:
+            transaction.reads.append(self._path)
         snapshot = FakeSnapshot(self._client.documents.get(self._path))
         if self._client.after_next_get is not None:
             after_next_get = self._client.after_next_get
@@ -89,6 +95,10 @@ class FakeDocument:
         return snapshot
 
     def update(self, values: Mapping[str, Any]) -> None:
+        self._client.direct_updates.append(self._path)
+        self._apply_update(values)
+
+    def _apply_update(self, values: Mapping[str, Any]) -> None:
         document = self._client.documents[self._path]
         for key, value in values.items():
             if isinstance(value, FakeIncrement):
@@ -112,6 +122,16 @@ class FakeCollection(FakeQuery):
         return FakeDocument(self._client, (*self._path, identifier))
 
 
+class FakeTransaction:
+    def __init__(self) -> None:
+        self.reads: list[tuple[str, ...]] = []
+        self.updates: list[tuple[tuple[str, ...], Mapping[str, Any]]] = []
+
+    def update(self, document: FakeDocument, values: Mapping[str, Any]) -> None:
+        self.updates.append((document._path, dict(values)))
+        document._apply_update(values)
+
+
 class FakeIncrement:
     def __init__(self, amount: int) -> None:
         self.amount = amount
@@ -125,12 +145,19 @@ class FakeFirestoreClient:
         self.fail_next_delete = False
         self.after_next_get: Callable[[], None] | None = None
         self.deleted_documents: list[tuple[str, ...]] = []
+        self.direct_updates: list[tuple[str, ...]] = []
+        self.transactions: list[FakeTransaction] = []
 
     def collection(self, name: str) -> FakeCollection:
         return FakeCollection(self, (name,))
 
     def collection_group(self, name: str) -> FakeQuery:
         return FakeQuery(self, (name,))
+
+    def transaction(self) -> FakeTransaction:
+        transaction = FakeTransaction()
+        self.transactions.append(transaction)
+        return transaction
 
     @staticmethod
     def Increment(amount: int) -> FakeIncrement:
@@ -291,7 +318,7 @@ def test_cloud_asset_repository_deletes_private_bytes_and_metadata() -> None:
     assert ("cases", "case-1", "assets", asset.id) not in firestore.documents
 
 
-def test_cloud_asset_delete_attempts_metadata_when_private_object_deletion_fails() -> None:
+def test_cloud_asset_delete_keeps_metadata_when_private_object_deletion_fails() -> None:
     storage = FakeStorageClient()
     firestore = FakeFirestoreClient()
     repository = CloudStorageAssetRepository(
@@ -312,8 +339,8 @@ def test_cloud_asset_delete_attempts_metadata_when_private_object_deletion_fails
         repository.delete(asset)
 
     assert asset.storage_reference in storage.uploads
-    assert document_path not in firestore.documents
-    assert firestore.deleted_documents == [document_path]
+    assert document_path in firestore.documents
+    assert firestore.deleted_documents == []
 
 
 def test_cloud_asset_delete_attempts_private_object_when_metadata_deletion_fails() -> None:
@@ -341,7 +368,7 @@ def test_cloud_asset_delete_attempts_private_object_when_metadata_deletion_fails
     assert storage.deleted == [asset.storage_reference]
 
 
-def test_cloud_asset_delete_surfaces_both_cleanup_failures_after_attempting_each() -> None:
+def test_cloud_asset_delete_does_not_attempt_metadata_when_object_deletion_fails() -> None:
     storage = FakeStorageClient()
     firestore = FakeFirestoreClient()
     repository = CloudStorageAssetRepository(
@@ -359,12 +386,12 @@ def test_cloud_asset_delete_surfaces_both_cleanup_failures_after_attempting_each
     storage.fail_next_delete = True
     firestore.fail_next_delete = True
 
-    with pytest.raises(ExceptionGroup) as error:
+    with pytest.raises(RuntimeError, match="Cloud Storage delete is unavailable"):
         repository.delete(asset)
 
-    assert len(error.value.exceptions) == 2
     assert storage.deleted == [asset.storage_reference]
-    assert firestore.deleted_documents == [document_path]
+    assert document_path in firestore.documents
+    assert firestore.deleted_documents == []
 
 
 def test_firestore_case_repository_increments_asset_count_and_lists_newest() -> None:
@@ -417,3 +444,64 @@ def test_firestore_finding_updates_do_not_overwrite_a_concurrent_asset_increment
 
     assert firestore.documents[document_path]["asset_count"] == 1
     assert firestore.documents[document_path]["findings"][0]["reviewer_status"] == "dismissed"
+
+
+def test_firestore_finding_status_update_reads_and_writes_with_a_transaction() -> None:
+    firestore = FakeFirestoreClient()
+    repository = FirestoreCaseRepository(
+        "test-project",
+        "cases",
+        client=firestore,
+        transaction_runner=lambda operation: operation(firestore.transaction()),
+    )
+    case = make_case("case-1", created_at=datetime(2026, 8, 1, tzinfo=UTC))
+    case.findings = [
+        Finding(
+            id="finding-1",
+            case_id=case.id,
+            category="brand",
+            detected_item="Nimbus Soda",
+            explanation="Fictional reference",
+            confidence=0.8,
+            supporting_evidence=[],
+            source_urls=[],
+            retrieved_at=datetime(2026, 8, 1, tzinfo=UTC),
+            reviewer_status=ReviewerStatus.PENDING,
+        )
+    ]
+    repository.create(case)
+    document_path = ("cases", case.id)
+
+    finding = repository.update_finding_status(
+        case.id, "finding-1", ReviewerStatus.ESCALATED
+    )
+
+    assert finding.reviewer_status is ReviewerStatus.ESCALATED
+    assert firestore.transactions[0].reads == [document_path]
+    assert firestore.transactions[0].updates == [
+        (document_path, {"findings": firestore.documents[document_path]["findings"]})
+    ]
+    assert firestore.direct_updates == []
+
+
+def test_in_memory_case_repository_deletes_a_disposable_case() -> None:
+    repository = InMemoryCaseRepository()
+    case = make_case("case-1", created_at=datetime(2026, 8, 1, tzinfo=UTC))
+    repository.create(case)
+
+    repository.delete(case.id)
+
+    with pytest.raises(CaseRepositoryNotFound):
+        repository.get(case.id)
+
+
+def test_firestore_case_repository_deletes_a_disposable_case() -> None:
+    firestore = FakeFirestoreClient()
+    repository = FirestoreCaseRepository("test-project", "cases", client=firestore)
+    case = make_case("case-1", created_at=datetime(2026, 8, 1, tzinfo=UTC))
+    repository.create(case)
+
+    repository.delete(case.id)
+
+    assert ("cases", case.id) not in firestore.documents
+    assert firestore.deleted_documents == [("cases", case.id)]

@@ -25,6 +25,8 @@ class CaseRepository(Protocol):
 
     def increment_asset_count(self, case_id: str) -> None: ...
 
+    def delete(self, case_id: str) -> None: ...
+
 
 class InMemoryCaseRepository:
     def __init__(self) -> None:
@@ -71,23 +73,39 @@ class InMemoryCaseRepository:
             raise CaseRepositoryNotFound(case_id)
         case.asset_count += 1
 
+    def delete(self, case_id: str) -> None:
+        if case_id not in self._cases:
+            raise CaseRepositoryNotFound(case_id)
+        del self._cases[case_id]
+
 
 class FirestoreCaseRepository:
     """Cloud repository loaded only when a real repository is explicitly selected."""
 
-    def __init__(self, project: str, collection_name: str, *, client: Any | None = None) -> None:
+    def __init__(
+        self,
+        project: str,
+        collection_name: str,
+        *,
+        client: Any | None = None,
+        transaction_runner: Callable[[Callable[[Any], Finding]], Finding] | None = None,
+    ) -> None:
         increment: Callable[[int], Any]
+        transactional: Callable[[Callable[[Any], Finding]], Callable[[Any], Finding]] | None = None
         if client is None:
             from google.cloud import firestore
 
             client = firestore.Client(project=project)
             increment = firestore.Increment
+            transactional = firestore.transactional
         else:
             increment = client.Increment
 
         self._client = client
         self._increment = increment
         self._collection = self._client.collection(collection_name)
+        self._transactional = transactional
+        self._transaction_runner = transaction_runner
 
     def create(self, case: Case) -> Case:
         self._collection.document(case.id).set(case.model_dump(mode="json"))
@@ -105,15 +123,31 @@ class FirestoreCaseRepository:
     def update_finding_status(
         self, case_id: str, finding_id: str, reviewer_status: ReviewerStatus
     ) -> Finding:
-        case = self.get(case_id)
-        for finding in case.findings:
-            if finding.id == finding_id:
-                finding.reviewer_status = reviewer_status
-                self._collection.document(case_id).update(
-                    case.model_dump(include={"findings"}, mode="json")
-                )
-                return finding
-        raise FindingNotFound(finding_id)
+        def update(transaction: Any) -> Finding:
+            document = self._collection.document(case_id)
+            snapshot = document.get(transaction=transaction)
+            if not snapshot.exists:
+                raise CaseRepositoryNotFound(case_id)
+            stored_case = snapshot.to_dict()
+            if not isinstance(stored_case, Mapping):
+                raise CaseRepositoryNotFound(case_id)
+            case = Case.model_validate(stored_case)
+            for finding in case.findings:
+                if finding.id == finding_id:
+                    finding.reviewer_status = reviewer_status
+                    transaction.update(
+                        document,
+                        case.model_dump(include={"findings"}, mode="json"),
+                    )
+                    return finding
+            raise FindingNotFound(finding_id)
+
+        if self._transaction_runner is not None:
+            return self._transaction_runner(update)
+        transaction = self._client.transaction()
+        if self._transactional is None:
+            return update(transaction)
+        return self._transactional(update)(transaction)
 
     def list_recent(self, limit: int) -> list[CaseSummary]:
         snapshots = (
@@ -136,3 +170,9 @@ class FirestoreCaseRepository:
         if not document.get().exists:
             raise CaseRepositoryNotFound(case_id)
         document.update({"asset_count": self._increment(1)})
+
+    def delete(self, case_id: str) -> None:
+        document = self._collection.document(case_id)
+        if not document.get().exists:
+            raise CaseRepositoryNotFound(case_id)
+        document.delete()
