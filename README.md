@@ -116,7 +116,10 @@ Real asset storage first creates a zero-byte private Cloud Storage marker with a
 generation precondition. It records that marker generation in a single atomic Firestore batch that
 creates both the `pending` asset record and its lifecycle index. Content upload must match the
 saved marker generation, so a reconciliation deletion that wins makes a delayed upload fail rather
-than creating untracked bytes. A short writer lease still prevents normal active uploads from being
+than creating untracked bytes. The resulting content generation is also private persisted metadata
+through `ready` and `cleanup_pending`. Every cleanup delete uses that exact GCS generation
+precondition; if it changes, the private lifecycle record remains for a later manual review rather
+than deleting by object name. A short writer lease still prevents normal active uploads from being
 claimed; `ready` promotion also requires the same lease. Only `ready` assets are available through
 the application API. Cleanup first fences a `ready` record into private `cleanup_pending` before
 touching its bytes, so a missing object never leaves a public record exposed.
@@ -127,7 +130,10 @@ collection group. It can claim an expired writer lease or a cleanup record; it a
 unambiguous private RightsRadar marker prefix for a marker left behind by a failed Firestore batch.
 It never scans ready objects or unrelated prefixes. A writer that has lost its lease checks
 ownership before upload and, even in the final interleaving window, cannot publish untracked bytes
-because its GCS generation fence has been removed or changed.
+because its GCS generation fence has been removed or changed. When failed promotion leaves no
+saved content generation, reconciliation first verifies immutable private RightsRadar case, asset,
+and writer metadata, saves the observed generation to the cleanup record transactionally, and only
+then attempts its conditional delete.
 
 Reconciliation is deliberately manual: it is not a queue or background task. With real
 repositories selected and ADC configured, set `RIGHTSRADAR_ENABLE_RECONCILIATION=true`, then run:

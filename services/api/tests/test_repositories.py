@@ -7,7 +7,7 @@ from typing import Any
 import pytest
 
 from app.models import AssetLifecycle, AssetUpload, Case, Finding, ReviewerStatus, StoredAsset
-from app.repositories.assets import CloudStorageAssetRepository
+from app.repositories.assets import CloudStorageAssetRepository as CloudStorageAssetRepositoryImpl
 from app.repositories.cases import (
     CaseRepositoryNotFound,
     FindingNotFound,
@@ -200,6 +200,11 @@ def fake_transactional(
     return operation
 
 
+def CloudStorageAssetRepository(*args: Any, **kwargs: Any) -> CloudStorageAssetRepositoryImpl:
+    kwargs.setdefault("transactional_decorator", fake_transactional)
+    return CloudStorageAssetRepositoryImpl(*args, **kwargs)
+
+
 def fake_case_repository(
     firestore: FakeFirestoreClient,
     *,
@@ -233,6 +238,9 @@ class FakeBlob:
     def generation(self) -> int | None:
         return self._client.generations.get(self.name)
 
+    def reload(self) -> None:
+        self.metadata = self._client.metadata.get(self.name)
+
     def upload_from_string(
         self,
         content: bytes,
@@ -258,6 +266,11 @@ class FakeBlob:
 
     def delete(self, *, if_generation_match: int | None = None) -> None:
         self._client.deleted.append(self.name)
+        self._client.delete_generation_matches.append(if_generation_match)
+        if if_generation_match is not None and self._client.before_conditional_delete is not None:
+            before_conditional_delete = self._client.before_conditional_delete
+            self._client.before_conditional_delete = None
+            before_conditional_delete()
         if self._client.fail_next_delete:
             self._client.fail_next_delete = False
             raise RuntimeError("Cloud Storage delete is unavailable")
@@ -316,9 +329,11 @@ class FakeStorageClient:
         self.generations: dict[str, int] = {}
         self.metadata: dict[str, dict[str, str]] = {}
         self.deleted: list[str] = []
+        self.delete_generation_matches: list[int | None] = []
         self.fail_next_delete = False
         self.missing_raises_not_found = False
         self.before_content_upload: Callable[[], None] | None = None
+        self.before_conditional_delete: Callable[[], None] | None = None
 
     def bucket(self, name: str) -> FakeBucket:
         return FakeBucket(self, name)
@@ -371,6 +386,39 @@ def test_cloud_asset_repository_writes_private_bytes_and_firestore_metadata() ->
         firestore.documents[("cases", "case-1", "assets", asset.id)]["lifecycle"]
         == AssetLifecycle.READY
     )
+
+
+def test_asset_repository_uses_injected_transactional_decorator_for_ready_promotion() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    decorated_transactions: list[FakeTransaction] = []
+
+    def deferred_transactional(
+        operation: Callable[[FakeTransaction], Any],
+    ) -> Callable[[FakeTransaction], Any]:
+        def execute(transaction: FakeTransaction) -> Any:
+            decorated_transactions.append(transaction)
+            return operation(transaction)
+
+        return execute
+
+    repository = CloudStorageAssetRepositoryImpl(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+        transactional_decorator=deferred_transactional,
+    )
+
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+
+    assert decorated_transactions
+    assert firestore.documents[("cases", "case-1", "assets", asset.id)]["lifecycle"] == "ready"
+    assert ("cases_asset_lifecycle", asset.id) not in firestore.documents
 
 
 def test_cloud_asset_store_retains_cleanup_pending_metadata_after_dual_failure() -> None:
@@ -624,6 +672,103 @@ def test_delete_hides_ready_metadata_before_object_cleanup_and_reconciles_failur
     assert repository.list_for_case("case-1") == []
     assert repository.reconcile_pending(limit=10).reconciled == 1
     assert document_path not in firestore.documents
+
+
+def test_cleanup_keeps_later_owned_generation_after_content_generation_is_persisted() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+        precondition_failed_exception=FakeStoragePreconditionFailed,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+    blob = storage.bucket("asset-bucket").blob(asset.storage_reference)
+    blob.metadata = {
+        "rightsrader_asset_state": "content",
+        "rightsrader_case_id": asset.case_id,
+        "rightsrader_asset_id": asset.id,
+        "rightsrader_writer_id": asset.writer_id,
+    }
+    blob.upload_from_string(b"replacement", content_type="text/plain", if_generation_match=2)
+
+    with pytest.raises(FakeStoragePreconditionFailed):
+        repository.delete(asset)
+
+    assert storage.generations[asset.storage_reference] == 3
+    assert storage.metadata[asset.storage_reference]["rightsrader_writer_id"] == asset.writer_id
+    assert storage.delete_generation_matches == [2]
+    assert all(match is not None for match in storage.delete_generation_matches)
+
+
+def test_cleanup_precondition_race_keeps_private_records_when_replacement_is_not_owned() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+        precondition_failed_exception=FakeStoragePreconditionFailed,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+    document_path = ("cases", "case-1", "assets", asset.id)
+
+    def replace_with_foreign_generation() -> None:
+        storage.generations[asset.storage_reference] = 3
+        storage.metadata[asset.storage_reference] = {"rightsrader_asset_state": "content"}
+
+    storage.before_conditional_delete = replace_with_foreign_generation
+
+    with pytest.raises(FakeStoragePreconditionFailed):
+        repository.delete(asset)
+
+    assert storage.generations[asset.storage_reference] == 3
+    assert document_path in firestore.documents
+    assert firestore.documents[document_path]["lifecycle"] == AssetLifecycle.CLEANUP_PENDING
+    assert storage.delete_generation_matches == [2]
+
+
+def test_cleanup_recovers_failed_promotion_by_persisting_verified_content_generation() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+        precondition_failed_exception=FakeStoragePreconditionFailed,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+    recovering = asset.model_copy(
+        update={
+            "lifecycle": AssetLifecycle.CLEANUP_PENDING,
+            "lease_token": "recovery-lease",
+            "content_generation": None,
+        }
+    )
+    firestore.documents[("cases", asset.case_id, "assets", asset.id)] = recovering.model_dump(
+        mode="json"
+    )
+    firestore.documents[("cases_asset_lifecycle", asset.id)] = recovering.model_dump(mode="json")
+
+    assert repository.reconcile_pending(limit=10).reconciled == 1
+    assert asset.storage_reference not in storage.uploads
+    assert storage.delete_generation_matches[-1] == 2
 
 
 def test_delete_aborts_before_touching_bytes_when_private_transition_fails() -> None:

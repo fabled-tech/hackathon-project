@@ -96,10 +96,13 @@ class CloudStorageAssetRepository:
         storage_client: Any | None = None,
         firestore_client: Any | None = None,
         not_found_exception: type[Exception] | None = None,
+        precondition_failed_exception: type[Exception] | None = None,
         clock: Callable[[], datetime] | None = None,
         before_upload: Callable[[], None] | None = None,
+        transactional_decorator: Callable[
+            [Callable[[Any], Result]], Callable[[Any], Result]
+        ] | None = None,
     ) -> None:
-        supplied_firestore_client = firestore_client is not None
         if storage_client is None:
             from google.cloud.storage import Client
 
@@ -115,16 +118,16 @@ class CloudStorageAssetRepository:
         self._lifecycle_collection = firestore_client.collection(lifecycle_collection)
         self._firestore_client = firestore_client
         self._not_found_exception = not_found_exception
+        self._precondition_failed_exception = precondition_failed_exception
         self._clock = clock or (lambda: datetime.now(UTC))
         self._before_upload = before_upload
-        if supplied_firestore_client:
-            self._transactional: Callable[[Callable[[Any], Result]], Callable[[Any], Result]] = (
-                lambda operation: operation
-            )
-        else:
+        self._transactional: Any
+        if transactional_decorator is None:
             from google.cloud import firestore
 
             self._transactional = firestore.transactional
+        else:
+            self._transactional = transactional_decorator
 
     def _document(self, asset: StoredAsset) -> Any:
         return self._case_collection.document(asset.case_id).collection("assets").document(asset.id)
@@ -134,7 +137,7 @@ class CloudStorageAssetRepository:
 
     def _run_transaction(self, operation: Callable[[Any], Result]) -> Result:
         transaction = self._firestore_client.transaction()
-        return self._transactional(operation)(transaction)
+        return cast(Result, self._transactional(operation)(transaction))
 
     def _read_asset(self, document: Any, transaction: Any) -> StoredAsset | None:
         snapshot = document.get(transaction=transaction)
@@ -152,16 +155,63 @@ class CloudStorageAssetRepository:
             return False
         return isinstance(error, NotFound)
 
-    def _delete_storage_object(
-        self, asset: StoredAsset, *, if_generation_match: int | None = None
-    ) -> None:
+    def _is_precondition_failed(self, error: Exception) -> bool:
+        if self._precondition_failed_exception is not None:
+            return isinstance(error, self._precondition_failed_exception)
         try:
-            self._bucket.blob(asset.storage_reference).delete(
-                if_generation_match=if_generation_match
-            )
+            from google.api_core.exceptions import PreconditionFailed
+        except ImportError:
+            return False
+        return isinstance(error, PreconditionFailed)
+
+    def _is_owned_object(self, blob: Any, asset: StoredAsset) -> bool:
+        metadata = blob.metadata or {}
+        return (
+            metadata.get("rightsrader_case_id") == asset.case_id
+            and metadata.get("rightsrader_asset_id") == asset.id
+            and metadata.get("rightsrader_asset_state") in {_MARKER_STATE, _CONTENT_STATE}
+        )
+
+    def _delete_storage_object(self, asset: StoredAsset, *, expected_generation: int) -> None:
+        blob = self._bucket.blob(asset.storage_reference)
+        try:
+            blob.delete(if_generation_match=expected_generation)
+            return
         except Exception as error:
-            if not self._is_not_found(error):
-                raise
+            if self._is_not_found(error):
+                return
+            raise
+
+    def _discover_owned_generation(self, asset: StoredAsset) -> int:
+        blob = self._bucket.blob(asset.storage_reference)
+        blob.reload()
+        if blob.generation is None or not self._is_owned_object(blob, asset):
+            raise AssetWriteLeaseLost("Asset object ownership could not be verified")
+        metadata = blob.metadata or {}
+        if metadata.get("rightsrader_writer_id") != asset.writer_id:
+            raise AssetWriteLeaseLost("Asset object ownership could not be verified")
+        return int(blob.generation)
+
+    def _persist_cleanup_content_generation(
+        self, asset: StoredAsset, content_generation: int
+    ) -> StoredAsset:
+        def persist(transaction: Any) -> StoredAsset:
+            document = self._document(asset)
+            current = self._read_asset(document, transaction)
+            if (
+                current is None
+                or current.lifecycle is not AssetLifecycle.CLEANUP_PENDING
+                or current.lease_token != asset.lease_token
+            ):
+                raise AssetWriteLeaseLost("Asset cleanup lease was lost")
+            if current.content_generation not in (None, content_generation):
+                raise AssetWriteLeaseLost("Asset content generation changed")
+            values = {"content_generation": content_generation}
+            transaction.update(document, values)
+            transaction.update(self._lifecycle_document(asset), values)
+            return current.model_copy(update=values)
+
+        return self._run_transaction(persist)
 
     def _create_marker(self, asset: StoredAsset) -> StoredAsset:
         blob = self._bucket.blob(asset.storage_reference)
@@ -169,6 +219,7 @@ class CloudStorageAssetRepository:
             "rightsrader_asset_state": _MARKER_STATE,
             "rightsrader_case_id": asset.case_id,
             "rightsrader_asset_id": asset.id,
+            "rightsrader_writer_id": asset.writer_id or "",
         }
         blob.upload_from_string(b"", content_type=asset.content_type, if_generation_match=0)
         generation = blob.generation
@@ -215,6 +266,7 @@ class CloudStorageAssetRepository:
                     "lifecycle": AssetLifecycle.READY,
                     "lease_token": None,
                     "lease_expires_at": None,
+                    "content_generation": asset.content_generation,
                 },
             )
             transaction.delete(self._lifecycle_document(asset))
@@ -298,7 +350,19 @@ class CloudStorageAssetRepository:
     ) -> None:
         if not self._cleanup_claim_is_current(asset):
             raise AssetWriteLeaseLost("Asset cleanup lease was lost")
-        self._delete_storage_object(asset, if_generation_match=marker_generation)
+        expected_generation = asset.content_generation or marker_generation
+        if expected_generation is None:
+            discovered = self._discover_owned_generation(asset)
+            asset = self._persist_cleanup_content_generation(asset, discovered)
+            expected_generation = discovered
+        try:
+            self._delete_storage_object(asset, expected_generation=expected_generation)
+        except Exception as error:
+            if not self._is_precondition_failed(error) or asset.content_generation is not None:
+                raise
+            discovered = self._discover_owned_generation(asset)
+            asset = self._persist_cleanup_content_generation(asset, discovered)
+            self._delete_storage_object(asset, expected_generation=discovered)
 
         def remove(transaction: Any) -> None:
             current = self._read_asset(self._document(asset), transaction)
@@ -326,6 +390,7 @@ class CloudStorageAssetRepository:
             created_at=self._clock(),
             lifecycle=AssetLifecycle.PENDING,
             lease_token=str(uuid4()),
+            writer_id=str(uuid4()),
             lease_expires_at=self._clock() + _LEASE_DURATION,
         )
         try:
@@ -343,12 +408,20 @@ class CloudStorageAssetRepository:
             if not self._writer_owns_lease(asset):
                 raise AssetWriteLeaseLost("Asset write lease was lost")
             blob = self._bucket.blob(asset.storage_reference)
-            blob.metadata = {"rightsrader_asset_state": _CONTENT_STATE}
+            blob.metadata = {
+                "rightsrader_asset_state": _CONTENT_STATE,
+                "rightsrader_case_id": asset.case_id,
+                "rightsrader_asset_id": asset.id,
+                "rightsrader_writer_id": asset.writer_id or "",
+            }
             blob.upload_from_string(
                 upload.content,
                 content_type=upload.content_type,
                 if_generation_match=asset.marker_generation,
             )
+            if blob.generation is None:
+                raise RuntimeError("Asset content generation was unavailable")
+            asset = asset.model_copy(update={"content_generation": int(blob.generation)})
             if not self._promote_ready(asset):
                 raise AssetWriteLeaseLost("Asset write lease was lost")
         except Exception as primary_error:
@@ -362,6 +435,7 @@ class CloudStorageAssetRepository:
                 "lifecycle": AssetLifecycle.READY,
                 "lease_token": None,
                 "lease_expires_at": None,
+                "content_generation": asset.content_generation,
             },
             deep=True,
         )
