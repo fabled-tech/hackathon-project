@@ -9,6 +9,10 @@ The first walking skeleton accepts a script excerpt, identifies deterministic mo
 quotation leads, gathers traceable mock evidence, stores the case, and lets a reviewer dismiss or
 escalate each finding.
 
+It also accepts plain-text production notes. Assets are limited to 256 KiB and their browser view
+shows only filename, size, and upload timestamp; stored content and storage references are never
+shown to the browser.
+
 ## Requirements
 
 - Node.js 20.9+ and `pnpm` 10
@@ -84,6 +88,24 @@ The Parallel adapter uses its documented [Search API](https://docs.parallel.ai/a
 with `RIGHTSRADAR_PARALLEL_API_KEY` only on the server. No secret is exposed to the browser or
 written to logs.
 
+### Repository-only hybrid smoke setup
+
+Use this non-secret configuration when you want to exercise only Firestore and Cloud Storage while
+keeping Gemini and Parallel deterministic mocks:
+
+```bash
+RIGHTSRADAR_MODE=hybrid
+RIGHTSRADAR_REPOSITORY_MODE=real
+RIGHTSRADAR_GOOGLE_CLOUD_PROJECT=<project-id>
+RIGHTSRADAR_FIRESTORE_COLLECTION=rightsrader_cases
+RIGHTSRADAR_CLOUD_STORAGE_BUCKET=<private-bucket-name>
+```
+
+Leave `RIGHTSRADAR_GEMINI_MODE` and `RIGHTSRADAR_PARALLEL_MODE` unset (or set them to `mock`) for
+this repository-only smoke run. Authenticate locally with Application Default Credentials, then
+set `RIGHTSRADAR_ENABLE_REAL_SMOKE=true` only when you deliberately intend to contact the configured
+repositories. The default mock mode neither requires nor uses cloud credentials.
+
 To deliberately call configured real services, set `RIGHTSRADAR_ENABLE_REAL_SMOKE=true` and a
 non-mock mode, then run `make smoke-real`. With the default environment, it prints a skip message
 and makes no external calls.
@@ -100,6 +122,6 @@ and makes no external calls.
 ## Current scope and next milestone
 
 This foundation intentionally excludes authentication, payment, queues, deployment automation,
-media analysis, and final legal decisions. The recommended next milestone is asset ingestion: add
-Cloud Storage-backed uploads and a reviewer case history while preserving the same repositories,
-OpenAPI-first contract, and human review workflow.
+media analysis, and final legal decisions. The recommended next milestone is configurable Gemini
+and Parallel evaluation with a human-review quality rubric, while preserving the same
+OpenAPI-first contract and reviewer workflow.
