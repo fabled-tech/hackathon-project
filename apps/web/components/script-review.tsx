@@ -55,15 +55,11 @@ export function ScriptReview() {
     event.preventDefault();
     const operationGeneration = ++caseOperationGeneration.current;
     const requestGeneration = ++submissionGeneration.current;
-    activeCaseIdRef.current = null;
     setIsSubmitting(true);
     setError(null);
     try {
       const nextCase = await createCase({ script_text: scriptText }, API_BASE_URL);
-      if (
-        caseOperationGeneration.current !== operationGeneration ||
-        activeCaseIdRef.current !== null
-      ) {
+      if (caseOperationGeneration.current !== operationGeneration) {
         return;
       }
       activeCaseIdRef.current = nextCase.id;
@@ -72,10 +68,7 @@ export function ScriptReview() {
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
-      if (
-        caseOperationGeneration.current === operationGeneration &&
-        activeCaseIdRef.current === null
-      ) {
+      if (caseOperationGeneration.current === operationGeneration) {
         setError('RightsRadar could not analyze this script right now. Please try again.');
       }
     } finally {
@@ -134,28 +127,22 @@ export function ScriptReview() {
   async function reopenCase(caseId: string) {
     const operationGeneration = ++caseOperationGeneration.current;
     const requestGeneration = ++caseLoadingGeneration.current;
-    activeCaseIdRef.current = caseId;
     setIsLoadingCaseId(caseId);
     setError(null);
     try {
       const nextCase = await getCase(caseId, API_BASE_URL);
       const nextAssets = await listAssets(caseId, API_BASE_URL);
-      if (
-        caseOperationGeneration.current !== operationGeneration ||
-        activeCaseIdRef.current !== caseId
-      ) {
+      if (caseOperationGeneration.current !== operationGeneration) {
         return;
       }
+      activeCaseIdRef.current = caseId;
       setScriptText(nextCase.script_text);
       setCaseResult(nextCase);
       setAssets(nextAssets);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
-      if (
-        caseOperationGeneration.current === operationGeneration &&
-        activeCaseIdRef.current === caseId
-      ) {
+      if (caseOperationGeneration.current === operationGeneration) {
         setError('This case could not be reopened. Please try again.');
       }
     } finally {

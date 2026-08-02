@@ -1,5 +1,103 @@
 import { expect, test } from '@playwright/test';
 
+test('keeps the visible case usable after reopening another case fails', async ({ page }) => {
+  const visibleScript = 'Failure guard visible case: Nimbus Soda remains on the prop table.';
+  const failedScript = 'Failure guard target case: a quiet scene plays in silence.';
+
+  await page.goto('/');
+  await page.getByLabel('Script text').fill(visibleScript);
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  await page.getByLabel('Script text').fill(failedScript);
+  const failedCaseResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
+  );
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  const failedCase = await (await failedCaseResponse).json();
+
+  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(visibleScript) }).click();
+  await expect(page.getByLabel('Script text')).toHaveValue(visibleScript);
+
+  await page.route(`**/api/cases/${failedCase.id}`, async (route) => {
+    await route.fulfill({
+      status: 500,
+      contentType: 'application/json',
+      body: JSON.stringify({ detail: 'forced reopen failure' })
+    });
+  });
+  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(failedScript) }).click();
+  await expect(page.getByText('This case could not be reopened. Please try again.')).toBeVisible();
+  await expect(page.getByLabel('Script text')).toHaveValue(visibleScript);
+
+  await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
+  await page.getByRole('button', { name: 'Upload asset' }).click();
+  await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
+
+  await page.unroute(`**/api/cases/${failedCase.id}`);
+});
+
+test('ignores stale asset uploads after a newer case is selected', async ({ page }) => {
+  const olderScript = 'Stale upload older case: Nimbus Soda remains on the prop table.';
+  const newerScript = 'Stale upload newer case: a quiet scene plays in silence.';
+
+  await page.goto('/');
+  await page.getByLabel('Script text').fill(olderScript);
+  const olderCaseResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
+  );
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  const olderCase = await (await olderCaseResponse).json();
+
+  await page.getByLabel('Script text').fill(newerScript);
+  const newerCaseResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
+  );
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  const newerCase = await (await newerCaseResponse).json();
+
+  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(olderScript) }).click();
+  await expect(page.getByLabel('Script text')).toHaveValue(olderScript);
+
+  let releaseOlderAssetsResponse: (() => void) | undefined;
+  let signalOlderAssetsRequestStarted: (() => void) | undefined;
+  const olderAssetsRequestStarted = new Promise<void>((resolve) => {
+    signalOlderAssetsRequestStarted = resolve;
+  });
+  await page.route(`**/api/cases/${olderCase.id}/assets`, async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    signalOlderAssetsRequestStarted?.();
+    await new Promise<void>((release) => {
+      releaseOlderAssetsResponse = release;
+    });
+    await route.continue();
+  });
+
+  await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
+  await page.getByRole('button', { name: 'Upload asset' }).click();
+  await olderAssetsRequestStarted;
+  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(newerScript) }).click();
+  await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
+
+  const staleAssetsResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/cases/${olderCase.id}/assets`) &&
+      response.request().method() === 'GET'
+  );
+  releaseOlderAssetsResponse?.();
+  await staleAssetsResponse;
+  await expect(page.getByTestId('asset-list')).not.toContainText('production-note.txt');
+  await expect(page.getByTestId('finding-card')).toHaveCount(0);
+  await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
+
+  await page.unroute(`**/api/cases/${olderCase.id}/assets`);
+  expect(newerCase.id).not.toBe(olderCase.id);
+});
+
 test('ignores stale case reopen responses after a newer case is selected', async ({ page }) => {
   const olderScript = 'The Nimbus Soda can remains on the prop table.';
   const newerScript = 'A quiet scene without any fictional references plays in silence.';
