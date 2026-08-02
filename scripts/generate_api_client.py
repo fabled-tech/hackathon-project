@@ -61,7 +61,10 @@ def require_operation(schema: dict[str, Any], path: str, method: str) -> None:
 def generate() -> str:
     schema = create_app().openapi()
     require_operation(schema, "/api/cases", "post")
+    require_operation(schema, "/api/cases", "get")
     require_operation(schema, "/api/cases/{case_id}", "get")
+    require_operation(schema, "/api/cases/{case_id}/assets", "post")
+    require_operation(schema, "/api/cases/{case_id}/assets", "get")
     require_operation(schema, "/api/cases/{case_id}/findings/{finding_id}", "patch")
     components = schema["components"]["schemas"]
     component_definitions = "\n\n".join(
@@ -109,6 +112,43 @@ export function getCase(
   fetcher: ApiFetcher = fetch
 ): Promise<Case> {{
   return request<Case>(`/api/cases/${{caseId}}`, baseUrl, {{ method: 'GET' }}, fetcher);
+}}
+
+export function listCases(
+  limit: number,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<CaseSummary[]> {{
+  return request<CaseSummary[]>(`/api/cases?limit=${{encodeURIComponent(limit)}}`, baseUrl, {{ method: 'GET' }}, fetcher);
+}}
+
+export function uploadAsset(
+  caseId: string,
+  file: File,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<Asset> {{
+  const body = new FormData();
+  body.append('file', file);
+  return request<Asset>(
+    '/api/cases/' + encodeURIComponent(caseId) + '/assets',
+    baseUrl,
+    {{ method: 'POST', body }},
+    fetcher
+  );
+}}
+
+export function listAssets(
+  caseId: string,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<Asset[]> {{
+  return request<Asset[]>(
+    '/api/cases/' + encodeURIComponent(caseId) + '/assets',
+    baseUrl,
+    {{ method: 'GET' }},
+    fetcher
+  );
 }}
 
 export function updateFindingStatus(
