@@ -1,11 +1,16 @@
 from datetime import UTC, datetime
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Request, status
+from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
 
 from app.dependencies import ApplicationServices
-from app.models import Case, Finding
-from app.models.requests import CreateCaseRequest, UpdateFindingRequest
+from app.models import Asset, AssetUpload, Case, CaseSummary, Finding
+from app.models.requests import (
+    ALLOWED_ASSET_CONTENT_TYPE,
+    MAX_ASSET_BYTES,
+    CreateCaseRequest,
+    UpdateFindingRequest,
+)
 from app.repositories import CaseRepositoryNotFound, FindingNotFound
 
 router = APIRouter(prefix="/api/cases", tags=["cases"])
@@ -28,12 +33,56 @@ def create_case(payload: CreateCaseRequest, request: Request) -> Case:
     return services.case_repository.create(case)
 
 
+@router.get("", response_model=list[CaseSummary])
+def list_cases(request: Request, limit: int = Query(default=10, ge=1, le=50)) -> list[CaseSummary]:
+    return _services(request).case_repository.list_recent(limit)
+
+
 @router.get("/{case_id}", response_model=Case)
 def get_case(case_id: str, request: Request) -> Case:
     try:
         return _services(request).case_repository.get(case_id)
     except CaseRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Case not found") from error
+
+
+@router.post("/{case_id}/assets", response_model=Asset, status_code=status.HTTP_201_CREATED)
+async def upload_asset(case_id: str, file: UploadFile, request: Request) -> Asset:
+    services = _services(request)
+    try:
+        services.case_repository.get(case_id)
+    except CaseRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Case not found") from error
+
+    content = await file.read()
+    if file.content_type != ALLOWED_ASSET_CONTENT_TYPE:
+        raise HTTPException(status_code=422, detail="Only text/plain assets are supported")
+    if len(content) > MAX_ASSET_BYTES:
+        raise HTTPException(status_code=422, detail="Asset must not exceed 256 KiB")
+
+    asset = services.asset_repository.store(
+        case_id,
+        AssetUpload(
+            filename=file.filename or "asset.txt",
+            content_type=ALLOWED_ASSET_CONTENT_TYPE,
+            content=content,
+        ),
+    )
+    try:
+        services.case_repository.increment_asset_count(case_id)
+    except CaseRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Case not found") from error
+    return asset
+
+
+@router.get("/{case_id}/assets", response_model=list[Asset])
+def list_assets(case_id: str, request: Request) -> list[Asset]:
+    services = _services(request)
+    try:
+        services.case_repository.get(case_id)
+    except CaseRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Case not found") from error
+    return services.asset_repository.list_for_case(case_id)
 
 
 @router.patch("/{case_id}/findings/{finding_id}", response_model=Finding)
