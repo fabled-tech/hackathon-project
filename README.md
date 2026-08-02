@@ -10,8 +10,8 @@ quotation leads, gathers traceable mock evidence, stores the case, and lets a re
 escalate each finding.
 
 It also accepts plain-text production notes. Assets are limited to 256 KiB and their browser view
-shows only filename, size, and upload timestamp; stored content and storage references are never
-shown to the browser.
+shows only filename, size, and upload timestamp; stored content and storage references are not
+rendered or exposed in the UI.
 
 ## Requirements
 

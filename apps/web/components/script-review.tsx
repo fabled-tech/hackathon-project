@@ -98,6 +98,7 @@ export function ScriptReview() {
     try {
       const nextCase = await getCase(caseId, API_BASE_URL);
       const nextAssets = await listAssets(caseId, API_BASE_URL);
+      setScriptText(nextCase.script_text);
       setCaseResult(nextCase);
       setAssets(nextAssets);
       setSelectedFile(null);
