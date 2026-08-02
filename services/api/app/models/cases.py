@@ -39,3 +39,4 @@ class Case(BaseModel):
     script_text: str
     created_at: datetime
     findings: list[Finding]
+    asset_count: int = Field(default=0, ge=0)

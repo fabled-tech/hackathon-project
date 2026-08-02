@@ -1,7 +1,7 @@
 from collections.abc import Mapping
 from typing import Protocol
 
-from app.models import Case, Finding, ReviewerStatus
+from app.models import Case, CaseSummary, Finding, ReviewerStatus
 
 
 class CaseRepositoryNotFound(Exception):
@@ -20,6 +20,10 @@ class CaseRepository(Protocol):
     def update_finding_status(
         self, case_id: str, finding_id: str, reviewer_status: ReviewerStatus
     ) -> Finding: ...
+
+    def list_recent(self, limit: int) -> list[CaseSummary]: ...
+
+    def increment_asset_count(self, case_id: str) -> None: ...
 
 
 class InMemoryCaseRepository:
@@ -47,6 +51,25 @@ class InMemoryCaseRepository:
                 finding.reviewer_status = reviewer_status
                 return finding.model_copy(deep=True)
         raise FindingNotFound(finding_id)
+
+    def list_recent(self, limit: int) -> list[CaseSummary]:
+        cases = sorted(self._cases.values(), key=lambda case: case.created_at, reverse=True)
+        return [
+            CaseSummary(
+                id=case.id,
+                created_at=case.created_at,
+                script_excerpt=case.script_text[:160],
+                finding_count=len(case.findings),
+                asset_count=case.asset_count,
+            )
+            for case in cases[:limit]
+        ]
+
+    def increment_asset_count(self, case_id: str) -> None:
+        case = self._cases.get(case_id)
+        if case is None:
+            raise CaseRepositoryNotFound(case_id)
+        case.asset_count += 1
 
 
 class FirestoreCaseRepository:
@@ -81,3 +104,24 @@ class FirestoreCaseRepository:
                 self._collection.document(case_id).set(case.model_dump(mode="json"))
                 return finding
         raise FindingNotFound(finding_id)
+
+    def list_recent(self, limit: int) -> list[CaseSummary]:
+        snapshots = (
+            self._collection.order_by("created_at", direction="DESCENDING").limit(limit).stream()
+        )
+        return [
+            CaseSummary(
+                id=document["id"],
+                created_at=document["created_at"],
+                script_excerpt=document["script_text"][:160],
+                finding_count=len(document["findings"]),
+                asset_count=document.get("asset_count", 0),
+            )
+            for snapshot in snapshots
+            if isinstance((document := snapshot.to_dict()), Mapping)
+        ]
+
+    def increment_asset_count(self, case_id: str) -> None:
+        case = self.get(case_id)
+        case.asset_count += 1
+        self._collection.document(case_id).set(case.model_dump(mode="json"))
