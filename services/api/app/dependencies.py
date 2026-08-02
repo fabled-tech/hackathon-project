@@ -1,0 +1,72 @@
+from dataclasses import dataclass
+
+from app.agents import AgentService, RightsClearanceAgentService
+from app.config import IntegrationMode, Settings
+from app.integrations import (
+    GeminiClient,
+    MockGeminiClient,
+    MockParallelSearchClient,
+    ParallelSearchClient,
+    ParallelSearchHttpClient,
+    VertexGeminiClient,
+)
+from app.repositories import (
+    AssetRepository,
+    CaseRepository,
+    CloudStorageAssetRepository,
+    FirestoreCaseRepository,
+    InMemoryAssetRepository,
+    InMemoryCaseRepository,
+)
+
+
+@dataclass(frozen=True)
+class ApplicationServices:
+    case_repository: CaseRepository
+    asset_repository: AssetRepository
+    agent_service: AgentService
+
+
+def _require(value: str | None, setting_name: str) -> str:
+    if not value:
+        raise ValueError(f"{setting_name} must be set when its real integration is enabled")
+    return value
+
+
+def build_services(settings: Settings) -> ApplicationServices:
+    gemini: GeminiClient
+    parallel: ParallelSearchClient
+    case_repository: CaseRepository
+    asset_repository: AssetRepository
+
+    if settings.selected_mode(settings.gemini_mode) is IntegrationMode.REAL:
+        gemini = VertexGeminiClient(
+            project=_require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT"),
+            location=settings.google_cloud_location,
+            model=settings.gemini_model,
+        )
+    else:
+        gemini = MockGeminiClient()
+
+    if settings.selected_mode(settings.parallel_mode) is IntegrationMode.REAL:
+        parallel = ParallelSearchHttpClient(
+            api_key=_require(settings.parallel_api_key, "RIGHTSRADAR_PARALLEL_API_KEY")
+        )
+    else:
+        parallel = MockParallelSearchClient()
+
+    if settings.selected_mode(settings.repository_mode) is IntegrationMode.REAL:
+        project = _require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT")
+        case_repository = FirestoreCaseRepository(project, settings.firestore_collection)
+        asset_repository = CloudStorageAssetRepository(
+            _require(settings.cloud_storage_bucket, "RIGHTSRADAR_CLOUD_STORAGE_BUCKET")
+        )
+    else:
+        case_repository = InMemoryCaseRepository()
+        asset_repository = InMemoryAssetRepository()
+
+    return ApplicationServices(
+        case_repository=case_repository,
+        asset_repository=asset_repository,
+        agent_service=RightsClearanceAgentService(gemini, parallel),
+    )

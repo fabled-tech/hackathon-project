@@ -1,0 +1,29 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: services/api/Dockerfile
+    environment:
+      RIGHTSRADAR_MODE: ${RIGHTSRADAR_MODE:-mock}
+      RIGHTSRADAR_GEMINI_MODE: ${RIGHTSRADAR_GEMINI_MODE:-mock}
+      RIGHTSRADAR_PARALLEL_MODE: ${RIGHTSRADAR_PARALLEL_MODE:-mock}
+      RIGHTSRADAR_REPOSITORY_MODE: ${RIGHTSRADAR_REPOSITORY_MODE:-mock}
+      RIGHTSRADAR_GOOGLE_CLOUD_PROJECT: ${RIGHTSRADAR_GOOGLE_CLOUD_PROJECT:-}
+      RIGHTSRADAR_GOOGLE_CLOUD_LOCATION: ${RIGHTSRADAR_GOOGLE_CLOUD_LOCATION:-global}
+      RIGHTSRADAR_GEMINI_MODEL: ${RIGHTSRADAR_GEMINI_MODEL:-gemini-2.5-flash}
+      RIGHTSRADAR_PARALLEL_API_KEY: ${RIGHTSRADAR_PARALLEL_API_KEY:-}
+      RIGHTSRADAR_FIRESTORE_COLLECTION: ${RIGHTSRADAR_FIRESTORE_COLLECTION:-rightsrader_cases}
+      RIGHTSRADAR_CLOUD_STORAGE_BUCKET: ${RIGHTSRADAR_CLOUD_STORAGE_BUCKET:-}
+    ports:
+      - "8000:8000"
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    environment:
+      NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
