@@ -16,6 +16,16 @@ services:
       RIGHTSRADAR_CLOUD_STORAGE_BUCKET: ${RIGHTSRADAR_CLOUD_STORAGE_BUCKET:-}
     ports:
       - "8000:8000"
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "from urllib.request import urlopen; urlopen('http://127.0.0.1:8000/health')"
+      interval: 2s
+      timeout: 3s
+      retries: 10
+      start_period: 2s
 
   web:
     build:
@@ -25,5 +35,16 @@ services:
       NEXT_PUBLIC_API_BASE_URL: ${NEXT_PUBLIC_API_BASE_URL:-http://localhost:8000}
     ports:
       - "3000:3000"
+    healthcheck:
+      test:
+        - CMD
+        - node
+        - -e
+        - "fetch('http://127.0.0.1:3000').then((response) => process.exit(response.ok ? 0 : 1)).catch(() => process.exit(1))"
+      interval: 2s
+      timeout: 3s
+      retries: 10
+      start_period: 2s
     depends_on:
-      - api
+      api:
+        condition: service_healthy

@@ -14,4 +14,4 @@ RUN pnpm --filter @rightsrader/web build
 
 ENV NODE_ENV=production
 EXPOSE 3000
-CMD ["pnpm", "--filter", "@rightsrader/web", "start", "--", "--hostname", "0.0.0.0"]
+CMD ["pnpm", "--filter", "@rightsrader/web", "exec", "next", "start", "--hostname", "0.0.0.0"]
