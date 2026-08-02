@@ -6,7 +6,6 @@ export interface Asset {
   filename: string;
   content_type: string;
   byte_size: number;
-  storage_reference: string;
   created_at: string;
 }
 
@@ -111,15 +110,20 @@ export function getCase(
   baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<Case> {
-  return request<Case>(`/api/cases/${caseId}`, baseUrl, { method: 'GET' }, fetcher);
+  return request<Case>('/api/cases/' + encodeURIComponent(caseId), baseUrl, { method: 'GET' }, fetcher);
 }
 
 export function listCases(
-  limit: number,
+  limit: number = 10,
   baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<CaseSummary[]> {
-  return request<CaseSummary[]>(`/api/cases?limit=${encodeURIComponent(limit)}`, baseUrl, { method: 'GET' }, fetcher);
+  return request<CaseSummary[]>(
+    '/api/cases' + '?limit=' + encodeURIComponent(limit),
+    baseUrl,
+    { method: 'GET' },
+    fetcher
+  );
 }
 
 export function uploadAsset(
@@ -158,7 +162,7 @@ export function updateFindingStatus(
   baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<Finding> {
-  return request<Finding>(`/api/cases/${caseId}/findings/${findingId}`, baseUrl, {
+  return request<Finding>('/api/cases/' + encodeURIComponent(caseId) + '/findings/' + encodeURIComponent(findingId), baseUrl, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reviewer_status: reviewerStatus })
