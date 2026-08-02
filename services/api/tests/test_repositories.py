@@ -1,12 +1,12 @@
 from __future__ import annotations
 
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from datetime import UTC, datetime
 from typing import Any
 
 import pytest
 
-from app.models import AssetUpload, Case
+from app.models import AssetUpload, Case, Finding, ReviewerStatus
 from app.repositories.assets import CloudStorageAssetRepository
 from app.repositories.cases import CaseRepositoryNotFound, FirestoreCaseRepository
 
@@ -81,7 +81,12 @@ class FakeDocument:
         self._client.documents[self._path] = dict(document)
 
     def get(self) -> FakeSnapshot:
-        return FakeSnapshot(self._client.documents.get(self._path))
+        snapshot = FakeSnapshot(self._client.documents.get(self._path))
+        if self._client.after_next_get is not None:
+            after_next_get = self._client.after_next_get
+            self._client.after_next_get = None
+            after_next_get()
+        return snapshot
 
     def update(self, values: Mapping[str, Any]) -> None:
         document = self._client.documents[self._path]
@@ -90,6 +95,9 @@ class FakeDocument:
                 document[key] = int(document.get(key, 0)) + value.amount
             else:
                 document[key] = value
+
+    def delete(self) -> None:
+        self._client.documents.pop(self._path, None)
 
     def collection(self, name: str) -> FakeCollection:
         return FakeCollection(self._client, (*self._path, name))
@@ -110,6 +118,7 @@ class FakeFirestoreClient:
         self.case_collection = case_collection
         self.documents: dict[tuple[str, ...], dict[str, Any]] = {}
         self.fail_next_set = False
+        self.after_next_get: Callable[[], None] | None = None
 
     def collection(self, name: str) -> FakeCollection:
         return FakeCollection(self, (name,))
@@ -226,6 +235,27 @@ def test_cloud_asset_repository_removes_bytes_when_metadata_write_fails() -> Non
     assert storage.deleted and storage.deleted[0].startswith("cases/case-1/assets/")
 
 
+def test_cloud_asset_repository_deletes_private_bytes_and_metadata() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+
+    repository.delete(asset)
+
+    assert asset.storage_reference not in storage.uploads
+    assert ("cases", "case-1", "assets", asset.id) not in firestore.documents
+
+
 def test_firestore_case_repository_increments_asset_count_and_lists_newest() -> None:
     firestore = FakeFirestoreClient()
     repository = FirestoreCaseRepository("test-project", "cases", client=firestore)
@@ -244,3 +274,35 @@ def test_firestore_case_repository_raises_for_unknown_case_increment() -> None:
 
     with pytest.raises(CaseRepositoryNotFound):
         repository.increment_asset_count("missing")
+
+
+def test_firestore_finding_updates_do_not_overwrite_a_concurrent_asset_increment() -> None:
+    firestore = FakeFirestoreClient()
+    repository = FirestoreCaseRepository("test-project", "cases", client=firestore)
+    case = make_case("case-1", created_at=datetime(2026, 8, 1, tzinfo=UTC))
+    case.findings = [
+        Finding(
+            id="finding-1",
+            case_id=case.id,
+            category="brand",
+            detected_item="Nimbus Soda",
+            explanation="Fictional reference",
+            confidence=0.8,
+            supporting_evidence=[],
+            source_urls=[],
+            retrieved_at=datetime(2026, 8, 1, tzinfo=UTC),
+            reviewer_status=ReviewerStatus.PENDING,
+        )
+    ]
+    repository.create(case)
+    document_path = ("cases", case.id)
+
+    def increment_asset_count_concurrently() -> None:
+        firestore.documents[document_path]["asset_count"] = 1
+
+    firestore.after_next_get = increment_asset_count_concurrently
+
+    repository.update_finding_status(case.id, "finding-1", ReviewerStatus.DISMISSED)
+
+    assert firestore.documents[document_path]["asset_count"] == 1
+    assert firestore.documents[document_path]["findings"][0]["reviewer_status"] == "dismissed"

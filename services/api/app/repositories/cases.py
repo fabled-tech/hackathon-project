@@ -109,7 +109,9 @@ class FirestoreCaseRepository:
         for finding in case.findings:
             if finding.id == finding_id:
                 finding.reviewer_status = reviewer_status
-                self._collection.document(case_id).set(case.model_dump(mode="json"))
+                self._collection.document(case_id).update(
+                    case.model_dump(include={"findings"}, mode="json")
+                )
                 return finding
         raise FindingNotFound(finding_id)
 

@@ -11,7 +11,7 @@ export interface Asset {
 }
 
 export interface Body_upload_asset_api_cases__case_id__assets_post {
-  file: string;
+  file: File;
 }
 
 export interface Case {

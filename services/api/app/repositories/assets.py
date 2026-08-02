@@ -8,6 +8,8 @@ from app.models import Asset, AssetUpload
 class AssetRepository(Protocol):
     def store(self, case_id: str, upload: AssetUpload) -> Asset: ...
 
+    def delete(self, asset: Asset) -> None: ...
+
     def list_for_case(self, case_id: str) -> list[Asset]: ...
 
     def get_content(self, asset_id: str) -> bytes: ...
@@ -32,6 +34,10 @@ class InMemoryAssetRepository:
         self._assets[asset_id] = asset
         self._content[asset_id] = upload.content
         return asset.model_copy(deep=True)
+
+    def delete(self, asset: Asset) -> None:
+        self._assets.pop(asset.id, None)
+        self._content.pop(asset.id, None)
 
     def list_for_case(self, case_id: str) -> list[Asset]:
         return [
@@ -91,6 +97,12 @@ class CloudStorageAssetRepository:
             blob.delete()
             raise
         return asset.model_copy(deep=True)
+
+    def delete(self, asset: Asset) -> None:
+        self._bucket.blob(asset.storage_reference).delete()
+        self._case_collection.document(asset.case_id).collection("assets").document(
+            asset.id
+        ).delete()
 
     def list_for_case(self, case_id: str) -> list[Asset]:
         return [

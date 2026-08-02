@@ -1,5 +1,6 @@
 from datetime import UTC, datetime
 
+import pytest
 from fastapi.testclient import TestClient
 
 from app.models import Case
@@ -29,6 +30,20 @@ def test_in_memory_asset_repository_keeps_case_metadata_and_content() -> None:
     assert asset.byte_size == 4
     assert repository.list_for_case("case-1") == [asset]
     assert repository.get_content(asset.id) == b"note"
+
+
+def test_in_memory_asset_repository_deletes_metadata_and_content() -> None:
+    repository = InMemoryAssetRepository()
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="production-note.txt", content_type="text/plain", content=b"note"),
+    )
+
+    repository.delete(asset)
+
+    assert repository.list_for_case("case-1") == []
+    with pytest.raises(KeyError):
+        repository.get_content(asset.id)
 
 
 def test_in_memory_case_repository_returns_newest_case_summaries() -> None:

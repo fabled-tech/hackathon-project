@@ -20,6 +20,13 @@ def _services(request: Request) -> ApplicationServices:
     return request.app.state.services  # type: ignore[no-any-return]
 
 
+def _delete_asset_after_increment_failure(services: ApplicationServices, asset: Asset) -> None:
+    try:
+        services.asset_repository.delete(asset)
+    except Exception:
+        pass
+
+
 @router.post("", response_model=Case, status_code=status.HTTP_201_CREATED)
 def create_case(payload: CreateCaseRequest, request: Request) -> Case:
     case_id = str(uuid4())
@@ -54,9 +61,9 @@ async def upload_asset(case_id: str, file: UploadFile, request: Request) -> Asse
     except CaseRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Case not found") from error
 
-    content = await file.read()
     if file.content_type != ALLOWED_ASSET_CONTENT_TYPE:
         raise HTTPException(status_code=422, detail="Only text/plain assets are supported")
+    content = await file.read(MAX_ASSET_BYTES + 1)
     if len(content) > MAX_ASSET_BYTES:
         raise HTTPException(status_code=422, detail="Asset must not exceed 256 KiB")
 
@@ -71,7 +78,11 @@ async def upload_asset(case_id: str, file: UploadFile, request: Request) -> Asse
     try:
         services.case_repository.increment_asset_count(case_id)
     except CaseRepositoryNotFound as error:
+        _delete_asset_after_increment_failure(services, asset)
         raise HTTPException(status_code=404, detail="Case not found") from error
+    except Exception:
+        _delete_asset_after_increment_failure(services, asset)
+        raise
     return asset
 
 
