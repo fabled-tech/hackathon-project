@@ -1,5 +1,6 @@
 from dataclasses import dataclass
 from datetime import datetime
+from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
@@ -13,8 +14,15 @@ class Asset(BaseModel):
     created_at: datetime
 
 
+class AssetLifecycle(StrEnum):
+    PENDING = "pending"
+    READY = "ready"
+    CLEANUP_PENDING = "cleanup_pending"
+
+
 class StoredAsset(Asset):
     storage_reference: str
+    lifecycle: AssetLifecycle = AssetLifecycle.READY
 
 
 class CaseSummary(BaseModel):

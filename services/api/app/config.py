@@ -30,6 +30,7 @@ class Settings(BaseSettings):
     firestore_collection: str = "rightsrader_cases"
     cloud_storage_bucket: str | None = None
     enable_real_smoke: bool = False
+    enable_reconciliation: bool = False
 
     def selected_mode(self, integration_mode: IntegrationMode) -> IntegrationMode:
         if self.mode is EnvironmentMode.MOCK:

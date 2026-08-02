@@ -6,7 +6,7 @@ from typing import Any
 
 import pytest
 
-from app.models import AssetUpload, Case, Finding, ReviewerStatus
+from app.models import AssetLifecycle, AssetUpload, Case, Finding, ReviewerStatus, StoredAsset
 from app.repositories.assets import CloudStorageAssetRepository
 from app.repositories.cases import (
     CaseRepositoryNotFound,
@@ -35,6 +35,7 @@ class FakeQuery:
         self._descending = False
         self._limit: int | None = None
         self._matching_asset_id: str | None = None
+        self._matching_lifecycles: list[str] | None = None
 
     def order_by(self, _field: str, *, direction: str) -> FakeQuery:
         self._descending = direction == "DESCENDING"
@@ -44,9 +45,11 @@ class FakeQuery:
         self._limit = value
         return self
 
-    def where(self, field: str, _operator: str, value: str) -> FakeQuery:
+    def where(self, field: str, _operator: str, value: Any) -> FakeQuery:
         if field == "id":
             self._matching_asset_id = value
+        if field == "lifecycle":
+            self._matching_lifecycles = list(value)
         return self
 
     def stream(self) -> list[FakeSnapshot]:
@@ -57,7 +60,14 @@ class FakeQuery:
                 if len(path) == 4
                 and path[0] == self._client.case_collection
                 and path[2] == "assets"
-                and document.get("id") == self._matching_asset_id
+                and (
+                    self._matching_asset_id is None
+                    or document.get("id") == self._matching_asset_id
+                )
+                and (
+                    self._matching_lifecycles is None
+                    or document.get("lifecycle") in self._matching_lifecycles
+                )
             ]
         else:
             documents = [
@@ -97,6 +107,9 @@ class FakeDocument:
 
     def update(self, values: Mapping[str, Any]) -> None:
         self._client.direct_updates.append(self._path)
+        if self._client.fail_next_update:
+            self._client.fail_next_update = False
+            raise RuntimeError("Firestore update is unavailable")
         self._apply_update(values)
 
     def _apply_update(self, values: Mapping[str, Any]) -> None:
@@ -143,6 +156,7 @@ class FakeFirestoreClient:
         self.case_collection = case_collection
         self.documents: dict[tuple[str, ...], dict[str, Any]] = {}
         self.fail_next_set = False
+        self.fail_next_update = False
         self.fail_next_delete = False
         self.after_next_get: Callable[[], None] | None = None
         self.deleted_documents: list[tuple[str, ...]] = []
@@ -187,6 +201,10 @@ def fake_case_repository(
     )
 
 
+class FakeStorageNotFound(Exception):
+    pass
+
+
 class FakeBlob:
     def __init__(self, client: FakeStorageClient, name: str) -> None:
         self._client = client
@@ -203,6 +221,8 @@ class FakeBlob:
         if self._client.fail_next_delete:
             self._client.fail_next_delete = False
             raise RuntimeError("Cloud Storage delete is unavailable")
+        if self.name not in self._client.uploads and self._client.missing_raises_not_found:
+            raise FakeStorageNotFound(self.name)
         self._client.uploads.pop(self.name, None)
 
 
@@ -220,6 +240,7 @@ class FakeStorageClient:
         self.uploads: dict[str, tuple[bytes, str]] = {}
         self.deleted: list[str] = []
         self.fail_next_delete = False
+        self.missing_raises_not_found = False
 
     def bucket(self, name: str) -> FakeBucket:
         return FakeBucket(self, name)
@@ -232,6 +253,22 @@ def make_case(case_id: str, *, created_at: datetime) -> Case:
         created_at=created_at,
         findings=[],
     )
+
+
+def test_legacy_stored_asset_metadata_defaults_to_ready() -> None:
+    asset = StoredAsset.model_validate(
+        {
+            "id": "asset-1",
+            "case_id": "case-1",
+            "filename": "note.txt",
+            "content_type": "text/plain",
+            "byte_size": 4,
+            "created_at": datetime(2026, 8, 2, tzinfo=UTC),
+            "storage_reference": "cases/case-1/assets/asset-1",
+        }
+    )
+
+    assert asset.lifecycle is AssetLifecycle.READY
 
 
 def test_cloud_asset_repository_writes_private_bytes_and_firestore_metadata() -> None:
@@ -252,6 +289,66 @@ def test_cloud_asset_repository_writes_private_bytes_and_firestore_metadata() ->
 
     assert storage.uploads[asset.storage_reference] == (b"rights note", "text/plain")
     assert firestore.documents[("cases", "case-1", "assets", asset.id)]["filename"] == "note.txt"
+    assert (
+        firestore.documents[("cases", "case-1", "assets", asset.id)]["lifecycle"]
+        == AssetLifecycle.READY
+    )
+
+
+def test_cloud_asset_store_retains_cleanup_pending_metadata_after_dual_failure() -> None:
+    storage = FakeStorageClient()
+    storage.fail_next_delete = True
+    firestore = FakeFirestoreClient()
+    firestore.fail_next_update = True
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+
+    with pytest.raises(RuntimeError, match="Firestore update is unavailable") as error:
+        repository.store(
+            "case-1",
+            AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+        )
+
+    assert isinstance(error.value.__cause__, RuntimeError)
+    assert str(error.value.__cause__) == "Cloud Storage delete is unavailable"
+    assert len(firestore.documents) == 1
+    document = next(iter(firestore.documents.values()))
+    assert document["storage_reference"].startswith("cases/case-1/assets/")
+    assert document["lifecycle"] == AssetLifecycle.CLEANUP_PENDING
+    assert repository.list_for_case("case-1") == []
+
+
+def test_cloud_asset_reconciliation_treats_missing_object_as_removed() -> None:
+    storage = FakeStorageClient()
+    storage.missing_raises_not_found = True
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+        not_found_exception=FakeStorageNotFound,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+    document_path = ("cases", "case-1", "assets", asset.id)
+    firestore.fail_next_delete = True
+
+    with pytest.raises(RuntimeError, match="Firestore delete is unavailable"):
+        repository.delete(asset)
+
+    assert asset.storage_reference not in storage.uploads
+    assert firestore.documents[document_path]["lifecycle"] == AssetLifecycle.CLEANUP_PENDING
+    assert repository.reconcile_pending(limit=10) == 1
+    assert document_path not in firestore.documents
 
 
 def test_cloud_asset_repository_lists_metadata_and_downloads_private_content() -> None:
@@ -273,7 +370,7 @@ def test_cloud_asset_repository_lists_metadata_and_downloads_private_content() -
     assert repository.get_content(asset.id) == b"rights note"
 
 
-def test_cloud_asset_repository_removes_bytes_when_metadata_write_fails() -> None:
+def test_cloud_asset_repository_does_not_upload_bytes_when_pending_metadata_write_fails() -> None:
     storage = FakeStorageClient()
     firestore = FakeFirestoreClient()
     firestore.fail_next_set = True
@@ -292,10 +389,10 @@ def test_cloud_asset_repository_removes_bytes_when_metadata_write_fails() -> Non
         )
 
     assert storage.uploads == {}
-    assert storage.deleted and storage.deleted[0].startswith("cases/case-1/assets/")
+    assert storage.deleted == []
 
 
-def test_cloud_asset_repository_preserves_metadata_error_when_rollback_fails() -> None:
+def test_cloud_asset_repository_skips_rollback_when_pending_metadata_write_fails() -> None:
     storage = FakeStorageClient()
     storage.fail_next_delete = True
     firestore = FakeFirestoreClient()
@@ -314,10 +411,9 @@ def test_cloud_asset_repository_preserves_metadata_error_when_rollback_fails() -
             AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
         )
 
-    assert isinstance(error.value.__cause__, RuntimeError)
-    assert str(error.value.__cause__) == "Cloud Storage delete is unavailable"
-    assert len(storage.uploads) == 1
-    assert storage.deleted and storage.deleted[0].startswith("cases/case-1/assets/")
+    assert error.value.__cause__ is None
+    assert storage.uploads == {}
+    assert storage.deleted == []
 
 
 def test_cloud_asset_repository_deletes_private_bytes_and_metadata() -> None:

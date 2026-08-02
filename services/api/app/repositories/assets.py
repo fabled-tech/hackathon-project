@@ -2,7 +2,7 @@ from datetime import UTC, datetime
 from typing import Any, Protocol, cast
 from uuid import uuid4
 
-from app.models import AssetUpload, StoredAsset
+from app.models import AssetLifecycle, AssetUpload, StoredAsset
 
 
 class AssetRepository(Protocol):
@@ -13,6 +13,8 @@ class AssetRepository(Protocol):
     def list_for_case(self, case_id: str) -> list[StoredAsset]: ...
 
     def get_content(self, asset_id: str) -> bytes: ...
+
+    def reconcile_pending(self, limit: int) -> int: ...
 
 
 class InMemoryAssetRepository:
@@ -43,11 +45,25 @@ class InMemoryAssetRepository:
         return [
             asset.model_copy(deep=True)
             for asset in self._assets.values()
-            if asset.case_id == case_id
+            if asset.case_id == case_id and asset.lifecycle is AssetLifecycle.READY
         ]
 
     def get_content(self, asset_id: str) -> bytes:
+        asset = self._assets.get(asset_id)
+        if asset is None or asset.lifecycle is not AssetLifecycle.READY:
+            raise KeyError(asset_id)
         return self._content[asset_id]
+
+    def reconcile_pending(self, limit: int) -> int:
+        reconciled = 0
+        for asset in list(self._assets.values()):
+            if reconciled >= limit:
+                break
+            if asset.lifecycle is AssetLifecycle.READY:
+                continue
+            self.delete(asset)
+            reconciled += 1
+        return reconciled
 
 
 class CloudStorageAssetRepository:
@@ -61,6 +77,7 @@ class CloudStorageAssetRepository:
         *,
         storage_client: Any | None = None,
         firestore_client: Any | None = None,
+        not_found_exception: type[Exception] | None = None,
     ) -> None:
         if storage_client is None:
             from google.cloud.storage import Client
@@ -74,42 +91,83 @@ class CloudStorageAssetRepository:
         self._bucket = storage_client.bucket(bucket_name)
         self._case_collection = firestore_client.collection(case_collection)
         self._firestore_client = firestore_client
+        self._not_found_exception = not_found_exception
+
+    def _document(self, asset: StoredAsset) -> Any:
+        return self._case_collection.document(asset.case_id).collection("assets").document(asset.id)
+
+    def _is_not_found(self, error: Exception) -> bool:
+        if self._not_found_exception is not None:
+            return isinstance(error, self._not_found_exception)
+        try:
+            from google.api_core.exceptions import NotFound
+        except ImportError:
+            return False
+        return isinstance(error, NotFound)
+
+    def _delete_storage_object(self, asset: StoredAsset) -> None:
+        try:
+            self._bucket.blob(asset.storage_reference).delete()
+        except Exception as error:
+            if not self._is_not_found(error):
+                raise
+
+    def _mark_cleanup_pending(self, asset: StoredAsset) -> None:
+        self._document(asset).update({"lifecycle": AssetLifecycle.CLEANUP_PENDING})
 
     def store(self, case_id: str, upload: AssetUpload) -> StoredAsset:
         asset_id = str(uuid4())
-        storage_reference = f"cases/{case_id}/assets/{asset_id}"
-        blob = self._bucket.blob(storage_reference)
-        blob.upload_from_string(upload.content, content_type=upload.content_type)
         asset = StoredAsset(
             id=asset_id,
             case_id=case_id,
             filename=upload.filename,
             content_type=upload.content_type,
             byte_size=len(upload.content),
-            storage_reference=storage_reference,
+            storage_reference=f"cases/{case_id}/assets/{asset_id}",
             created_at=datetime.now(UTC),
+            lifecycle=AssetLifecycle.PENDING,
         )
+        document = self._document(asset)
+        document.set(asset.model_dump(mode="json"))
         try:
-            self._case_collection.document(case_id).collection("assets").document(asset.id).set(
-                asset.model_dump(mode="json")
+            self._bucket.blob(asset.storage_reference).upload_from_string(
+                upload.content, content_type=upload.content_type
             )
-        except Exception as metadata_error:
+            document.update({"lifecycle": AssetLifecycle.READY})
+        except Exception as primary_error:
             try:
-                blob.delete()
+                self.delete(asset)
             except Exception as cleanup_error:
-                raise metadata_error from cleanup_error
+                try:
+                    self._mark_cleanup_pending(asset)
+                except Exception:
+                    pass
+                raise primary_error from cleanup_error
             raise
-        return asset.model_copy(deep=True)
+        return asset.model_copy(update={"lifecycle": AssetLifecycle.READY}, deep=True)
 
     def delete(self, asset: StoredAsset) -> None:
-        self._bucket.blob(asset.storage_reference).delete()
-        self._case_collection.document(asset.case_id).collection("assets").document(
-            asset.id
-        ).delete()
+        try:
+            self._delete_storage_object(asset)
+        except Exception as object_error:
+            try:
+                self._mark_cleanup_pending(asset)
+            except Exception as state_error:
+                raise object_error from state_error
+            raise
+
+        try:
+            self._document(asset).delete()
+        except Exception as metadata_error:
+            try:
+                self._mark_cleanup_pending(asset)
+            except Exception as state_error:
+                raise metadata_error from state_error
+            raise
 
     def list_for_case(self, case_id: str) -> list[StoredAsset]:
         return [
-            StoredAsset.model_validate(document)
+            asset
             for snapshot in (
                 self._case_collection.document(case_id)
                 .collection("assets")
@@ -117,6 +175,7 @@ class CloudStorageAssetRepository:
                 .stream()
             )
             if isinstance((document := snapshot.to_dict()), dict)
+            and (asset := StoredAsset.model_validate(document)).lifecycle is AssetLifecycle.READY
         ]
 
     def get_content(self, asset_id: str) -> bytes:
@@ -133,4 +192,31 @@ class CloudStorageAssetRepository:
         if not isinstance(document, dict):
             raise KeyError(asset_id)
         asset = StoredAsset.model_validate(document)
+        if asset.lifecycle is not AssetLifecycle.READY:
+            raise KeyError(asset_id)
         return cast(bytes, self._bucket.blob(asset.storage_reference).download_as_bytes())
+
+    def reconcile_pending(self, limit: int) -> int:
+        if limit < 1:
+            return 0
+        snapshots = (
+            self._firestore_client.collection_group("assets")
+            .where("lifecycle", "in", [
+                AssetLifecycle.PENDING,
+                AssetLifecycle.CLEANUP_PENDING,
+            ])
+            .limit(limit)
+            .stream()
+        )
+        reconciled = 0
+        for snapshot in snapshots:
+            document = snapshot.to_dict()
+            if not isinstance(document, dict):
+                continue
+            asset = StoredAsset.model_validate(document)
+            try:
+                self.delete(asset)
+            except Exception:
+                continue
+            reconciled += 1
+        return reconciled

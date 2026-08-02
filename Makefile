@@ -1,6 +1,6 @@
 UV_CACHE_DIR := $(CURDIR)/.uv-cache
 
-.PHONY: setup dev lint typecheck test generate-client check-client build smoke-real e2e
+.PHONY: setup dev lint typecheck test generate-client check-client build smoke-real reconcile-assets e2e
 
 setup:
 	command -v pnpm >/dev/null
@@ -37,6 +37,9 @@ build:
 
 smoke-real:
 	cd services/api && UV_CACHE_DIR=$(UV_CACHE_DIR) uv run --group cloud python -m app.smoke_real
+
+reconcile-assets:
+	cd services/api && UV_CACHE_DIR=$(UV_CACHE_DIR) uv run --group cloud python -m app.reconcile_assets
 
 e2e:
 	pnpm e2e

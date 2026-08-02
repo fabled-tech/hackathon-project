@@ -33,11 +33,27 @@ def _require(value: str | None, setting_name: str) -> str:
     return value
 
 
+def build_repositories(settings: Settings) -> tuple[CaseRepository, AssetRepository]:
+    case_repository: CaseRepository
+    asset_repository: AssetRepository
+
+    if settings.selected_mode(settings.repository_mode) is IntegrationMode.REAL:
+        project = _require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT")
+        case_repository = FirestoreCaseRepository(project, settings.firestore_collection)
+        asset_repository = CloudStorageAssetRepository(
+            project=project,
+            bucket_name=_require(settings.cloud_storage_bucket, "RIGHTSRADAR_CLOUD_STORAGE_BUCKET"),
+            case_collection=settings.firestore_collection,
+        )
+    else:
+        case_repository = InMemoryCaseRepository()
+        asset_repository = InMemoryAssetRepository()
+    return case_repository, asset_repository
+
+
 def build_services(settings: Settings) -> ApplicationServices:
     gemini: GeminiClient
     parallel: ParallelSearchClient
-    case_repository: CaseRepository
-    asset_repository: AssetRepository
 
     if settings.selected_mode(settings.gemini_mode) is IntegrationMode.REAL:
         gemini = VertexGeminiClient(
@@ -55,17 +71,7 @@ def build_services(settings: Settings) -> ApplicationServices:
     else:
         parallel = MockParallelSearchClient()
 
-    if settings.selected_mode(settings.repository_mode) is IntegrationMode.REAL:
-        project = _require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT")
-        case_repository = FirestoreCaseRepository(project, settings.firestore_collection)
-        asset_repository = CloudStorageAssetRepository(
-            project=project,
-            bucket_name=_require(settings.cloud_storage_bucket, "RIGHTSRADAR_CLOUD_STORAGE_BUCKET"),
-            case_collection=settings.firestore_collection,
-        )
-    else:
-        case_repository = InMemoryCaseRepository()
-        asset_repository = InMemoryAssetRepository()
+    case_repository, asset_repository = build_repositories(settings)
 
     return ApplicationServices(
         case_repository=case_repository,

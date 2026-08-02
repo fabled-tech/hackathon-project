@@ -44,6 +44,7 @@ make check-client     # regenerate and fail if the committed client changed
 make build            # build Python distribution and Next.js production app
 make e2e              # mocked Playwright workflow
 make smoke-real       # opt-in smoke path; skips unless explicitly enabled
+make reconcile-assets # explicit cleanup of incomplete private asset records; skips by default
 ```
 
 For containers, run `docker compose up --build`. The compose setup remains in mock mode unless
@@ -108,6 +109,25 @@ configured repositories. `make smoke-real` creates a UUID-scoped disposable case
 `text/plain` asset, reads its metadata and bytes, verifies the case asset count, then attempts to
 delete the asset before the case. Any cleanup failure is reported. It does not call Gemini or
 Parallel. With the default environment, it prints a skip message and makes no external calls.
+
+### Private asset lifecycle reconciliation
+
+Real asset storage writes private Firestore metadata as `pending`, uploads the private Cloud
+Storage bytes, and then marks the record `ready`. Only `ready` assets are available through the
+application API. If cleanup cannot finish after a failed upload or metadata transition, the record
+is retained as `cleanup_pending` and remains hidden from the browser.
+
+Reconciliation is deliberately manual: it is not a queue or background task. With real
+repositories selected and ADC configured, set `RIGHTSRADAR_ENABLE_RECONCILIATION=true`, then run:
+
+```bash
+make reconcile-assets
+```
+
+The command retries cleanup for at most 100 incomplete records and prints only the count of fully
+removed records. It does not create agents or contact Gemini or Parallel, and it does not print
+bucket, object, project, credential, or provider-error details. Without both the explicit flag and
+real repository mode, it safely skips without contacting cloud services.
 
 ## Testing and quality gates
 
