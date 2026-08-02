@@ -1,11 +1,12 @@
 import asyncio
+import threading
 
 import pytest
 from fastapi import FastAPI, HTTPException
 from starlette.requests import Request
 
 from app.dependencies import ApplicationServices
-from app.models import Asset, Case, Finding
+from app.models import AssetUpload, Case, Finding, StoredAsset
 from app.models.requests import MAX_ASSET_BYTES
 from app.repositories.assets import InMemoryAssetRepository
 from app.repositories.cases import InMemoryCaseRepository
@@ -35,9 +36,37 @@ class FailingIncrementCaseRepository(InMemoryCaseRepository):
 
 
 class CleanupFailingAssetRepository(InMemoryAssetRepository):
-    def delete(self, asset: Asset) -> None:
+    def delete(self, asset: StoredAsset) -> None:
         super().delete(asset)
         raise RuntimeError("asset cleanup failed")
+
+
+class ThreadCheckingCaseRepository(FailingIncrementCaseRepository):
+    def __init__(self, event_loop_thread_id: int) -> None:
+        super().__init__()
+        self.event_loop_thread_id = event_loop_thread_id
+
+    def get(self, case_id: str) -> Case:
+        assert threading.get_ident() != self.event_loop_thread_id
+        return super().get(case_id)
+
+    def increment_asset_count(self, case_id: str) -> None:
+        assert threading.get_ident() != self.event_loop_thread_id
+        super().increment_asset_count(case_id)
+
+
+class ThreadCheckingAssetRepository(InMemoryAssetRepository):
+    def __init__(self, event_loop_thread_id: int) -> None:
+        super().__init__()
+        self.event_loop_thread_id = event_loop_thread_id
+
+    def store(self, case_id: str, upload: AssetUpload) -> StoredAsset:
+        assert threading.get_ident() != self.event_loop_thread_id
+        return super().store(case_id, upload)
+
+    def delete(self, asset: StoredAsset) -> None:
+        assert threading.get_ident() != self.event_loop_thread_id
+        super().delete(asset)
 
 
 def make_request(
@@ -105,3 +134,32 @@ def test_upload_removes_the_asset_and_preserves_the_increment_error_when_cleanup
         asyncio.run(upload_asset(case.id, upload, make_request(case_repository, assets)))
 
     assert assets.list_for_case(case.id) == []
+
+
+def test_upload_runs_blocking_repository_operations_in_the_thread_pool(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from app.routes import cases
+
+    submitted_operations: list[str] = []
+
+    async def record_thread_pool_call(function: object, *args: object, **kwargs: object) -> object:
+        submitted_operations.append(getattr(function, "__name__", "unknown"))
+        return await asyncio.to_thread(function, *args, **kwargs)  # type: ignore[arg-type]
+
+    event_loop_thread_id = threading.get_ident()
+    case_repository = ThreadCheckingCaseRepository(event_loop_thread_id)
+    case = create_case(case_repository)
+    assets = ThreadCheckingAssetRepository(event_loop_thread_id)
+    monkeypatch.setattr(cases, "run_in_threadpool", record_thread_pool_call, raising=False)
+
+    with pytest.raises(RuntimeError, match="asset count update failed"):
+        asyncio.run(
+            upload_asset(
+                case.id,
+                TrackingUpload(b"production note"),
+                make_request(case_repository, assets),
+            )
+        )
+
+    assert submitted_operations == ["get", "store", "increment_asset_count", "delete"]

@@ -78,13 +78,27 @@ def test_uploading_a_text_asset_returns_metadata_and_lists_it() -> None:
     )
 
     assert upload.status_code == 201
+    assert set(upload.json()) == {
+        "id",
+        "case_id",
+        "filename",
+        "content_type",
+        "byte_size",
+        "created_at",
+    }
     assert upload.json()["byte_size"] == len(b"Keep the fictional brand.")
-    assert "storage_reference" in upload.json()
 
     listed = client.get(f"/api/cases/{case['id']}/assets")
     assert listed.status_code == 200
     assert [asset["filename"] for asset in listed.json()] == ["production-note.txt"]
-    assert "content" not in listed.json()[0]
+    assert set(listed.json()[0]) == {
+        "id",
+        "case_id",
+        "filename",
+        "content_type",
+        "byte_size",
+        "created_at",
+    }
 
 
 def test_upload_rejects_unsupported_content_and_oversized_files() -> None:
@@ -104,6 +118,27 @@ def test_upload_rejects_unsupported_content_and_oversized_files() -> None:
 
     assert invalid_type.status_code == 422
     assert oversized.status_code == 422
+
+
+@pytest.mark.parametrize(
+    "content",
+    [b"\xff\xfe", b"production\x00note"],
+    ids=["invalid-utf8", "nul-byte"],
+)
+def test_upload_rejects_non_text_plain_bytes_without_storing_an_asset(content: bytes) -> None:
+    from app.main import create_app
+
+    app = create_app()
+    client = TestClient(app)
+    case_id = client.post("/api/cases", json={"script_text": "A scene."}).json()["id"]
+
+    upload = client.post(
+        f"/api/cases/{case_id}/assets",
+        files={"file": ("production-note.txt", content, "text/plain")},
+    )
+
+    assert upload.status_code == 422
+    assert app.state.services.asset_repository.list_for_case(case_id) == []
 
 
 def test_asset_routes_return_not_found_for_an_unknown_case() -> None:

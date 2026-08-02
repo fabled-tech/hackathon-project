@@ -1,11 +1,13 @@
+import logging
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import uuid4
 
 from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 
 from app.dependencies import ApplicationServices
-from app.models import Asset, AssetUpload, Case, CaseSummary, Finding
+from app.models import Asset, AssetUpload, Case, CaseSummary, Finding, StoredAsset
 from app.models.requests import (
     ALLOWED_ASSET_CONTENT_TYPE,
     MAX_ASSET_BYTES,
@@ -15,17 +17,20 @@ from app.models.requests import (
 from app.repositories import CaseRepositoryNotFound, FindingNotFound
 
 router = APIRouter(prefix="/api/cases", tags=["cases"])
+logger = logging.getLogger(__name__)
 
 
 def _services(request: Request) -> ApplicationServices:
     return request.app.state.services  # type: ignore[no-any-return]
 
 
-def _delete_asset_after_increment_failure(services: ApplicationServices, asset: Asset) -> None:
+async def _delete_asset_after_increment_failure(
+    services: ApplicationServices, asset: StoredAsset
+) -> None:
     try:
-        services.asset_repository.delete(asset)
+        await run_in_threadpool(services.asset_repository.delete, asset)
     except Exception:
-        pass
+        logger.warning("Asset cleanup failed after a case update error.")
 
 
 @router.post("", response_model=Case, status_code=status.HTTP_201_CREATED)
@@ -62,7 +67,7 @@ async def upload_asset(
 ) -> Asset:
     services = _services(request)
     try:
-        services.case_repository.get(case_id)
+        await run_in_threadpool(services.case_repository.get, case_id)
     except CaseRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Case not found") from error
 
@@ -71,8 +76,17 @@ async def upload_asset(
     content = await file.read(MAX_ASSET_BYTES + 1)
     if len(content) > MAX_ASSET_BYTES:
         raise HTTPException(status_code=422, detail="Asset must not exceed 256 KiB")
+    if b"\x00" in content:
+        raise HTTPException(status_code=422, detail="Asset must contain valid UTF-8 text")
+    try:
+        content.decode("utf-8")
+    except UnicodeDecodeError as error:
+        raise HTTPException(
+            status_code=422, detail="Asset must contain valid UTF-8 text"
+        ) from error
 
-    asset = services.asset_repository.store(
+    asset = await run_in_threadpool(
+        services.asset_repository.store,
         case_id,
         AssetUpload(
             filename=file.filename or "asset.txt",
@@ -81,12 +95,12 @@ async def upload_asset(
         ),
     )
     try:
-        services.case_repository.increment_asset_count(case_id)
+        await run_in_threadpool(services.case_repository.increment_asset_count, case_id)
     except CaseRepositoryNotFound as error:
-        _delete_asset_after_increment_failure(services, asset)
+        await _delete_asset_after_increment_failure(services, asset)
         raise HTTPException(status_code=404, detail="Case not found") from error
     except Exception:
-        _delete_asset_after_increment_failure(services, asset)
+        await _delete_asset_after_increment_failure(services, asset)
         raise
     return asset
 
@@ -98,7 +112,9 @@ def list_assets(case_id: str, request: Request) -> list[Asset]:
         services.case_repository.get(case_id)
     except CaseRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Case not found") from error
-    return services.asset_repository.list_for_case(case_id)
+    return [
+        Asset.model_validate(asset) for asset in services.asset_repository.list_for_case(case_id)
+    ]
 
 
 @router.patch("/{case_id}/findings/{finding_id}", response_model=Finding)

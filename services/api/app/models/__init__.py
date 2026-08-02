@@ -1,4 +1,4 @@
-from .assets import Asset, AssetUpload, CaseSummary
+from .assets import Asset, AssetUpload, CaseSummary, StoredAsset
 from .cases import Case, Evidence, Finding, ReviewerStatus, Source
 
 __all__ = [
@@ -10,4 +10,5 @@ __all__ = [
     "Finding",
     "ReviewerStatus",
     "Source",
+    "StoredAsset",
 ]
