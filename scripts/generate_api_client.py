@@ -28,7 +28,7 @@ def to_type(schema: dict[str, Any]) -> str:
     if schema.get("type") == "array":
         item_type = to_type(schema.get("items", {}))
         return f"({item_type})[]" if " | " in item_type else f"{item_type}[]"
-    if schema.get("format") == "binary" or "contentMediaType" in schema:
+    if schema.get("type") == "string" and schema.get("format") == "binary":
         return "File"
     if schema.get("type") == "integer" or schema.get("type") == "number":
         return "number"

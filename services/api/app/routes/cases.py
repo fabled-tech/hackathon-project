@@ -1,7 +1,8 @@
 from datetime import UTC, datetime
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, Request, UploadFile, status
+from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, status
 
 from app.dependencies import ApplicationServices
 from app.models import Asset, AssetUpload, Case, CaseSummary, Finding
@@ -54,7 +55,11 @@ def get_case(case_id: str, request: Request) -> Case:
 
 
 @router.post("/{case_id}/assets", response_model=Asset, status_code=status.HTTP_201_CREATED)
-async def upload_asset(case_id: str, file: UploadFile, request: Request) -> Asset:
+async def upload_asset(
+    case_id: str,
+    file: Annotated[UploadFile, File(json_schema_extra={"format": "binary"})],
+    request: Request,
+) -> Asset:
     services = _services(request)
     try:
         services.case_repository.get(case_id)

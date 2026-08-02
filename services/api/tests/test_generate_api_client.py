@@ -10,6 +10,10 @@ def test_openapi_binary_strings_generate_file_types() -> None:
     assert to_type({"type": "string", "format": "binary"}) == "File"
 
 
+def test_openapi_content_media_type_strings_remain_strings() -> None:
+    assert to_type({"type": "string", "contentMediaType": "application/json"}) == "string"
+
+
 def test_fastapi_upload_schema_generates_a_file_type() -> None:
     from app.main import create_app
 
@@ -17,4 +21,5 @@ def test_fastapi_upload_schema_generates_a_file_type() -> None:
         "Body_upload_asset_api_cases__case_id__assets_post"
     ]["properties"]["file"]
 
+    assert upload_schema["format"] == "binary"
     assert to_type(upload_schema) == "File"

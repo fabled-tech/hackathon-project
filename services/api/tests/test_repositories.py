@@ -97,6 +97,10 @@ class FakeDocument:
                 document[key] = value
 
     def delete(self) -> None:
+        self._client.deleted_documents.append(self._path)
+        if self._client.fail_next_delete:
+            self._client.fail_next_delete = False
+            raise RuntimeError("Firestore delete is unavailable")
         self._client.documents.pop(self._path, None)
 
     def collection(self, name: str) -> FakeCollection:
@@ -118,7 +122,9 @@ class FakeFirestoreClient:
         self.case_collection = case_collection
         self.documents: dict[tuple[str, ...], dict[str, Any]] = {}
         self.fail_next_set = False
+        self.fail_next_delete = False
         self.after_next_get: Callable[[], None] | None = None
+        self.deleted_documents: list[tuple[str, ...]] = []
 
     def collection(self, name: str) -> FakeCollection:
         return FakeCollection(self, (name,))
@@ -144,6 +150,9 @@ class FakeBlob:
 
     def delete(self) -> None:
         self._client.deleted.append(self.name)
+        if self._client.fail_next_delete:
+            self._client.fail_next_delete = False
+            raise RuntimeError("Cloud Storage delete is unavailable")
         self._client.uploads.pop(self.name, None)
 
 
@@ -160,6 +169,7 @@ class FakeStorageClient:
     def __init__(self) -> None:
         self.uploads: dict[str, tuple[bytes, str]] = {}
         self.deleted: list[str] = []
+        self.fail_next_delete = False
 
     def bucket(self, name: str) -> FakeBucket:
         return FakeBucket(self, name)
@@ -254,6 +264,82 @@ def test_cloud_asset_repository_deletes_private_bytes_and_metadata() -> None:
 
     assert asset.storage_reference not in storage.uploads
     assert ("cases", "case-1", "assets", asset.id) not in firestore.documents
+
+
+def test_cloud_asset_delete_attempts_metadata_when_private_object_deletion_fails() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+    document_path = ("cases", "case-1", "assets", asset.id)
+    storage.fail_next_delete = True
+
+    with pytest.raises(RuntimeError, match="Cloud Storage delete is unavailable"):
+        repository.delete(asset)
+
+    assert asset.storage_reference in storage.uploads
+    assert document_path not in firestore.documents
+    assert firestore.deleted_documents == [document_path]
+
+
+def test_cloud_asset_delete_attempts_private_object_when_metadata_deletion_fails() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+    document_path = ("cases", "case-1", "assets", asset.id)
+    firestore.fail_next_delete = True
+
+    with pytest.raises(RuntimeError, match="Firestore delete is unavailable"):
+        repository.delete(asset)
+
+    assert asset.storage_reference not in storage.uploads
+    assert document_path in firestore.documents
+    assert storage.deleted == [asset.storage_reference]
+
+
+def test_cloud_asset_delete_surfaces_both_cleanup_failures_after_attempting_each() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+    document_path = ("cases", "case-1", "assets", asset.id)
+    storage.fail_next_delete = True
+    firestore.fail_next_delete = True
+
+    with pytest.raises(ExceptionGroup) as error:
+        repository.delete(asset)
+
+    assert len(error.value.exceptions) == 2
+    assert storage.deleted == [asset.storage_reference]
+    assert firestore.deleted_documents == [document_path]
 
 
 def test_firestore_case_repository_increments_asset_count_and_lists_newest() -> None:

@@ -99,10 +99,22 @@ class CloudStorageAssetRepository:
         return asset.model_copy(deep=True)
 
     def delete(self, asset: Asset) -> None:
-        self._bucket.blob(asset.storage_reference).delete()
-        self._case_collection.document(asset.case_id).collection("assets").document(
-            asset.id
-        ).delete()
+        errors: list[Exception] = []
+        try:
+            self._bucket.blob(asset.storage_reference).delete()
+        except Exception as error:
+            errors.append(error)
+        try:
+            self._case_collection.document(asset.case_id).collection("assets").document(
+                asset.id
+            ).delete()
+        except Exception as error:
+            errors.append(error)
+
+        if len(errors) == 1:
+            raise errors[0]
+        if errors:
+            raise ExceptionGroup("Asset cleanup failed", errors)
 
     def list_for_case(self, case_id: str) -> list[Asset]:
         return [
