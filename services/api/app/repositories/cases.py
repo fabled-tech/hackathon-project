@@ -1,5 +1,5 @@
 from collections.abc import Callable, Mapping
-from typing import Any, Protocol, cast
+from typing import Any, Protocol
 
 from app.models import Case, CaseSummary, Finding, ReviewerStatus
 
@@ -88,20 +88,29 @@ class FirestoreCaseRepository:
         collection_name: str,
         *,
         client: Any | None = None,
+        increment_factory: Callable[[int], Any] | None = None,
+        transactional_decorator: (
+            Callable[[Callable[[Any], Finding]], Callable[[Any], Finding]] | None
+        ) = None,
         transaction_runner: Callable[[Callable[[Any], Finding]], Finding] | None = None,
     ) -> None:
-        increment: Callable[[int], Any]
-        if client is None:
+        if client is None or increment_factory is None or (
+            transaction_runner is None and transactional_decorator is None
+        ):
             from google.cloud import firestore
 
-            client = firestore.Client(project=project)
-            increment = firestore.Increment
-        else:
-            increment = client.Increment
+            if client is None:
+                client = firestore.Client(project=project)
+            if increment_factory is None:
+                increment_factory = firestore.Increment
+            if transactional_decorator is None:
+                transactional_decorator = firestore.transactional
 
+        assert increment_factory is not None
         self._client = client
-        self._increment = increment
+        self._increment_factory = increment_factory
         self._collection = self._client.collection(collection_name)
+        self._transactional_decorator = transactional_decorator
         self._transaction_runner = transaction_runner
 
     def create(self, case: Case) -> Case:
@@ -141,10 +150,10 @@ class FirestoreCaseRepository:
 
         if self._transaction_runner is not None:
             return self._transaction_runner(update)
-        from google.cloud import firestore
 
+        assert self._transactional_decorator is not None
         transaction = self._client.transaction()
-        return cast(Finding, firestore.transactional(update)(transaction))
+        return self._transactional_decorator(update)(transaction)
 
     def list_recent(self, limit: int) -> list[CaseSummary]:
         snapshots = (
@@ -166,7 +175,7 @@ class FirestoreCaseRepository:
         document = self._collection.document(case_id)
         if not document.get().exists:
             raise CaseRepositoryNotFound(case_id)
-        document.update({"asset_count": self._increment(1)})
+        document.update({"asset_count": self._increment_factory(1)})
 
     def delete(self, case_id: str) -> None:
         document = self._collection.document(case_id)
