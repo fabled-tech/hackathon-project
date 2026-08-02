@@ -8,10 +8,12 @@ test('uploads a text asset and reopens it from recent cases', async ({ page }) =
   await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
   await page.getByRole('button', { name: 'Upload asset' }).click();
   await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
+  await expect(page.getByTestId('asset-list')).toContainText('text/plain');
 
   await page.getByRole('button', { name: 'Refresh recent cases' }).click();
   await page.getByTestId('recent-cases').getByRole('button').first().click();
   await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
+  await expect(page.getByTestId('asset-list')).toContainText('text/plain');
 });
 
 test('reopens a different case with its script, reviewer status, and assets', async ({ page }) => {

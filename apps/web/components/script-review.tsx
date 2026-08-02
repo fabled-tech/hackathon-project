@@ -301,7 +301,7 @@ export function ScriptReview() {
                     <li key={asset.id}>
                       <strong>{asset.filename}</strong>
                       <span>
-                        {fileSizeLabel(asset.byte_size)} · uploaded{' '}
+                        {asset.content_type} · {fileSizeLabel(asset.byte_size)} · uploaded{' '}
                         {new Date(asset.created_at).toLocaleString()}
                       </span>
                     </li>
