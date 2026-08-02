@@ -30,7 +30,7 @@ class AssetRepository(Protocol):
 
     def list_for_case(self, case_id: str) -> list[StoredAsset]: ...
 
-    def get_content(self, asset_id: str) -> bytes: ...
+    def get_content(self, case_id: str, asset_id: str) -> bytes: ...
 
     def reconcile_pending(self, limit: int) -> ReconciliationResult: ...
 
@@ -66,9 +66,13 @@ class InMemoryAssetRepository:
             if asset.case_id == case_id and asset.lifecycle is AssetLifecycle.READY
         ]
 
-    def get_content(self, asset_id: str) -> bytes:
+    def get_content(self, case_id: str, asset_id: str) -> bytes:
         asset = self._assets.get(asset_id)
-        if asset is None or asset.lifecycle is not AssetLifecycle.READY:
+        if (
+            asset is None
+            or asset.case_id != case_id
+            or asset.lifecycle is not AssetLifecycle.READY
+        ):
             raise KeyError(asset_id)
         return self._content[asset_id]
 
@@ -459,21 +463,17 @@ class CloudStorageAssetRepository:
             and (asset := StoredAsset.model_validate(document)).lifecycle is AssetLifecycle.READY
         ]
 
-    def get_content(self, asset_id: str) -> bytes:
-        snapshots = (
-            self._firestore_client.collection_group("assets")
-            .where("id", "==", asset_id)
-            .limit(1)
-            .stream()
+    def get_content(self, case_id: str, asset_id: str) -> bytes:
+        snapshot = (
+            self._case_collection.document(case_id).collection("assets").document(asset_id).get()
         )
-        snapshot = next(iter(snapshots), None)
-        if snapshot is None:
+        if not snapshot.exists:
             raise KeyError(asset_id)
         document = snapshot.to_dict()
         if not isinstance(document, dict):
             raise KeyError(asset_id)
         asset = StoredAsset.model_validate(document)
-        if asset.lifecycle is not AssetLifecycle.READY:
+        if asset.case_id != case_id or asset.lifecycle is not AssetLifecycle.READY:
             raise KeyError(asset_id)
         return cast(bytes, self._bucket.blob(asset.storage_reference).download_as_bytes())
 

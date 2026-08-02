@@ -51,7 +51,7 @@ class FakeAssetRepository:
         self,
         events: list[str] | None = None,
         *,
-        content_reader: Callable[[str], bytes] | None = None,
+        content_reader: Callable[[str, str], bytes] | None = None,
     ) -> None:
         self.assets: dict[str, StoredAsset] = {}
         self.content: dict[str, bytes] = {}
@@ -84,12 +84,14 @@ class FakeAssetRepository:
             self._events.append("list_assets")
         return [asset for asset in self.assets.values() if asset.case_id == case_id]
 
-    def get_content(self, asset_id: str) -> bytes:
+    def get_content(self, case_id: str, asset_id: str) -> bytes:
         self.calls.append("get_content")
         if self._events is not None:
             self._events.append("get_content")
         if self._content_reader is not None:
-            return self._content_reader(asset_id)
+            return self._content_reader(case_id, asset_id)
+        if self.assets[asset_id].case_id != case_id:
+            raise KeyError(asset_id)
         return self.content[asset_id]
 
     def delete(self, asset: StoredAsset) -> None:
@@ -186,7 +188,9 @@ def test_real_smoke_cleans_assets_then_case_after_verification_failure(
 ) -> None:
     events: list[str] = []
     case_repository = FakeCaseRepository(events)
-    asset_repository = FakeAssetRepository(events, content_reader=lambda _asset_id: b"unexpected")
+    asset_repository = FakeAssetRepository(
+        events, content_reader=lambda _case_id, _asset_id: b"unexpected"
+    )
 
     result = main(real_repository_settings(), fake_services(case_repository, asset_repository))
 
@@ -232,7 +236,7 @@ def test_real_smoke_reports_cleanup_error_without_hiding_verification_failure(
     events: list[str] = []
     case_repository = FakeCaseRepository(events)
     asset_repository = FailingDeleteAssetRepository(
-        events, content_reader=lambda _asset_id: b"unexpected"
+        events, content_reader=lambda _case_id, _asset_id: b"unexpected"
     )
 
     assert main(real_repository_settings(), fake_services(case_repository, asset_repository)) == 1

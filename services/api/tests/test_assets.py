@@ -29,7 +29,7 @@ def test_in_memory_asset_repository_keeps_case_metadata_and_content() -> None:
     assert asset.filename == "production-note.txt"
     assert asset.byte_size == 4
     assert repository.list_for_case("case-1") == [asset]
-    assert repository.get_content(asset.id) == b"note"
+    assert repository.get_content("case-1", asset.id) == b"note"
 
 
 def test_in_memory_asset_repository_deletes_metadata_and_content() -> None:
@@ -43,7 +43,7 @@ def test_in_memory_asset_repository_deletes_metadata_and_content() -> None:
 
     assert repository.list_for_case("case-1") == []
     with pytest.raises(KeyError):
-        repository.get_content(asset.id)
+        repository.get_content("case-1", asset.id)
 
 
 def test_in_memory_case_repository_returns_newest_case_summaries() -> None:

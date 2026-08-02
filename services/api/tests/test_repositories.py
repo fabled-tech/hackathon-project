@@ -836,7 +836,30 @@ def test_cloud_asset_repository_lists_metadata_and_downloads_private_content() -
     )
 
     assert repository.list_for_case("case-1") == [asset]
-    assert repository.get_content(asset.id) == b"rights note"
+    assert repository.get_content("case-1", asset.id) == b"rights note"
+
+
+def test_cloud_asset_repository_reads_content_from_the_case_scoped_document() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+
+    def reject_global_asset_lookup(_name: str) -> FakeQuery:
+        raise AssertionError("content reads must not use a collection-group lookup")
+
+    firestore.collection_group = reject_global_asset_lookup  # type: ignore[assignment]
+
+    assert repository.get_content("case-1", asset.id) == b"rights note"
 
 
 def test_cloud_asset_repository_removes_marker_when_pending_metadata_batch_fails() -> None:

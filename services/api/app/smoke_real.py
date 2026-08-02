@@ -121,7 +121,7 @@ def run_repository_smoke(services: ApplicationServices) -> None:
         )
         _perform(
             "read asset content",
-            lambda: _verify_asset_content(services.asset_repository.get_content(asset.id)),
+            lambda: _verify_asset_content(services.asset_repository.get_content(case_id, asset.id)),
         )
         _perform(
             "increment asset count",
