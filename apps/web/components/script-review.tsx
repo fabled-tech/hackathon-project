@@ -45,38 +45,77 @@ export function ScriptReview() {
   const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const caseOperationGeneration = useRef(0);
+  const activeCaseIdRef = useRef<string | null>(null);
+  const submissionGeneration = useRef(0);
+  const uploadGeneration = useRef(0);
+  const caseLoadingGeneration = useRef(0);
 
   async function submitScript(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const operationGeneration = ++caseOperationGeneration.current;
+    const requestGeneration = ++submissionGeneration.current;
+    activeCaseIdRef.current = null;
     setIsSubmitting(true);
     setError(null);
     try {
       const nextCase = await createCase({ script_text: scriptText }, API_BASE_URL);
+      if (
+        caseOperationGeneration.current !== operationGeneration ||
+        activeCaseIdRef.current !== null
+      ) {
+        return;
+      }
+      activeCaseIdRef.current = nextCase.id;
       setCaseResult(nextCase);
       setAssets([]);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
-      setError('RightsRadar could not analyze this script right now. Please try again.');
+      if (
+        caseOperationGeneration.current === operationGeneration &&
+        activeCaseIdRef.current === null
+      ) {
+        setError('RightsRadar could not analyze this script right now. Please try again.');
+      }
     } finally {
-      setIsSubmitting(false);
+      if (submissionGeneration.current === requestGeneration) {
+        setIsSubmitting(false);
+      }
     }
   }
 
   async function submitAsset(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!caseResult || !selectedFile) return;
+    const caseId = caseResult.id;
+    const operationGeneration = caseOperationGeneration.current;
+    const requestGeneration = ++uploadGeneration.current;
     setIsUploading(true);
     setError(null);
     try {
-      await uploadAsset(caseResult.id, selectedFile, API_BASE_URL);
-      setAssets(await listAssets(caseResult.id, API_BASE_URL));
+      await uploadAsset(caseId, selectedFile, API_BASE_URL);
+      const nextAssets = await listAssets(caseId, API_BASE_URL);
+      if (
+        caseOperationGeneration.current !== operationGeneration ||
+        activeCaseIdRef.current !== caseId
+      ) {
+        return;
+      }
+      setAssets(nextAssets);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
-      setError('The asset could not be uploaded. Use a plain-text file no larger than 256 KiB.');
+      if (
+        caseOperationGeneration.current === operationGeneration &&
+        activeCaseIdRef.current === caseId
+      ) {
+        setError('The asset could not be uploaded. Use a plain-text file no larger than 256 KiB.');
+      }
     } finally {
-      setIsUploading(false);
+      if (uploadGeneration.current === requestGeneration) {
+        setIsUploading(false);
+      }
     }
   }
 
@@ -93,20 +132,36 @@ export function ScriptReview() {
   }
 
   async function reopenCase(caseId: string) {
+    const operationGeneration = ++caseOperationGeneration.current;
+    const requestGeneration = ++caseLoadingGeneration.current;
+    activeCaseIdRef.current = caseId;
     setIsLoadingCaseId(caseId);
     setError(null);
     try {
       const nextCase = await getCase(caseId, API_BASE_URL);
       const nextAssets = await listAssets(caseId, API_BASE_URL);
+      if (
+        caseOperationGeneration.current !== operationGeneration ||
+        activeCaseIdRef.current !== caseId
+      ) {
+        return;
+      }
       setScriptText(nextCase.script_text);
       setCaseResult(nextCase);
       setAssets(nextAssets);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
-      setError('This case could not be reopened. Please try again.');
+      if (
+        caseOperationGeneration.current === operationGeneration &&
+        activeCaseIdRef.current === caseId
+      ) {
+        setError('This case could not be reopened. Please try again.');
+      }
     } finally {
-      setIsLoadingCaseId(null);
+      if (caseLoadingGeneration.current === requestGeneration) {
+        setIsLoadingCaseId(null);
+      }
     }
   }
 

@@ -1,5 +1,68 @@
 import { expect, test } from '@playwright/test';
 
+test('ignores stale case reopen responses after a newer case is selected', async ({ page }) => {
+  const olderScript = 'The Nimbus Soda can remains on the prop table.';
+  const newerScript = 'A quiet scene without any fictional references plays in silence.';
+
+  await page.goto('/');
+  await page.getByLabel('Script text').fill(olderScript);
+  const olderCaseResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
+  );
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  const olderCase = await (await olderCaseResponse).json();
+
+  await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
+  await page.getByRole('button', { name: 'Upload asset' }).click();
+  await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
+
+  await page.getByLabel('Script text').fill(newerScript);
+  const newerCaseResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
+  );
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  const newerCase = await (await newerCaseResponse).json();
+
+  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await expect(page.getByTestId('recent-cases')).toContainText(olderScript);
+
+  let releaseOlderCaseResponse: (() => void) | undefined;
+  let signalOlderCaseRequestStarted: (() => void) | undefined;
+  const olderCaseRequestStarted = new Promise<void>((resolve) => {
+    signalOlderCaseRequestStarted = resolve;
+  });
+  await page.route(`**/api/cases/${olderCase.id}`, async (route) => {
+    signalOlderCaseRequestStarted?.();
+    await new Promise<void>((release) => {
+      releaseOlderCaseResponse = release;
+    });
+    await route.continue();
+  });
+
+  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(olderScript) }).click();
+  await olderCaseRequestStarted;
+  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(newerScript) }).click();
+  await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
+
+  const staleAssetsResponse = page.waitForResponse(
+    (response) =>
+      response.url().endsWith(`/api/cases/${olderCase.id}/assets`) &&
+      response.request().method() === 'GET'
+  );
+  releaseOlderCaseResponse?.();
+  await staleAssetsResponse;
+
+  await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
+  await expect(page.getByTestId('finding-card')).toHaveCount(0);
+  await expect(page.getByTestId('asset-list')).not.toContainText('production-note.txt');
+  await expect(page.getByTestId('asset-list')).toContainText(
+    'No plain-text production notes are attached yet.'
+  );
+
+  await page.unroute(`**/api/cases/${olderCase.id}`);
+  expect(newerCase.id).not.toBe(olderCase.id);
+});
+
 test('uploads a text asset and reopens it from recent cases', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Script text').fill('Nimbus Soda appears in a shot.');
