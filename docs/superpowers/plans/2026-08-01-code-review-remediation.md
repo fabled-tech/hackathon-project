@@ -242,6 +242,59 @@ git add services/api/app/smoke_real.py services/api/tests/test_smoke_real.py REA
 git commit -m "fix: exercise repositories in real smoke"
 ```
 
+## Task 6: Persist and reconcile private asset lifecycle state
+
+**Files:**
+- Modify: `services/api/app/models/assets.py`, `services/api/app/models/__init__.py`
+- Modify: `services/api/app/repositories/assets.py`, `services/api/app/repositories/__init__.py`
+- Modify: `services/api/app/dependencies.py`, `services/api/app/config.py`
+- Create: `services/api/app/reconcile_assets.py`
+- Modify: `services/api/tests/test_repositories.py`, `services/api/tests/test_reconcile_assets.py`
+- Modify: `README.md`, `.env.example`, `Makefile`
+
+**Interfaces:**
+- Consumes: private `StoredAsset`, real/memory asset repositories, explicit settings.
+- Produces: `AssetLifecycle`, `AssetRepository.reconcile_pending(limit)`, idempotent cloud cleanup, and a manually opt-in reconciliation command.
+
+- [ ] **Step 1: Write failing lifecycle and reconciliation tests**
+
+Add fake-cloud tests for this exact dual-failure sequence: private metadata creation succeeds; GCS upload succeeds; marking the record ready fails; compensating blob delete fails. Assert the Firestore record remains and is marked `cleanup_pending`, the record contains the generated object reference, and `list_for_case` does not return it. Add a test where GCS deletion succeeds but document deletion fails; a later `reconcile_pending` must treat GCS `NotFound` as success and remove the surviving document. Add a `reconcile_assets` command test proving it skips unless both real repositories and `RIGHTSRADAR_ENABLE_RECONCILIATION=true` are selected, then calls only repository reconciliation through injected fakes.
+
+- [ ] **Step 2: Verify RED lifecycle behavior**
+
+Run: `cd services/api && uv run python -m pytest tests/test_repositories.py tests/test_reconcile_assets.py -v`
+
+Expected: FAIL because metadata is written after upload, there is no lifecycle state/reconciliation operation, and object `NotFound` stops cleanup.
+
+- [ ] **Step 3: Implement private lifecycle records and idempotent cleanup**
+
+Add private `AssetLifecycle` values `pending`, `ready`, and `cleanup_pending` to `StoredAsset`, defaulting legacy persisted records to `ready`. Keep public `Asset` unchanged. In `CloudStorageAssetRepository.store`, first persist a private `pending` metadata document containing the server-generated object reference; only then upload bytes and update the record to `ready`. On upload/final-state failure, attempt cleanup. If bytes cannot be removed, retain the private metadata and update it to `cleanup_pending`; never return pending/cleanup records through `list_for_case` or `get_content`.
+
+Make cloud deletion idempotent: catch the Google Storage `NotFound` exception as successful object cleanup, then continue to delete Firestore metadata. If document deletion fails after bytes are absent, leave `cleanup_pending` metadata so a later retry can complete. In memory, retain corresponding private lifecycle state and implement the same public-listing behavior. Add `reconcile_pending(limit: int) -> int` to `AssetRepository`; real repositories query pending cleanup records, retry `delete`, and return the number fully removed, while mock repositories do the same without external calls.
+
+- [ ] **Step 4: Add the manual reconciliation command**
+
+Add `RIGHTSRADAR_ENABLE_RECONCILIATION: bool = False` to settings. Extract repository construction from `build_services` into a small reusable helper so the command creates real repositories without constructing Gemini/Parallel/AgentService. `python -m app.reconcile_assets` must skip unless the explicit flag and real repository mode are both selected; when enabled, call `reconcile_pending(limit=100)` and print only a count, never bucket/project/object names or raw provider errors. Add `make reconcile-assets` as the documented explicit command; it must skip safely by default.
+
+- [ ] **Step 5: Verify GREEN behavior and API privacy**
+
+Run: `cd services/api && uv run python -m pytest tests/test_repositories.py tests/test_reconcile_assets.py -v`
+
+Run: `make reconcile-assets`
+
+Run: `cd services/api && uv run python -m pytest tests/test_assets.py -v`
+
+Expected: PASS; default reconciliation skips; public asset responses still return only ready metadata and contain no private lifecycle/object fields.
+
+- [ ] **Step 6: Document and commit durable cleanup**
+
+Document the private lifecycle and that manual reconciliation is explicit, uses ADC/repository configuration, performs cleanup attempts, and reports failures without exposing identifiers. Do not add project-specific values.
+
+```bash
+git add services/api/app services/api/tests README.md .env.example Makefile
+git commit -m "fix: persist recoverable asset cleanup state"
+```
+
 ## Final verification
 
 - [ ] Run `make lint`.
