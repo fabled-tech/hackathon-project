@@ -1,5 +1,5 @@
-from collections.abc import Mapping
-from typing import Protocol
+from collections.abc import Callable, Mapping
+from typing import Any, Protocol
 
 from app.models import Case, CaseSummary, Finding, ReviewerStatus
 
@@ -75,10 +75,18 @@ class InMemoryCaseRepository:
 class FirestoreCaseRepository:
     """Cloud repository loaded only when a real repository is explicitly selected."""
 
-    def __init__(self, project: str, collection_name: str) -> None:
-        from google.cloud import firestore
+    def __init__(self, project: str, collection_name: str, *, client: Any | None = None) -> None:
+        increment: Callable[[int], Any]
+        if client is None:
+            from google.cloud import firestore
 
-        self._client = firestore.Client(project=project)
+            client = firestore.Client(project=project)
+            increment = firestore.Increment
+        else:
+            increment = client.Increment
+
+        self._client = client
+        self._increment = increment
         self._collection = self._client.collection(collection_name)
 
     def create(self, case: Case) -> Case:
@@ -122,6 +130,7 @@ class FirestoreCaseRepository:
         ]
 
     def increment_asset_count(self, case_id: str) -> None:
-        case = self.get(case_id)
-        case.asset_count += 1
-        self._collection.document(case_id).set(case.model_dump(mode="json"))
+        document = self._collection.document(case_id)
+        if not document.get().exists:
+            raise CaseRepositoryNotFound(case_id)
+        document.update({"asset_count": self._increment(1)})

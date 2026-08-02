@@ -59,7 +59,9 @@ def build_services(settings: Settings) -> ApplicationServices:
         project = _require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT")
         case_repository = FirestoreCaseRepository(project, settings.firestore_collection)
         asset_repository = CloudStorageAssetRepository(
-            _require(settings.cloud_storage_bucket, "RIGHTSRADAR_CLOUD_STORAGE_BUCKET")
+            project=project,
+            bucket_name=_require(settings.cloud_storage_bucket, "RIGHTSRADAR_CLOUD_STORAGE_BUCKET"),
+            case_collection=settings.firestore_collection,
         )
     else:
         case_repository = InMemoryCaseRepository()
