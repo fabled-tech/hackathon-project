@@ -1,4 +1,9 @@
-from .assets import AssetRepository, CloudStorageAssetRepository, InMemoryAssetRepository
+from .assets import (
+    AssetRepository,
+    CloudStorageAssetRepository,
+    InMemoryAssetRepository,
+    ReconciliationResult,
+)
 from .cases import (
     CaseRepository,
     CaseRepositoryNotFound,
@@ -16,4 +21,5 @@ __all__ = [
     "FirestoreCaseRepository",
     "InMemoryAssetRepository",
     "InMemoryCaseRepository",
+    "ReconciliationResult",
 ]

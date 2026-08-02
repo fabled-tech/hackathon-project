@@ -17,11 +17,17 @@ def main(settings: Settings | None = None, asset_repository: AssetRepository | N
 
     try:
         repository = asset_repository or build_repositories(configured_settings)[1]
-        reconciled = repository.reconcile_pending(limit=100)
+        result = repository.reconcile_pending(limit=100)
     except Exception:
         print("Private asset reconciliation failed.", file=sys.stderr)
         return 1
-    print(f"Reconciled {reconciled} private asset record(s).")
+    print(f"Reconciled {result.reconciled} private asset record(s).")
+    if result.failed:
+        print(
+            f"Private asset reconciliation had {result.failed} failed record(s).",
+            file=sys.stderr,
+        )
+        return 1
     return 0
 
 

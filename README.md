@@ -112,10 +112,16 @@ Parallel. With the default environment, it prints a skip message and makes no ex
 
 ### Private asset lifecycle reconciliation
 
-Real asset storage writes private Firestore metadata as `pending`, uploads the private Cloud
-Storage bytes, and then marks the record `ready`. Only `ready` assets are available through the
-application API. If cleanup cannot finish after a failed upload or metadata transition, the record
-is retained as `cleanup_pending` and remains hidden from the browser.
+Real asset storage writes private Firestore metadata as `pending`, with a short server-generated
+writer lease, uploads the private Cloud Storage bytes, and then atomically promotes the record to
+`ready` only while that lease is still owned. Only `ready` assets are available through the
+application API. Cleanup first fences a `ready` record into the private `cleanup_pending` state
+before touching its bytes, so a missing object never leaves a public record exposed.
+
+Incomplete records are indexed only in a private lifecycle collection derived from the configured
+case collection. Reconciliation reads that scoped namespace rather than a project-wide Firestore
+collection group. It can claim an expired writer lease or a cleanup record; a writer that has lost
+its lease checks ownership before upload and cannot publish or leave an untracked object.
 
 Reconciliation is deliberately manual: it is not a queue or background task. With real
 repositories selected and ADC configured, set `RIGHTSRADAR_ENABLE_RECONCILIATION=true`, then run:
@@ -124,10 +130,11 @@ repositories selected and ADC configured, set `RIGHTSRADAR_ENABLE_RECONCILIATION
 make reconcile-assets
 ```
 
-The command retries cleanup for at most 100 incomplete records and prints only the count of fully
-removed records. It does not create agents or contact Gemini or Parallel, and it does not print
-bucket, object, project, credential, or provider-error details. Without both the explicit flag and
-real repository mode, it safely skips without contacting cloud services.
+The command retries cleanup for at most 100 incomplete records and prints only aggregate removed
+and failed-record counts. It exits nonzero if any record fails, without exposing bucket, object,
+project, credential, or provider-error details. It does not create agents or contact Gemini or
+Parallel. Without both the explicit flag and real repository mode, it safely skips without
+contacting cloud services.
 
 ## Testing and quality gates
 

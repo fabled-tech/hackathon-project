@@ -23,6 +23,8 @@ class AssetLifecycle(StrEnum):
 class StoredAsset(Asset):
     storage_reference: str
     lifecycle: AssetLifecycle = AssetLifecycle.READY
+    lease_token: str | None = None
+    lease_expires_at: datetime | None = None
 
 
 class CaseSummary(BaseModel):

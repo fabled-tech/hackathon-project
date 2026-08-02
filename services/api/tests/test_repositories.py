@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 import pytest
@@ -143,7 +143,16 @@ class FakeTransaction:
 
     def update(self, document: FakeDocument, values: Mapping[str, Any]) -> None:
         self.updates.append((document._path, dict(values)))
+        if document._client.fail_next_update:
+            document._client.fail_next_update = False
+            raise RuntimeError("Firestore update is unavailable")
         document._apply_update(values)
+
+    def delete(self, document: FakeDocument) -> None:
+        document.delete()
+
+    def set(self, document: FakeDocument, values: Mapping[str, Any]) -> None:
+        document.set(values)
 
 
 class FakeIncrement:
@@ -316,8 +325,12 @@ def test_cloud_asset_store_retains_cleanup_pending_metadata_after_dual_failure()
 
     assert isinstance(error.value.__cause__, RuntimeError)
     assert str(error.value.__cause__) == "Cloud Storage delete is unavailable"
-    assert len(firestore.documents) == 1
-    document = next(iter(firestore.documents.values()))
+    assert len(firestore.documents) == 2
+    document = next(
+        document
+        for path, document in firestore.documents.items()
+        if path[:3] == ("cases", "case-1", "assets")
+    )
     assert document["storage_reference"].startswith("cases/case-1/assets/")
     assert document["lifecycle"] == AssetLifecycle.CLEANUP_PENDING
     assert repository.list_for_case("case-1") == []
@@ -347,8 +360,120 @@ def test_cloud_asset_reconciliation_treats_missing_object_as_removed() -> None:
 
     assert asset.storage_reference not in storage.uploads
     assert firestore.documents[document_path]["lifecycle"] == AssetLifecycle.CLEANUP_PENDING
-    assert repository.reconcile_pending(limit=10) == 1
+    assert repository.reconcile_pending(limit=10).reconciled == 1
     assert document_path not in firestore.documents
+
+
+def test_reconciliation_fences_an_expired_pending_writer_before_upload() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    now = datetime(2026, 8, 2, tzinfo=UTC)
+
+    def clock() -> datetime:
+        return now
+
+    repository: CloudStorageAssetRepository
+
+    def reconcile_before_writer_checks_lease() -> None:
+        nonlocal now
+        now += timedelta(minutes=6)
+        assert repository.reconcile_pending(limit=10).reconciled == 1
+
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+        clock=clock,
+        before_upload=reconcile_before_writer_checks_lease,
+    )
+
+    with pytest.raises(RuntimeError, match="Asset write lease was lost"):
+        repository.store(
+            "case-1",
+            AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+        )
+
+    assert storage.uploads == {}
+    assert firestore.documents == {}
+    assert repository.list_for_case("case-1") == []
+
+
+def test_delete_hides_ready_metadata_before_object_cleanup_and_reconciles_failure() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+    document_path = ("cases", "case-1", "assets", asset.id)
+    firestore.fail_next_delete = True
+
+    with pytest.raises(RuntimeError, match="Firestore delete is unavailable"):
+        repository.delete(asset)
+
+    assert asset.storage_reference not in storage.uploads
+    assert firestore.documents[document_path]["lifecycle"] == AssetLifecycle.CLEANUP_PENDING
+    assert repository.list_for_case("case-1") == []
+    assert repository.reconcile_pending(limit=10).reconciled == 1
+    assert document_path not in firestore.documents
+
+
+def test_delete_aborts_before_touching_bytes_when_private_transition_fails() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+    firestore.fail_next_update = True
+
+    with pytest.raises(RuntimeError, match="Firestore update is unavailable"):
+        repository.delete(asset)
+
+    assert asset.storage_reference in storage.uploads
+    assert repository.list_for_case("case-1") == [asset]
+
+
+def test_reconciliation_uses_only_its_configured_lifecycle_namespace() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+    foreign_path = ("other_app_asset_lifecycle", "asset-foreign")
+    firestore.documents[foreign_path] = {
+        "id": "asset-foreign",
+        "case_id": "case-foreign",
+        "filename": "foreign.txt",
+        "content_type": "text/plain",
+        "byte_size": 1,
+        "created_at": datetime(2026, 8, 2, tzinfo=UTC),
+        "storage_reference": "foreign/object",
+        "lifecycle": AssetLifecycle.CLEANUP_PENDING,
+    }
+
+    assert repository.reconcile_pending(limit=10).reconciled == 0
+    assert foreign_path in firestore.documents
 
 
 def test_cloud_asset_repository_lists_metadata_and_downloads_private_content() -> None:
@@ -459,7 +584,7 @@ def test_cloud_asset_delete_keeps_metadata_when_private_object_deletion_fails() 
 
     assert asset.storage_reference in storage.uploads
     assert document_path in firestore.documents
-    assert firestore.deleted_documents == []
+    assert document_path not in firestore.deleted_documents
 
 
 def test_cloud_asset_delete_attempts_private_object_when_metadata_deletion_fails() -> None:
@@ -510,7 +635,7 @@ def test_cloud_asset_delete_does_not_attempt_metadata_when_object_deletion_fails
 
     assert storage.deleted == [asset.storage_reference]
     assert document_path in firestore.documents
-    assert firestore.deleted_documents == []
+    assert document_path not in firestore.deleted_documents
 
 
 def test_firestore_case_repository_increments_asset_count_and_lists_newest() -> None:
