@@ -112,16 +112,22 @@ Parallel. With the default environment, it prints a skip message and makes no ex
 
 ### Private asset lifecycle reconciliation
 
-Real asset storage writes private Firestore metadata as `pending`, with a short server-generated
-writer lease, uploads the private Cloud Storage bytes, and then atomically promotes the record to
-`ready` only while that lease is still owned. Only `ready` assets are available through the
-application API. Cleanup first fences a `ready` record into the private `cleanup_pending` state
-before touching its bytes, so a missing object never leaves a public record exposed.
+Real asset storage first creates a zero-byte private Cloud Storage marker with an exact GCS
+generation precondition. It records that marker generation in a single atomic Firestore batch that
+creates both the `pending` asset record and its lifecycle index. Content upload must match the
+saved marker generation, so a reconciliation deletion that wins makes a delayed upload fail rather
+than creating untracked bytes. A short writer lease still prevents normal active uploads from being
+claimed; `ready` promotion also requires the same lease. Only `ready` assets are available through
+the application API. Cleanup first fences a `ready` record into private `cleanup_pending` before
+touching its bytes, so a missing object never leaves a public record exposed.
 
 Incomplete records are indexed only in a private lifecycle collection derived from the configured
 case collection. Reconciliation reads that scoped namespace rather than a project-wide Firestore
-collection group. It can claim an expired writer lease or a cleanup record; a writer that has lost
-its lease checks ownership before upload and cannot publish or leave an untracked object.
+collection group. It can claim an expired writer lease or a cleanup record; it also scans only the
+unambiguous private RightsRadar marker prefix for a marker left behind by a failed Firestore batch.
+It never scans ready objects or unrelated prefixes. A writer that has lost its lease checks
+ownership before upload and, even in the final interleaving window, cannot publish untracked bytes
+because its GCS generation fence has been removed or changed.
 
 Reconciliation is deliberately manual: it is not a queue or background task. With real
 repositories selected and ADC configured, set `RIGHTSRADAR_ENABLE_RECONCILIATION=true`, then run:

@@ -7,6 +7,9 @@ from uuid import uuid4
 from app.models import AssetLifecycle, AssetUpload, StoredAsset
 
 _LEASE_DURATION = timedelta(minutes=5)
+_PRIVATE_OBJECT_PREFIX = "rightsrader-assets/"
+_MARKER_STATE = "pending_marker"
+_CONTENT_STATE = "content"
 Result = TypeVar("Result")
 
 
@@ -149,12 +152,43 @@ class CloudStorageAssetRepository:
             return False
         return isinstance(error, NotFound)
 
-    def _delete_storage_object(self, asset: StoredAsset) -> None:
+    def _delete_storage_object(
+        self, asset: StoredAsset, *, if_generation_match: int | None = None
+    ) -> None:
         try:
-            self._bucket.blob(asset.storage_reference).delete()
+            self._bucket.blob(asset.storage_reference).delete(
+                if_generation_match=if_generation_match
+            )
         except Exception as error:
             if not self._is_not_found(error):
                 raise
+
+    def _create_marker(self, asset: StoredAsset) -> StoredAsset:
+        blob = self._bucket.blob(asset.storage_reference)
+        blob.metadata = {
+            "rightsrader_asset_state": _MARKER_STATE,
+            "rightsrader_case_id": asset.case_id,
+            "rightsrader_asset_id": asset.id,
+        }
+        blob.upload_from_string(b"", content_type=asset.content_type, if_generation_match=0)
+        generation = blob.generation
+        if generation is None:
+            raise RuntimeError("Asset marker generation was unavailable")
+        return asset.model_copy(update={"marker_generation": int(generation)})
+
+    def _remove_marker_after_persistence_failure(self, asset: StoredAsset) -> None:
+        if asset.marker_generation is None:
+            return
+        self._bucket.blob(asset.storage_reference).delete(
+            if_generation_match=asset.marker_generation
+        )
+
+    def _persist_pending(self, asset: StoredAsset) -> None:
+        batch = self._firestore_client.batch()
+        values = asset.model_dump(mode="json")
+        batch.set(self._document(asset), values)
+        batch.set(self._lifecycle_document(asset), values)
+        batch.commit()
 
     def _writer_owns_lease(self, asset: StoredAsset) -> bool:
         def check(transaction: Any) -> bool:
@@ -259,10 +293,12 @@ class CloudStorageAssetRepository:
 
         return self._run_transaction(check)
 
-    def _remove_claimed_asset(self, asset: StoredAsset) -> None:
+    def _remove_claimed_asset(
+        self, asset: StoredAsset, *, marker_generation: int | None = None
+    ) -> None:
         if not self._cleanup_claim_is_current(asset):
             raise AssetWriteLeaseLost("Asset cleanup lease was lost")
-        self._delete_storage_object(asset)
+        self._delete_storage_object(asset, if_generation_match=marker_generation)
 
         def remove(transaction: Any) -> None:
             current = self._read_asset(self._document(asset), transaction)
@@ -286,27 +322,32 @@ class CloudStorageAssetRepository:
             filename=upload.filename,
             content_type=upload.content_type,
             byte_size=len(upload.content),
-            storage_reference=f"cases/{case_id}/assets/{asset_id}",
+            storage_reference=f"{_PRIVATE_OBJECT_PREFIX}{case_id}/{asset_id}",
             created_at=self._clock(),
             lifecycle=AssetLifecycle.PENDING,
             lease_token=str(uuid4()),
             lease_expires_at=self._clock() + _LEASE_DURATION,
         )
-        document = self._document(asset)
-        lifecycle_document = self._lifecycle_document(asset)
-        document.set(asset.model_dump(mode="json"))
         try:
-            lifecycle_document.set(asset.model_dump(mode="json"))
-        except Exception:
-            document.delete()
+            asset = self._create_marker(asset)
+            self._persist_pending(asset)
+        except Exception as persistence_error:
+            try:
+                self._remove_marker_after_persistence_failure(asset)
+            except Exception as cleanup_error:
+                raise persistence_error from cleanup_error
             raise
         try:
             if self._before_upload is not None:
                 self._before_upload()
             if not self._writer_owns_lease(asset):
                 raise AssetWriteLeaseLost("Asset write lease was lost")
-            self._bucket.blob(asset.storage_reference).upload_from_string(
-                upload.content, content_type=upload.content_type
+            blob = self._bucket.blob(asset.storage_reference)
+            blob.metadata = {"rightsrader_asset_state": _CONTENT_STATE}
+            blob.upload_from_string(
+                upload.content,
+                content_type=upload.content_type,
+                if_generation_match=asset.marker_generation,
             )
             if not self._promote_ready(asset):
                 raise AssetWriteLeaseLost("Asset write lease was lost")
@@ -362,6 +403,32 @@ class CloudStorageAssetRepository:
             raise KeyError(asset_id)
         return cast(bytes, self._bucket.blob(asset.storage_reference).download_as_bytes())
 
+    def _reconcile_orphan_markers(self, limit: int) -> ReconciliationResult:
+        reconciled = 0
+        failed = 0
+        for blob in self._bucket.list_blobs(prefix=_PRIVATE_OBJECT_PREFIX):
+            if reconciled + failed >= limit:
+                break
+            metadata = blob.metadata or {}
+            if metadata.get("rightsrader_asset_state") != _MARKER_STATE:
+                continue
+            case_id = metadata.get("rightsrader_case_id")
+            asset_id = metadata.get("rightsrader_asset_id")
+            if not case_id or not asset_id:
+                failed += 1
+                continue
+            try:
+                document = (
+                    self._case_collection.document(case_id).collection("assets").document(asset_id)
+                )
+                if document.get().exists:
+                    continue
+                blob.delete(if_generation_match=blob.generation)
+                reconciled += 1
+            except Exception:
+                failed += 1
+        return ReconciliationResult(reconciled=reconciled, failed=failed)
+
     def reconcile_pending(self, limit: int) -> ReconciliationResult:
         if limit < 1:
             return ReconciliationResult(reconciled=0, failed=0)
@@ -375,11 +442,11 @@ class CloudStorageAssetRepository:
         reconciled = 0
         failed = 0
         for snapshot in snapshots:
-            values = snapshot.to_dict()
-            if not isinstance(values, dict):
-                continue
-            asset = StoredAsset.model_validate(values)
             try:
+                values = snapshot.to_dict()
+                if not isinstance(values, dict):
+                    raise ValueError("Lifecycle record was malformed")
+                asset = StoredAsset.model_validate(values)
                 lifecycle_document = getattr(snapshot, "reference", self._lifecycle_document(asset))
                 claimed = self._claim_cleanup(
                     asset,
@@ -387,8 +454,20 @@ class CloudStorageAssetRepository:
                     lifecycle_document=lifecycle_document,
                 )
                 if claimed is not None:
-                    self._remove_claimed_asset(claimed)
+                    marker_generation = (
+                        asset.marker_generation
+                        if asset.lifecycle is AssetLifecycle.PENDING
+                        else None
+                    )
+                    self._remove_claimed_asset(
+                        claimed, marker_generation=marker_generation
+                    )
                     reconciled += 1
             except Exception:
                 failed += 1
-        return ReconciliationResult(reconciled=reconciled, failed=failed)
+        remaining = max(limit - reconciled - failed, 0)
+        marker_result = self._reconcile_orphan_markers(remaining)
+        return ReconciliationResult(
+            reconciled=reconciled + marker_result.reconciled,
+            failed=failed + marker_result.failed,
+        )

@@ -165,6 +165,8 @@ class FakeFirestoreClient:
         self.case_collection = case_collection
         self.documents: dict[tuple[str, ...], dict[str, Any]] = {}
         self.fail_next_set = False
+        self.fail_next_batch = False
+        self.batch_commits_then_fails = False
         self.fail_next_update = False
         self.fail_next_delete = False
         self.after_next_get: Callable[[], None] | None = None
@@ -182,6 +184,9 @@ class FakeFirestoreClient:
         transaction = FakeTransaction()
         self.transactions.append(transaction)
         return transaction
+
+    def batch(self) -> FakeBatch:
+        return FakeBatch(self)
 
 def run_fake_transaction(
     firestore: FakeFirestoreClient,
@@ -214,25 +219,60 @@ class FakeStorageNotFound(Exception):
     pass
 
 
+class FakeStoragePreconditionFailed(Exception):
+    pass
+
+
 class FakeBlob:
     def __init__(self, client: FakeStorageClient, name: str) -> None:
         self._client = client
         self.name = name
+        self.metadata: dict[str, str] | None = client.metadata.get(name)
 
-    def upload_from_string(self, content: bytes, *, content_type: str) -> None:
+    @property
+    def generation(self) -> int | None:
+        return self._client.generations.get(self.name)
+
+    def upload_from_string(
+        self,
+        content: bytes,
+        *,
+        content_type: str,
+        if_generation_match: int | None = None,
+    ) -> None:
+        if content and self._client.before_content_upload is not None:
+            before_content_upload = self._client.before_content_upload
+            self._client.before_content_upload = None
+            before_content_upload()
+        generation = self._client.generations.get(self.name)
+        if if_generation_match == 0 and generation is not None:
+            raise FakeStoragePreconditionFailed(self.name)
+        if if_generation_match not in (None, 0) and generation != if_generation_match:
+            raise FakeStoragePreconditionFailed(self.name)
         self._client.uploads[self.name] = (content, content_type)
+        self._client.generations[self.name] = (generation or 0) + 1
+        self._client.metadata[self.name] = dict(self.metadata or {})
 
     def download_as_bytes(self) -> bytes:
         return self._client.uploads[self.name][0]
 
-    def delete(self) -> None:
+    def delete(self, *, if_generation_match: int | None = None) -> None:
         self._client.deleted.append(self.name)
         if self._client.fail_next_delete:
             self._client.fail_next_delete = False
             raise RuntimeError("Cloud Storage delete is unavailable")
         if self.name not in self._client.uploads and self._client.missing_raises_not_found:
             raise FakeStorageNotFound(self.name)
+        if self.name not in self._client.uploads:
+            return
+        if (
+            if_generation_match is not None
+            and self._client.generations.get(self.name) != if_generation_match
+        ):
+            raise FakeStoragePreconditionFailed(self.name)
         self._client.uploads.pop(self.name, None)
+        self._client.generations.pop(self.name, None)
+        self._client.metadata.pop(self.name, None)
 
 
 class FakeBucket:
@@ -243,13 +283,42 @@ class FakeBucket:
     def blob(self, name: str) -> FakeBlob:
         return FakeBlob(self._client, name)
 
+    def list_blobs(self, *, prefix: str) -> list[FakeBlob]:
+        return [
+            FakeBlob(self._client, name)
+            for name in self._client.uploads
+            if name.startswith(prefix)
+        ]
+
+
+class FakeBatch:
+    def __init__(self, client: FakeFirestoreClient) -> None:
+        self._client = client
+        self._sets: list[tuple[FakeDocument, Mapping[str, Any]]] = []
+
+    def set(self, document: FakeDocument, values: Mapping[str, Any]) -> None:
+        self._sets.append((document, values))
+
+    def commit(self) -> None:
+        if self._client.fail_next_batch:
+            self._client.fail_next_batch = False
+            raise RuntimeError("Firestore batch is unavailable")
+        for document, values in self._sets:
+            document.set(values)
+        if self._client.batch_commits_then_fails:
+            self._client.batch_commits_then_fails = False
+            raise RuntimeError("Firestore batch outcome is unknown")
+
 
 class FakeStorageClient:
     def __init__(self) -> None:
         self.uploads: dict[str, tuple[bytes, str]] = {}
+        self.generations: dict[str, int] = {}
+        self.metadata: dict[str, dict[str, str]] = {}
         self.deleted: list[str] = []
         self.fail_next_delete = False
         self.missing_raises_not_found = False
+        self.before_content_upload: Callable[[], None] | None = None
 
     def bucket(self, name: str) -> FakeBucket:
         return FakeBucket(self, name)
@@ -273,7 +342,7 @@ def test_legacy_stored_asset_metadata_defaults_to_ready() -> None:
             "content_type": "text/plain",
             "byte_size": 4,
             "created_at": datetime(2026, 8, 2, tzinfo=UTC),
-            "storage_reference": "cases/case-1/assets/asset-1",
+            "storage_reference": "rightsrader-assets/case-1/asset-1",
         }
     )
 
@@ -331,7 +400,7 @@ def test_cloud_asset_store_retains_cleanup_pending_metadata_after_dual_failure()
         for path, document in firestore.documents.items()
         if path[:3] == ("cases", "case-1", "assets")
     )
-    assert document["storage_reference"].startswith("cases/case-1/assets/")
+    assert document["storage_reference"].startswith("rightsrader-assets/case-1/")
     assert document["lifecycle"] == AssetLifecycle.CLEANUP_PENDING
     assert repository.list_for_case("case-1") == []
 
@@ -398,6 +467,136 @@ def test_reconciliation_fences_an_expired_pending_writer_before_upload() -> None
     assert storage.uploads == {}
     assert firestore.documents == {}
     assert repository.list_for_case("case-1") == []
+
+
+def test_generation_fence_blocks_writer_after_cleanup_wins_between_lease_check_and_upload() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    now = datetime(2026, 8, 2, tzinfo=UTC)
+
+    def clock() -> datetime:
+        return now
+
+    repository: CloudStorageAssetRepository
+
+    def reconcile_after_writer_checks_lease() -> None:
+        nonlocal now
+        now += timedelta(minutes=6)
+        assert repository.reconcile_pending(limit=10).reconciled == 1
+
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+        clock=clock,
+    )
+    storage.before_content_upload = reconcile_after_writer_checks_lease
+
+    with pytest.raises(FakeStoragePreconditionFailed):
+        repository.store(
+            "case-1",
+            AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+        )
+
+    assert storage.uploads == {}
+    assert firestore.documents == {}
+    assert repository.list_for_case("case-1") == []
+
+
+def test_pending_metadata_batch_failure_cleans_the_marker_without_partial_documents() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    firestore.fail_next_batch = True
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+
+    with pytest.raises(RuntimeError, match="Firestore batch is unavailable"):
+        repository.store(
+            "case-1",
+            AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+        )
+
+    assert firestore.documents == {}
+    assert storage.uploads == {}
+
+
+def test_reconciliation_recovers_a_marker_left_after_persistence_cleanup_failure() -> None:
+    storage = FakeStorageClient()
+    storage.fail_next_delete = True
+    firestore = FakeFirestoreClient()
+    firestore.fail_next_batch = True
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+
+    with pytest.raises(RuntimeError, match="Firestore batch is unavailable"):
+        repository.store(
+            "case-1",
+            AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+        )
+
+    assert len(storage.uploads) == 1
+    assert repository.reconcile_pending(limit=10).reconciled == 1
+    assert storage.uploads == {}
+
+
+def test_unknown_pending_batch_outcome_leaves_reconcilable_private_metadata() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    firestore.batch_commits_then_fails = True
+    now = datetime(2026, 8, 2, tzinfo=UTC)
+
+    def clock() -> datetime:
+        return now
+
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+        clock=clock,
+    )
+
+    with pytest.raises(RuntimeError, match="Firestore batch outcome is unknown"):
+        repository.store(
+            "case-1",
+            AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+        )
+
+    assert len(firestore.documents) == 2
+    assert storage.uploads == {}
+    now += timedelta(minutes=6)
+    assert repository.reconcile_pending(limit=10).reconciled == 1
+    assert firestore.documents == {}
+
+
+def test_reconciliation_counts_a_malformed_lifecycle_record_and_continues() -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    firestore.documents[("cases_asset_lifecycle", "malformed")] = {"lifecycle": "pending"}
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+
+    result = repository.reconcile_pending(limit=10)
+
+    assert result == type(result)(reconciled=0, failed=1)
 
 
 def test_delete_hides_ready_metadata_before_object_cleanup_and_reconciles_failure() -> None:
@@ -495,7 +694,7 @@ def test_cloud_asset_repository_lists_metadata_and_downloads_private_content() -
     assert repository.get_content(asset.id) == b"rights note"
 
 
-def test_cloud_asset_repository_does_not_upload_bytes_when_pending_metadata_write_fails() -> None:
+def test_cloud_asset_repository_removes_marker_when_pending_metadata_batch_fails() -> None:
     storage = FakeStorageClient()
     firestore = FakeFirestoreClient()
     firestore.fail_next_set = True
@@ -514,10 +713,10 @@ def test_cloud_asset_repository_does_not_upload_bytes_when_pending_metadata_writ
         )
 
     assert storage.uploads == {}
-    assert storage.deleted == []
+    assert storage.deleted[0].startswith("rightsrader-assets/case-1/")
 
 
-def test_cloud_asset_repository_skips_rollback_when_pending_metadata_write_fails() -> None:
+def test_cloud_asset_repository_preserves_persistence_error_when_marker_cleanup_fails() -> None:
     storage = FakeStorageClient()
     storage.fail_next_delete = True
     firestore = FakeFirestoreClient()
@@ -536,9 +735,10 @@ def test_cloud_asset_repository_skips_rollback_when_pending_metadata_write_fails
             AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
         )
 
-    assert error.value.__cause__ is None
-    assert storage.uploads == {}
-    assert storage.deleted == []
+    assert isinstance(error.value.__cause__, RuntimeError)
+    assert str(error.value.__cause__) == "Cloud Storage delete is unavailable"
+    assert len(storage.uploads) == 1
+    assert storage.deleted[0].startswith("rightsrader-assets/case-1/")
 
 
 def test_cloud_asset_repository_deletes_private_bytes_and_metadata() -> None:
