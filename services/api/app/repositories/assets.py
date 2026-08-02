@@ -93,8 +93,11 @@ class CloudStorageAssetRepository:
             self._case_collection.document(case_id).collection("assets").document(asset.id).set(
                 asset.model_dump(mode="json")
             )
-        except Exception:
-            blob.delete()
+        except Exception as metadata_error:
+            try:
+                blob.delete()
+            except Exception as cleanup_error:
+                raise metadata_error from cleanup_error
             raise
         return asset.model_copy(deep=True)
 

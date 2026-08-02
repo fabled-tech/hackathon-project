@@ -245,6 +245,31 @@ def test_cloud_asset_repository_removes_bytes_when_metadata_write_fails() -> Non
     assert storage.deleted and storage.deleted[0].startswith("cases/case-1/assets/")
 
 
+def test_cloud_asset_repository_preserves_metadata_error_when_rollback_fails() -> None:
+    storage = FakeStorageClient()
+    storage.fail_next_delete = True
+    firestore = FakeFirestoreClient()
+    firestore.fail_next_set = True
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+
+    with pytest.raises(RuntimeError, match="Firestore is unavailable") as error:
+        repository.store(
+            "case-1",
+            AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+        )
+
+    assert isinstance(error.value.__cause__, RuntimeError)
+    assert str(error.value.__cause__) == "Cloud Storage delete is unavailable"
+    assert len(storage.uploads) == 1
+    assert storage.deleted and storage.deleted[0].startswith("cases/case-1/assets/")
+
+
 def test_cloud_asset_repository_deletes_private_bytes_and_metadata() -> None:
     storage = FakeStorageClient()
     firestore = FakeFirestoreClient()
