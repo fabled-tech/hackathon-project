@@ -473,7 +473,11 @@ class CloudStorageAssetRepository:
         if not isinstance(document, dict):
             raise KeyError(asset_id)
         asset = StoredAsset.model_validate(document)
-        if asset.case_id != case_id or asset.lifecycle is not AssetLifecycle.READY:
+        if (
+            asset.id != asset_id
+            or asset.case_id != case_id
+            or asset.lifecycle is not AssetLifecycle.READY
+        ):
             raise KeyError(asset_id)
         return cast(bytes, self._bucket.blob(asset.storage_reference).download_as_bytes())
 

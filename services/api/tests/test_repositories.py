@@ -862,6 +862,37 @@ def test_cloud_asset_repository_reads_content_from_the_case_scoped_document() ->
     assert repository.get_content("case-1", asset.id) == b"rights note"
 
 
+@pytest.mark.parametrize(
+    ("field", "value"),
+    [
+        ("id", "different-asset"),
+        ("case_id", "different-case"),
+        ("lifecycle", AssetLifecycle.CLEANUP_PENDING),
+    ],
+    ids=["different-id", "different-case", "not-ready"],
+)
+def test_cloud_asset_repository_rejects_content_with_untrusted_metadata(
+    field: str, value: str | AssetLifecycle
+) -> None:
+    storage = FakeStorageClient()
+    firestore = FakeFirestoreClient()
+    repository = CloudStorageAssetRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        case_collection="cases",
+        storage_client=storage,
+        firestore_client=firestore,
+    )
+    asset = repository.store(
+        "case-1",
+        AssetUpload(filename="note.txt", content_type="text/plain", content=b"rights note"),
+    )
+    firestore.documents[("cases", "case-1", "assets", asset.id)][field] = value
+
+    with pytest.raises(KeyError):
+        repository.get_content("case-1", asset.id)
+
+
 def test_cloud_asset_repository_removes_marker_when_pending_metadata_batch_fails() -> None:
     storage = FakeStorageClient()
     firestore = FakeFirestoreClient()
