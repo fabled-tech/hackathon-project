@@ -1,5 +1,5 @@
 from collections.abc import Callable, Mapping
-from typing import Any, Protocol
+from typing import Any, Protocol, cast
 
 from app.models import Case, CaseSummary, Finding, ReviewerStatus
 
@@ -91,20 +91,17 @@ class FirestoreCaseRepository:
         transaction_runner: Callable[[Callable[[Any], Finding]], Finding] | None = None,
     ) -> None:
         increment: Callable[[int], Any]
-        transactional: Callable[[Callable[[Any], Finding]], Callable[[Any], Finding]] | None = None
         if client is None:
             from google.cloud import firestore
 
             client = firestore.Client(project=project)
             increment = firestore.Increment
-            transactional = firestore.transactional
         else:
             increment = client.Increment
 
         self._client = client
         self._increment = increment
         self._collection = self._client.collection(collection_name)
-        self._transactional = transactional
         self._transaction_runner = transaction_runner
 
     def create(self, case: Case) -> Case:
@@ -144,10 +141,10 @@ class FirestoreCaseRepository:
 
         if self._transaction_runner is not None:
             return self._transaction_runner(update)
+        from google.cloud import firestore
+
         transaction = self._client.transaction()
-        if self._transactional is None:
-            return update(transaction)
-        return self._transactional(update)(transaction)
+        return cast(Finding, firestore.transactional(update)(transaction))
 
     def list_recent(self, limit: int) -> list[CaseSummary]:
         snapshots = (

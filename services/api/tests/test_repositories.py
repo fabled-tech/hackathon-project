@@ -10,6 +10,7 @@ from app.models import AssetUpload, Case, Finding, ReviewerStatus
 from app.repositories.assets import CloudStorageAssetRepository
 from app.repositories.cases import (
     CaseRepositoryNotFound,
+    FindingNotFound,
     FirestoreCaseRepository,
     InMemoryCaseRepository,
 )
@@ -162,6 +163,12 @@ class FakeFirestoreClient:
     @staticmethod
     def Increment(amount: int) -> FakeIncrement:
         return FakeIncrement(amount)
+
+
+def run_fake_transaction(
+    firestore: FakeFirestoreClient,
+) -> Callable[[Callable[[FakeTransaction], Finding]], Finding]:
+    return lambda operation: operation(firestore.transaction())
 
 
 class FakeBlob:
@@ -416,7 +423,12 @@ def test_firestore_case_repository_raises_for_unknown_case_increment() -> None:
 
 def test_firestore_finding_updates_do_not_overwrite_a_concurrent_asset_increment() -> None:
     firestore = FakeFirestoreClient()
-    repository = FirestoreCaseRepository("test-project", "cases", client=firestore)
+    repository = FirestoreCaseRepository(
+        "test-project",
+        "cases",
+        client=firestore,
+        transaction_runner=run_fake_transaction(firestore),
+    )
     case = make_case("case-1", created_at=datetime(2026, 8, 1, tzinfo=UTC))
     case.findings = [
         Finding(
@@ -452,7 +464,7 @@ def test_firestore_finding_status_update_reads_and_writes_with_a_transaction() -
         "test-project",
         "cases",
         client=firestore,
-        transaction_runner=lambda operation: operation(firestore.transaction()),
+        transaction_runner=run_fake_transaction(firestore),
     )
     case = make_case("case-1", created_at=datetime(2026, 8, 1, tzinfo=UTC))
     case.findings = [
@@ -484,6 +496,136 @@ def test_firestore_finding_status_update_reads_and_writes_with_a_transaction() -
     assert firestore.direct_updates == []
 
 
+def test_injected_firestore_client_uses_the_official_transactional_runner(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    from google.cloud import firestore
+
+    firestore_client = FakeFirestoreClient()
+    decorated_transactions: list[FakeTransaction] = []
+
+    def transactional(
+        operation: Callable[[FakeTransaction], Finding],
+    ) -> Callable[[FakeTransaction], Finding]:
+        def invoke(transaction: FakeTransaction) -> Finding:
+            decorated_transactions.append(transaction)
+            return operation(transaction)
+
+        return invoke
+
+    monkeypatch.setattr(firestore, "transactional", transactional)
+    repository = FirestoreCaseRepository("test-project", "cases", client=firestore_client)
+    case = make_case("case-1", created_at=datetime(2026, 8, 1, tzinfo=UTC))
+    case.findings = [
+        Finding(
+            id="finding-1",
+            case_id=case.id,
+            category="brand",
+            detected_item="Nimbus Soda",
+            explanation="Fictional reference",
+            confidence=0.8,
+            supporting_evidence=[],
+            source_urls=[],
+            retrieved_at=datetime(2026, 8, 1, tzinfo=UTC),
+            reviewer_status=ReviewerStatus.PENDING,
+        )
+    ]
+    repository.create(case)
+
+    repository.update_finding_status(case.id, "finding-1", ReviewerStatus.DISMISSED)
+
+    assert decorated_transactions == [firestore_client.transactions[0]]
+
+
+def test_firestore_finding_status_retry_preserves_an_independent_reviewer_update() -> None:
+    firestore = FakeFirestoreClient()
+    case = make_case("case-1", created_at=datetime(2026, 8, 1, tzinfo=UTC))
+    case.findings = [
+        Finding(
+            id="finding-1",
+            case_id=case.id,
+            category="brand",
+            detected_item="Nimbus Soda",
+            explanation="Fictional reference",
+            confidence=0.8,
+            supporting_evidence=[],
+            source_urls=[],
+            retrieved_at=datetime(2026, 8, 1, tzinfo=UTC),
+            reviewer_status=ReviewerStatus.PENDING,
+        ),
+        Finding(
+            id="finding-2",
+            case_id=case.id,
+            category="quotation",
+            detected_item="A fictional quotation",
+            explanation="Fictional reference",
+            confidence=0.8,
+            supporting_evidence=[],
+            source_urls=[],
+            retrieved_at=datetime(2026, 8, 1, tzinfo=UTC),
+            reviewer_status=ReviewerStatus.PENDING,
+        ),
+    ]
+    document_path = ("cases", case.id)
+
+    def retry_after_independent_update(
+        operation: Callable[[FakeTransaction], Finding],
+    ) -> Finding:
+        operation(firestore.transaction())
+        firestore.documents[document_path]["findings"][1]["reviewer_status"] = "escalated"
+        return operation(firestore.transaction())
+
+    repository = FirestoreCaseRepository(
+        "test-project",
+        "cases",
+        client=firestore,
+        transaction_runner=retry_after_independent_update,
+    )
+    repository.create(case)
+
+    finding = repository.update_finding_status(
+        case.id, "finding-1", ReviewerStatus.DISMISSED
+    )
+
+    assert finding.reviewer_status is ReviewerStatus.DISMISSED
+    assert [
+        stored_finding["reviewer_status"]
+        for stored_finding in firestore.documents[document_path]["findings"]
+    ] == ["dismissed", "escalated"]
+    assert len(firestore.transactions) == 2
+
+
+def test_firestore_finding_status_update_raises_for_missing_case_in_transaction() -> None:
+    firestore = FakeFirestoreClient()
+    repository = FirestoreCaseRepository(
+        "test-project",
+        "cases",
+        client=firestore,
+        transaction_runner=run_fake_transaction(firestore),
+    )
+
+    with pytest.raises(CaseRepositoryNotFound):
+        repository.update_finding_status("missing", "finding-1", ReviewerStatus.DISMISSED)
+
+    assert firestore.transactions[0].reads == [("cases", "missing")]
+
+
+def test_firestore_finding_status_update_raises_for_missing_finding_in_transaction() -> None:
+    firestore = FakeFirestoreClient()
+    repository = FirestoreCaseRepository(
+        "test-project",
+        "cases",
+        client=firestore,
+        transaction_runner=run_fake_transaction(firestore),
+    )
+    repository.create(make_case("case-1", created_at=datetime(2026, 8, 1, tzinfo=UTC)))
+
+    with pytest.raises(FindingNotFound, match="finding-1"):
+        repository.update_finding_status("case-1", "finding-1", ReviewerStatus.DISMISSED)
+
+    assert firestore.transactions[0].reads == [("cases", "case-1")]
+
+
 def test_in_memory_case_repository_deletes_a_disposable_case() -> None:
     repository = InMemoryCaseRepository()
     case = make_case("case-1", created_at=datetime(2026, 8, 1, tzinfo=UTC))
@@ -505,3 +647,15 @@ def test_firestore_case_repository_deletes_a_disposable_case() -> None:
 
     assert ("cases", case.id) not in firestore.documents
     assert firestore.deleted_documents == [("cases", case.id)]
+
+
+@pytest.mark.parametrize(
+    "repository",
+    [
+        InMemoryCaseRepository(),
+        FirestoreCaseRepository("test-project", "cases", client=FakeFirestoreClient()),
+    ],
+)
+def test_case_repository_delete_raises_for_a_missing_case(repository: Any) -> None:
+    with pytest.raises(CaseRepositoryNotFound):
+        repository.delete("missing")
