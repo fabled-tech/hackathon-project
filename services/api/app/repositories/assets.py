@@ -24,9 +24,9 @@ class InMemoryAssetRepository:
 
 class CloudStorageAssetRepository:
     def __init__(self, bucket_name: str) -> None:
-        from google.cloud import storage
+        from google.cloud.storage import Client
 
-        self._bucket = storage.Client().bucket(bucket_name)
+        self._bucket = Client().bucket(bucket_name)
 
     def store(self, asset: AssetReference) -> str:
         blob = self._bucket.blob(f"assets/{asset.asset_id}")
