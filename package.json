@@ -1,0 +1,21 @@
+{
+  "name": "rightsrader",
+  "private": true,
+  "packageManager": "pnpm@10.14.0",
+  "scripts": {
+    "dev": "concurrently --kill-others-on-fail --names api,web --prefix-colors blue,magenta \"pnpm api:serve\" \"pnpm web:serve\"",
+    "api:serve": "cd services/api && UV_CACHE_DIR=../../.uv-cache uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "api:serve:e2e": "cd services/api && UV_CACHE_DIR=../../.uv-cache uv run uvicorn app.main:app --host 127.0.0.1 --port 8000",
+    "web:serve": "pnpm --filter @rightsrader/web dev",
+    "lint": "pnpm --filter @rightsrader/web lint",
+    "typecheck": "pnpm --filter @rightsrader/web typecheck && pnpm --filter @rightsrader/api-client typecheck",
+    "test:web": "pnpm --filter @rightsrader/web test",
+    "build:web": "pnpm --filter @rightsrader/web build",
+    "e2e": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "concurrently": "^9.2.1",
+    "wait-on": "^8.0.3"
+  }
+}
