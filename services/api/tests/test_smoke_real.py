@@ -108,6 +108,20 @@ class FailingDeleteAssetRepository(FakeAssetRepository):
         raise RuntimeError("asset cleanup failed")
 
 
+class WrongMetadataAssetRepository(FakeAssetRepository):
+    def list_for_case(self, case_id: str) -> list[StoredAsset]:
+        stored_assets = super().list_for_case(case_id)
+        return [asset.model_copy(update={"filename": "wrong-name.txt"}) for asset in stored_assets]
+
+
+class SensitiveStoreFailureAssetRepository(FakeAssetRepository):
+    def store(self, case_id: str, upload: AssetUpload) -> StoredAsset:
+        self.calls.append("store_asset")
+        if self._events is not None:
+            self._events.append("store_asset")
+        raise RuntimeError("bucket fake-bucket project fake-project object smoke-asset")
+
+
 class UnusedAgentService:
     def analyze(self, _case_id: str, _script_text: str) -> list[object]:
         raise AssertionError("The repository smoke must not invoke the agent service")
@@ -185,6 +199,33 @@ def test_real_smoke_cleans_assets_then_case_after_verification_failure(
     assert "failed" in capsys.readouterr().err
 
 
+def test_real_smoke_rejects_wrong_listed_metadata_and_still_cleans_up(
+    capsys: CaptureFixture[str],
+) -> None:
+    events: list[str] = []
+    case_repository = FakeCaseRepository(events)
+    asset_repository = WrongMetadataAssetRepository(events)
+
+    assert main(real_repository_settings(), fake_services(case_repository, asset_repository)) == 1
+
+    assert events[-2:] == ["delete_asset", "delete_case"]
+    assert "verify asset metadata failed (RuntimeError)" in capsys.readouterr().err
+
+
+def test_real_smoke_sanitizes_repository_exception_messages(
+    capsys: CaptureFixture[str],
+) -> None:
+    case_repository = FakeCaseRepository()
+    asset_repository = SensitiveStoreFailureAssetRepository()
+
+    assert main(real_repository_settings(), fake_services(case_repository, asset_repository)) == 1
+
+    output = capsys.readouterr().err
+    assert "store asset failed (RuntimeError)" in output
+    assert "fake-bucket" not in output
+    assert "fake-project" not in output
+
+
 def test_real_smoke_reports_cleanup_error_without_hiding_verification_failure(
     capsys: CaptureFixture[str],
 ) -> None:
@@ -198,8 +239,8 @@ def test_real_smoke_reports_cleanup_error_without_hiding_verification_failure(
 
     assert events[-2:] == ["delete_asset", "delete_case"]
     output = capsys.readouterr().err
-    assert "Smoke asset content did not match the stored text" in output
-    assert "cleanup failed: asset cleanup failed" in output
+    assert "read asset content failed (RuntimeError)" in output
+    assert "delete asset failed (RuntimeError)" in output
 
 
 def test_real_smoke_skips_without_opt_in_or_real_repositories() -> None:

@@ -105,9 +105,9 @@ Leave `RIGHTSRADAR_GEMINI_MODE` and `RIGHTSRADAR_PARALLEL_MODE` unset (or set th
 this repository-only smoke run. Authenticate locally with Application Default Credentials (ADC),
 then set `RIGHTSRADAR_ENABLE_REAL_SMOKE=true` only when you deliberately intend to contact the
 configured repositories. `make smoke-real` creates a UUID-scoped disposable case and short
-`text/plain` asset, reads its metadata and bytes, verifies the case asset count, then deletes the
-asset before the case. It does not call Gemini or Parallel. With the default environment, it
-prints a skip message and makes no external calls.
+`text/plain` asset, reads its metadata and bytes, verifies the case asset count, then attempts to
+delete the asset before the case. Any cleanup failure is reported. It does not call Gemini or
+Parallel. With the default environment, it prints a skip message and makes no external calls.
 
 ## Testing and quality gates
 

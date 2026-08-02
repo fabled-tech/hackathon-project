@@ -1,6 +1,7 @@
 import sys
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
+from typing import TypeVar
 from uuid import uuid4
 
 from app.config import IntegrationMode, Settings
@@ -9,6 +10,28 @@ from app.models import AssetUpload, Case, StoredAsset
 
 _SMOKE_CONTENT = b"smoke test"
 _SMOKE_FILENAME = "smoke-test.txt"
+Result = TypeVar("Result")
+
+
+class SmokeOperationError(Exception):
+    def __init__(self, operation: str, cause: Exception) -> None:
+        super().__init__(operation)
+        self.operation = operation
+        self.cause = cause
+
+
+def _report_failure(operation: str, error: Exception) -> None:
+    print(
+        f"Real repository smoke {operation} failed ({type(error).__name__}).",
+        file=sys.stderr,
+    )
+
+
+def _perform(operation: str, action: Callable[[], Result]) -> Result:
+    try:
+        return action()
+    except Exception as error:
+        raise SmokeOperationError(operation, error) from error
 
 
 def _cleanup_disposable_records(
@@ -19,28 +42,47 @@ def _cleanup_disposable_records(
     case_created: bool,
     primary_error: BaseException | None,
 ) -> None:
-    cleanup_errors: list[Exception] = []
+    cleanup_errors: list[tuple[str, Exception]] = []
     if asset is not None:
         try:
             services.asset_repository.delete(asset)
         except Exception as error:
-            cleanup_errors.append(error)
+            cleanup_errors.append(("delete asset", error))
     if case_created:
         try:
             services.case_repository.delete(case_id)
         except Exception as error:
-            cleanup_errors.append(error)
+            cleanup_errors.append(("delete case", error))
 
-    for cleanup_failure in cleanup_errors:
-        print(f"Real repository smoke cleanup failed: {cleanup_failure}", file=sys.stderr)
+    for operation, cleanup_failure in cleanup_errors:
+        _report_failure(operation, cleanup_failure)
 
     if primary_error is None and cleanup_errors:
-        raise cleanup_errors[0]
+        operation, cleanup_failure = cleanup_errors[0]
+        raise SmokeOperationError(operation, cleanup_failure) from cleanup_failure
 
 
-def _verify_asset_metadata(assets: Sequence[StoredAsset], stored_asset: StoredAsset) -> None:
-    if list(assets) != [stored_asset]:
-        raise RuntimeError("Smoke asset metadata did not match the stored asset")
+def _verify_asset_metadata(assets: Sequence[StoredAsset], case_id: str) -> None:
+    if len(assets) != 1:
+        raise RuntimeError("Smoke asset metadata count did not match")
+    asset = assets[0]
+    if (
+        asset.case_id != case_id
+        or asset.filename != _SMOKE_FILENAME
+        or asset.content_type != "text/plain"
+        or asset.byte_size != len(_SMOKE_CONTENT)
+    ):
+        raise RuntimeError("Smoke asset metadata did not match expected values")
+
+
+def _verify_asset_content(content: bytes) -> None:
+    if content != _SMOKE_CONTENT:
+        raise RuntimeError("Smoke asset content did not match the stored text")
+
+
+def _verify_asset_count(case: Case) -> None:
+    if case.asset_count != 1:
+        raise RuntimeError("Smoke case asset count was not incremented")
 
 
 def run_repository_smoke(services: ApplicationServices) -> None:
@@ -58,22 +100,37 @@ def run_repository_smoke(services: ApplicationServices) -> None:
     primary_error: BaseException | None = None
 
     try:
-        services.case_repository.create(case)
+        _perform("create case", lambda: services.case_repository.create(case))
         case_created = True
-        asset = services.asset_repository.store(
-            case_id,
-            AssetUpload(
-                filename=_SMOKE_FILENAME,
-                content_type="text/plain",
-                content=_SMOKE_CONTENT,
+        asset = _perform(
+            "store asset",
+            lambda: services.asset_repository.store(
+                case_id,
+                AssetUpload(
+                    filename=_SMOKE_FILENAME,
+                    content_type="text/plain",
+                    content=_SMOKE_CONTENT,
+                ),
             ),
         )
-        _verify_asset_metadata(services.asset_repository.list_for_case(case_id), asset)
-        if services.asset_repository.get_content(asset.id) != _SMOKE_CONTENT:
-            raise RuntimeError("Smoke asset content did not match the stored text")
-        services.case_repository.increment_asset_count(case_id)
-        if services.case_repository.get(case_id).asset_count != 1:
-            raise RuntimeError("Smoke case asset count was not incremented")
+        _perform(
+            "verify asset metadata",
+            lambda: _verify_asset_metadata(
+                services.asset_repository.list_for_case(case_id), case_id
+            ),
+        )
+        _perform(
+            "read asset content",
+            lambda: _verify_asset_content(services.asset_repository.get_content(asset.id)),
+        )
+        _perform(
+            "increment asset count",
+            lambda: services.case_repository.increment_asset_count(case_id),
+        )
+        _perform(
+            "verify asset count",
+            lambda: _verify_asset_count(services.case_repository.get(case_id)),
+        )
     except BaseException as error:
         primary_error = error
         raise
@@ -99,8 +156,11 @@ def main(settings: Settings | None = None, services: ApplicationServices | None 
 
     try:
         run_repository_smoke(services or build_services(configured_settings))
+    except SmokeOperationError as error:
+        _report_failure(error.operation, error.cause)
+        return 1
     except Exception as error:
-        print(f"Real repository smoke test failed: {error}", file=sys.stderr)
+        _report_failure("run", error)
         return 1
 
     print("Real repository smoke test completed.")
