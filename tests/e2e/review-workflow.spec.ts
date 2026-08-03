@@ -1,5 +1,26 @@
 import { expect, test } from '@playwright/test';
 
+test('uses side-by-side panes on desktop and stacks them on narrow screens', async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await page.goto('/');
+
+  const scriptPane = page.locator('.workspace');
+  const reviewQueue = page.getByTestId('review-queue');
+  const desktopScriptBox = await scriptPane.boundingBox();
+  const desktopQueueBox = await reviewQueue.boundingBox();
+  expect(desktopScriptBox).not.toBeNull();
+  expect(desktopQueueBox).not.toBeNull();
+  expect(desktopQueueBox!.x).toBeGreaterThan(desktopScriptBox!.x);
+  expect(Math.abs(desktopQueueBox!.y - desktopScriptBox!.y)).toBeLessThan(2);
+
+  await page.setViewportSize({ width: 600, height: 900 });
+  const narrowScriptBox = await scriptPane.boundingBox();
+  const narrowQueueBox = await reviewQueue.boundingBox();
+  expect(narrowScriptBox).not.toBeNull();
+  expect(narrowQueueBox).not.toBeNull();
+  expect(narrowQueueBox!.y).toBeGreaterThan(narrowScriptBox!.y);
+});
+
 test('keeps the visible case usable after reopening another case fails', async ({ page }) => {
   const visibleScript = 'Failure guard visible case: Nimbus Soda remains on the prop table.';
   const failedScript = 'Failure guard target case: a quiet scene plays in silence.';
@@ -362,6 +383,98 @@ test('renders a neutral no-source finding without hiding the review actions', as
   await expect(page.getByTestId('finding-card').getByRole('button', { name: 'Dismiss' })).toBeEnabled();
 });
 
+test('does not present a primary citation as validated when its rationale is missing', async ({ page }) => {
+  await page.route('**/api/cases', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'missing-rationale-case',
+        script_text: 'A cited reference is missing its rationale.',
+        created_at: '2026-08-02T00:00:00Z',
+        findings: [
+          {
+            id: 'missing-rationale-finding',
+            case_id: 'missing-rationale-case',
+            category: 'brand_reference',
+            detected_item: 'Unverified citation',
+            explanation: 'The reviewer needs a valid rationale before relying on this source.',
+            confidence: 0.5,
+            supporting_evidence: [
+              {
+                excerpt: 'An unsupported primary research excerpt.',
+                source: { title: 'Unsupported source', url: 'https://source.test/unsupported' }
+              }
+            ],
+            source_urls: ['https://source.test/unsupported'],
+            retrieved_at: '2026-08-02T00:00:00Z',
+            reviewer_status: 'pending',
+            evidence: {
+              primary: {
+                excerpt: 'An unsupported primary research excerpt.',
+                source: { title: 'Unsupported source', url: 'https://source.test/unsupported' }
+              },
+              rationale: null,
+              alternatives: []
+            }
+          }
+        ]
+      })
+    });
+  });
+
+  await page.goto('/');
+  await page.getByLabel('Script text').fill('A cited reference is missing its rationale.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  const finding = page.getByTestId('finding-card');
+  await expect(finding.getByTestId('evidence-validation-state')).toBeVisible();
+  await expect(finding.getByTestId('evidence-primary')).toBeHidden();
+  await expect(finding).not.toContainText('Unsupported source');
+});
+
+test('keeps failed Past cases loading inside the dialog and offers a retry', async ({ page }) => {
+  let listAttempts = 0;
+  await page.route(
+    (url) => url.pathname === '/api/cases' && url.searchParams.get('limit') === '10',
+    async (route) => {
+      listAttempts += 1;
+      if (listAttempts === 1) {
+        await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+        return;
+      }
+      await route.fulfill({
+        contentType: 'application/json',
+        body: JSON.stringify([
+          {
+            id: 'retried-case',
+            created_at: '2026-08-02T00:00:00Z',
+            script_excerpt: 'Retried case.',
+            finding_count: 0,
+            asset_count: 0
+          }
+        ])
+      });
+    }
+  );
+
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Past cases' }).click();
+
+  const drawer = page.getByTestId('past-cases');
+  await expect(drawer.getByRole('alert')).toContainText(
+    'Past cases could not be loaded. Please try again.'
+  );
+  await expect(drawer.getByText('No past cases yet.')).toBeHidden();
+  await drawer.getByRole('button', { name: 'Retry' }).click();
+  await expect(drawer.getByRole('button', { name: /Retried case/ })).toBeVisible();
+  await expect(drawer.getByRole('alert')).toBeHidden();
+});
+
 test('opens and closes the newest-first Past cases drawer with the keyboard', async ({ page }) => {
   const olderScript = 'Older chronological case.';
   const newerScript = 'Newer chronological case.';
@@ -372,12 +485,17 @@ test('opens and closes the newest-first Past cases drawer with the keyboard', as
   await page.getByLabel('Script text').fill(newerScript);
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
-  await page.getByRole('button', { name: 'Past cases' }).click();
+  const historyTrigger = page.getByRole('button', { name: 'Past cases' });
+  await historyTrigger.click();
   const drawer = page.getByTestId('past-cases');
   await expect(drawer).toBeVisible();
+  await expect(drawer.getByRole('button', { name: 'Close Past cases' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(drawer.locator(':focus')).toBeVisible();
   await expect(drawer.getByTestId('recent-cases').getByRole('button').first()).toContainText(
     newerScript
   );
   await page.keyboard.press('Escape');
   await expect(drawer).toBeHidden();
+  await expect(historyTrigger).toBeFocused();
 });

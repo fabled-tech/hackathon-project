@@ -13,7 +13,7 @@ import {
   uploadAsset,
   updateFindingStatus
 } from '@rightsrader/api-client';
-import { type FormEvent, useEffect, useRef, useState } from 'react';
+import { type FormEvent, type SyntheticEvent, useEffect, useRef, useState } from 'react';
 
 const SAMPLE_SCRIPT =
   'INT. EDIT SUITE — NIGHT\n\nMARA opens a can of Nimbus Soda. "Time keeps the reel turning," she says, and marks the take.';
@@ -42,6 +42,7 @@ export function ScriptReview() {
   const [isUploading, setIsUploading] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isLoadingRecentCases, setIsLoadingRecentCases] = useState(false);
+  const [historyError, setHistoryError] = useState<string | null>(null);
   const [isLoadingCaseId, setIsLoadingCaseId] = useState<string | null>(null);
   const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
   const [expandedEvidenceIds, setExpandedEvidenceIds] = useState<Record<string, boolean>>({});
@@ -52,16 +53,20 @@ export function ScriptReview() {
   const submissionGeneration = useRef(0);
   const uploadGeneration = useRef(0);
   const caseLoadingGeneration = useRef(0);
+  const historyDialogRef = useRef<HTMLDialogElement>(null);
+  const historyTriggerRef = useRef<HTMLButtonElement>(null);
+  const closeHistoryButtonRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
-    if (!isHistoryOpen) return;
+    const dialog = historyDialogRef.current;
+    if (!dialog) return;
 
-    function closeHistoryOnEscape(event: KeyboardEvent) {
-      if (event.key === 'Escape') setIsHistoryOpen(false);
+    if (isHistoryOpen && !dialog.open) {
+      dialog.showModal();
+      requestAnimationFrame(() => closeHistoryButtonRef.current?.focus());
+    } else if (!isHistoryOpen && dialog.open) {
+      dialog.close();
     }
-
-    window.addEventListener('keydown', closeHistoryOnEscape);
-    return () => window.removeEventListener('keydown', closeHistoryOnEscape);
   }, [isHistoryOpen]);
 
   async function submitScript(event: FormEvent<HTMLFormElement>) {
@@ -128,11 +133,11 @@ export function ScriptReview() {
 
   async function refreshRecentCases() {
     setIsLoadingRecentCases(true);
-    setError(null);
+    setHistoryError(null);
     try {
       setRecentCases(await listCases(10, API_BASE_URL));
     } catch {
-      setError('Recent cases could not be loaded. Please try again.');
+      setHistoryError('Past cases could not be loaded. Please try again.');
     } finally {
       setIsLoadingRecentCases(false);
     }
@@ -196,8 +201,23 @@ export function ScriptReview() {
   }
 
   function openHistory() {
+    setHistoryError(null);
     setIsHistoryOpen(true);
     void refreshRecentCases();
+  }
+
+  function closeHistory() {
+    historyDialogRef.current?.close();
+  }
+
+  function handleHistoryClosed() {
+    setIsHistoryOpen(false);
+    historyTriggerRef.current?.focus();
+  }
+
+  function handleHistoryCancel(event: SyntheticEvent<HTMLDialogElement>) {
+    event.preventDefault();
+    closeHistory();
   }
 
   function toggleEvidence(findingId: string) {
@@ -228,6 +248,7 @@ export function ScriptReview() {
         <button
           type="button"
           className="secondary-button"
+          ref={historyTriggerRef}
           aria-expanded={isHistoryOpen}
           aria-haspopup="dialog"
           onClick={openHistory}
@@ -300,6 +321,8 @@ export function ScriptReview() {
                 {caseResult.findings.map((finding) => {
                   const primaryEvidence = finding.evidence?.primary ?? null;
                   const alternatives = finding.evidence?.alternatives ?? [];
+                  const rationale = finding.evidence?.rationale?.trim() ?? '';
+                  const hasValidatedPrimary = primaryEvidence !== null && rationale !== '';
                   const isEvidenceExpanded = expandedEvidenceIds[finding.id] ?? false;
 
                   return (
@@ -324,7 +347,7 @@ export function ScriptReview() {
                     </dl>
                     <div className="evidence-block">
                       <h4>Evidence</h4>
-                      {primaryEvidence ? (
+                      {hasValidatedPrimary ? (
                         <div data-testid="evidence-primary">
                           <blockquote>
                             <p>“{primaryEvidence.excerpt}”</p>
@@ -332,12 +355,15 @@ export function ScriptReview() {
                               {primaryEvidence.source.title}
                             </a>
                           </blockquote>
-                          {finding.evidence?.rationale ? (
-                            <p className="evidence-rationale">
-                              <strong>Why this source:</strong> {finding.evidence.rationale}
-                            </p>
-                          ) : null}
+                          <p className="evidence-rationale">
+                            <strong>Why this source:</strong> {rationale}
+                          </p>
                         </div>
+                      ) : primaryEvidence ? (
+                        <p className="empty-state" data-testid="evidence-validation-state">
+                          This source cannot be presented as validated because its relevance rationale
+                          is missing. Please try again.
+                        </p>
                       ) : (
                         <p className="empty-state" data-testid="no-source-state">
                           No validated source was selected for this research lead. This neutral state
@@ -452,15 +478,14 @@ export function ScriptReview() {
           </section>
       ) : null}
 
-      {isHistoryOpen ? (
-        <div className="drawer-backdrop">
-          <section
-            className="past-cases-drawer"
-            data-testid="past-cases"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="past-cases-heading"
-          >
+      <dialog
+        ref={historyDialogRef}
+        className="past-cases-drawer"
+        data-testid="past-cases"
+        aria-labelledby="past-cases-heading"
+        onCancel={handleHistoryCancel}
+        onClose={handleHistoryClosed}
+      >
             <div className="section-heading results-heading">
               <div>
                 <p className="eyebrow">Case history</p>
@@ -470,13 +495,21 @@ export function ScriptReview() {
                 type="button"
                 className="secondary-button"
                 aria-label="Close Past cases"
-                onClick={() => setIsHistoryOpen(false)}
+                ref={closeHistoryButtonRef}
+                onClick={closeHistory}
               >
                 Close
               </button>
             </div>
             <div className="recent-cases" data-testid="recent-cases" aria-live="polite">
-              {recentCases.length === 0 ? (
+              {historyError ? (
+                <div className="error-message" role="alert">
+                  <p>{historyError}</p>
+                  <button type="button" onClick={() => void refreshRecentCases()}>
+                    Retry
+                  </button>
+                </div>
+              ) : recentCases.length === 0 ? (
                 <p className="empty-state">
                   {isLoadingRecentCases ? 'Loading recently reviewed cases…' : 'No past cases yet.'}
                 </p>
@@ -501,9 +534,7 @@ export function ScriptReview() {
                 </ul>
               )}
             </div>
-          </section>
-        </div>
-      ) : null}
+      </dialog>
     </main>
   );
 }
