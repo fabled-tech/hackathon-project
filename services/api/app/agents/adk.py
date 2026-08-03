@@ -437,4 +437,5 @@ class AdkRightsResearchAgentService:
                 )
             return findings
         except Exception:
-            raise AnalysisUnavailableError("RightsRadar analysis failed.") from None
+            pass
+        raise AnalysisUnavailableError("RightsRadar analysis failed.")

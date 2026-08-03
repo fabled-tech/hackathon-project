@@ -539,6 +539,8 @@ def test_native_provider_failure_is_generic_and_does_not_leak_diagnostics(
     assert "SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC" not in caplog.text
     assert str(caught.value) == "RightsRadar analysis failed."
     assert caught.value.__cause__ is None
+    context_is_cleared = caught.value.__context__ is None
+    assert context_is_cleared
 
     caplog.clear()
     try:
