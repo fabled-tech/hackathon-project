@@ -5,7 +5,7 @@ from types import SimpleNamespace
 
 import pytest
 from google.adk.models.base_llm import BaseLlm
-from pydantic import ValidationError
+from pydantic import PrivateAttr, ValidationError
 
 from app.agents.adk import (
     AdkAnalysisResponse,
@@ -471,16 +471,37 @@ def test_native_adk_invocation_has_one_agent_and_one_parallel_tool() -> None:
     ]
 
 
+class CountingHandler(logging.Handler):
+    def __init__(self) -> None:
+        super().__init__()
+        self.emitted_records = 0
+
+    def emit(self, record: logging.LogRecord) -> None:
+        del record
+        self.emitted_records += 1
+
+
 class FailingProviderModel(BaseLlm):
+    _diagnostic_handler: CountingHandler = PrivateAttr(default_factory=CountingHandler)
+
+    @property
+    def emitted_diagnostics(self) -> int:
+        return self._diagnostic_handler.emitted_records
+
     async def generate_content_async(self, llm_request: object, stream: bool = False):
         del llm_request, stream
         logger = logging.getLogger("google_genai.synthetic_provider")
-        late_handler = logging.StreamHandler()
-        logger.addHandler(late_handler)
+        previous_level = logger.level
+        previous_propagate = logger.propagate
+        logger.setLevel(logging.ERROR)
+        logger.propagate = False
+        logger.addHandler(self._diagnostic_handler)
         try:
             logger.error("SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC")
         finally:
-            logger.removeHandler(late_handler)
+            logger.removeHandler(self._diagnostic_handler)
+            logger.setLevel(previous_level)
+            logger.propagate = previous_propagate
         raise RuntimeError("SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC")
         yield
 
@@ -488,6 +509,8 @@ class FailingProviderModel(BaseLlm):
 def test_native_provider_failure_is_generic_and_does_not_leak_diagnostics(
     capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
 ) -> None:
+    provider_model = FailingProviderModel(model="failing-provider")
+
     def invocation_factory(
         project: str,
         location: str,
@@ -495,7 +518,7 @@ def test_native_provider_failure_is_generic_and_does_not_leak_diagnostics(
         tool: Callable[[str, str, str, str], dict[str, object]],
     ) -> NativeAdkInvocation:
         invocation = NativeAdkInvocation(project, location, model, tool)
-        invocation.agent.model = FailingProviderModel(model="failing-provider")
+        invocation.agent.model = provider_model
         return invocation
 
     service = AdkRightsResearchAgentService(
@@ -510,6 +533,7 @@ def test_native_provider_failure_is_generic_and_does_not_leak_diagnostics(
         service.analyze("case-1", "A script.")
 
     captured = capsys.readouterr()
+    assert provider_model.emitted_diagnostics == 0
     assert "SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC" not in captured.out
     assert "SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC" not in captured.err
     assert "SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC" not in caplog.text
@@ -522,6 +546,67 @@ def test_native_provider_failure_is_generic_and_does_not_leak_diagnostics(
     except AnalysisUnavailableError:
         logging.getLogger("app.public_boundary").exception("Generic analysis failure")
     assert "SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC" not in caplog.text
+
+
+def _failing_native_invocation() -> NativeAdkInvocation:
+    def search_parallel(
+        research_id: str, detected_item: str, category: str, context_excerpt: str
+    ) -> dict[str, object]:
+        del detected_item, category, context_excerpt
+        return {"research_id": research_id, "candidates": []}
+
+    invocation = NativeAdkInvocation(
+        "project", "global", "gemini-2.5-flash", search_parallel
+    )
+    invocation.agent.model = FailingProviderModel(model="failing-provider")
+    return invocation
+
+
+def test_dependency_logger_resumes_after_native_invocation() -> None:
+    parent_logger = logging.getLogger("google_genai")
+    child_logger = logging.getLogger("google_genai.post_invocation")
+    previous_parent_level = parent_logger.level
+    previous_child_level = child_logger.level
+    previous_propagate = child_logger.propagate
+    handler = CountingHandler()
+    parent_logger.setLevel(logging.WARNING)
+    child_logger.setLevel(logging.NOTSET)
+    child_logger.propagate = False
+    try:
+        with pytest.raises(RuntimeError):
+            _failing_native_invocation().run("A script.")
+
+        child_logger.addHandler(handler)
+        child_logger.error("Benign post-invocation dependency diagnostic")
+        assert handler.emitted_records == 1
+    finally:
+        child_logger.removeHandler(handler)
+        parent_logger.setLevel(previous_parent_level)
+        child_logger.setLevel(previous_child_level)
+        child_logger.propagate = previous_propagate
+
+
+def test_native_invocation_does_not_mutate_dependency_loggers() -> None:
+    loggers = [
+        logging.getLogger("google_adk"),
+        logging.getLogger("google_genai"),
+        logging.getLogger("google.genai"),
+    ]
+    original_state = [(logger.level, tuple(logger.handlers)) for logger in loggers]
+    configured_levels = [logging.INFO, logging.WARNING, logging.ERROR]
+    for logger, level in zip(loggers, configured_levels, strict=True):
+        logger.setLevel(level)
+    configured_state = [(logger.level, tuple(logger.handlers)) for logger in loggers]
+
+    try:
+        with pytest.raises(RuntimeError):
+            _failing_native_invocation().run("A script.")
+
+        assert [(logger.level, tuple(logger.handlers)) for logger in loggers] == configured_state
+    finally:
+        for logger, (level, handlers) in zip(loggers, original_state, strict=True):
+            logger.setLevel(level)
+            logger.handlers[:] = handlers
 
 
 def test_adk_response_requires_a_rationale_for_a_primary_url() -> None:

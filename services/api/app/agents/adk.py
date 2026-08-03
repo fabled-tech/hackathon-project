@@ -3,8 +3,11 @@ from __future__ import annotations
 import asyncio
 import logging
 import re
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Iterator
+from contextlib import contextmanager
+from contextvars import ContextVar
 from datetime import UTC, datetime
+from threading import Lock
 from typing import TYPE_CHECKING, Literal, Protocol, Self
 from uuid import uuid4
 
@@ -138,12 +141,61 @@ _URL_LIKE = re.compile(
 _URL_TRAILING_PUNCTUATION = ".,;:!?)]}"
 
 _PRIVATE_DEPENDENCY_LOGGER_PREFIXES = ("google_adk", "google_genai", "google.genai")
+_DEPENDENCY_DIAGNOSTIC_SUPPRESSION = ContextVar(
+    "dependency_diagnostic_suppression", default=False
+)
+_LOGGER_HANDLE_LOCK = Lock()
+_active_dependency_diagnostic_suppressions = 0
+_forward_logger_handle: Callable[[logging.Logger, logging.LogRecord], None] = (
+    logging.Logger.handle
+)
 
 
-def _suppress_dependency_diagnostic_logging() -> None:
-    disabled_level = logging.CRITICAL + 1
-    for prefix in _PRIVATE_DEPENDENCY_LOGGER_PREFIXES:
-        logging.getLogger(prefix).setLevel(disabled_level)
+def _is_private_dependency_logger(name: str) -> bool:
+    return any(
+        name == prefix or name.startswith(f"{prefix}.")
+        for prefix in _PRIVATE_DEPENDENCY_LOGGER_PREFIXES
+    )
+
+
+def _handle_invocation_log_record(
+    logger: logging.Logger, record: logging.LogRecord
+) -> None:
+    if _DEPENDENCY_DIAGNOSTIC_SUPPRESSION.get() and _is_private_dependency_logger(
+        record.name
+    ):
+        return
+    _forward_logger_handle(logger, record)
+
+
+def _set_logger_handle(
+    handle: Callable[[logging.Logger, logging.LogRecord], None],
+) -> None:
+    setattr(logging.Logger, "handle", handle)  # noqa: B010
+
+
+@contextmanager
+def _suppress_dependency_diagnostic_logging() -> Iterator[None]:
+    global _active_dependency_diagnostic_suppressions, _forward_logger_handle
+
+    with _LOGGER_HANDLE_LOCK:
+        if _active_dependency_diagnostic_suppressions == 0:
+            _forward_logger_handle = logging.Logger.handle
+            _set_logger_handle(_handle_invocation_log_record)
+        _active_dependency_diagnostic_suppressions += 1
+
+    token = _DEPENDENCY_DIAGNOSTIC_SUPPRESSION.set(True)
+    try:
+        yield
+    finally:
+        _DEPENDENCY_DIAGNOSTIC_SUPPRESSION.reset(token)
+        with _LOGGER_HANDLE_LOCK:
+            _active_dependency_diagnostic_suppressions -= 1
+            if (
+                _active_dependency_diagnostic_suppressions == 0
+                and logging.Logger.handle is _handle_invocation_log_record
+            ):
+                _set_logger_handle(_forward_logger_handle)
 
 
 def ensure_research_assistance_text(*texts: str | None) -> None:
@@ -256,8 +308,8 @@ class NativeAdkInvocation:
             ]
             return _final_response_text(events)
 
-        _suppress_dependency_diagnostic_logging()
-        return asyncio.run(run_async())
+        with _suppress_dependency_diagnostic_logging():
+            return asyncio.run(run_async())
 
 
 class AdkRightsResearchAgentService:
