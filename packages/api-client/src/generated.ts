@@ -38,6 +38,12 @@ export interface Evidence {
   source: Source;
 }
 
+export interface EvidenceSelection {
+  primary?: Evidence | null;
+  rationale?: string | null;
+  alternatives?: Evidence[];
+}
+
 export interface Finding {
   id: string;
   case_id: string;
@@ -49,6 +55,7 @@ export interface Finding {
   source_urls: string[];
   retrieved_at: string;
   reviewer_status: ReviewerStatus;
+  evidence?: EvidenceSelection;
 }
 
 export interface HTTPValidationError {

@@ -21,6 +21,20 @@ def test_openapi_content_media_type_strings_remain_strings() -> None:
     assert to_type({"type": "string", "contentMediaType": "application/json"}) == "string"
 
 
+def test_nullable_references_generate_null_unions() -> None:
+    assert (
+        to_type(
+            {
+                "anyOf": [
+                    {"$ref": "#/components/schemas/Evidence"},
+                    {"type": "null"},
+                ]
+            }
+        )
+        == "Evidence | null"
+    )
+
+
 def test_fastapi_upload_schema_generates_a_file_type() -> None:
     from app.main import create_app
 

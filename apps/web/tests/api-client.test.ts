@@ -1,10 +1,62 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createCase,
   listAssets,
   listCases,
   updateFindingStatus,
   uploadAsset
 } from '@rightsrader/api-client';
+
+describe('createCase evidence contract', () => {
+  it('exposes the validated primary source and alternatives', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'case-1',
+          script_text: 'An Example Brand can appears.',
+          created_at: '2026-08-02T00:00:00Z',
+          asset_count: 0,
+          findings: [
+            {
+              id: 'finding-1',
+              case_id: 'case-1',
+              category: 'brand_reference',
+              detected_item: 'Example Brand',
+              explanation: 'A named brand.',
+              confidence: 0.8,
+              supporting_evidence: [],
+              source_urls: [],
+              retrieved_at: '2026-08-02T00:00:00Z',
+              reviewer_status: 'pending',
+              evidence: {
+                primary: {
+                  excerpt: 'Verified evidence.',
+                  source: { title: 'Official source', url: 'https://source.test/a' }
+                },
+                rationale: 'The source is directly relevant to the detected item.',
+                alternatives: []
+              }
+            }
+          ]
+        }),
+        { status: 201, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    const result = await createCase(
+      { script_text: 'An Example Brand can appears.' },
+      'http://api.test',
+      fetcher
+    );
+
+    const finding = result.findings[0];
+    expect(finding).toBeDefined();
+    if (!finding) throw new Error('Expected one finding');
+    expect(finding.evidence?.primary?.source.url).toBe('https://source.test/a');
+    expect(finding.evidence?.rationale).toContain('directly relevant');
+    expect(finding.evidence?.alternatives).toEqual([]);
+  });
+});
 
 describe('updateFindingStatus', () => {
   it('sends the selected reviewer status to the API', async () => {
