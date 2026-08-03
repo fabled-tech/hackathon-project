@@ -60,6 +60,8 @@ def to_type(schema: dict[str, Any]) -> str:
         return "number"
     if schema.get("type") == "boolean":
         return "boolean"
+    if schema.get("type") == "null":
+        return "null"
     if schema.get("type") == "string":
         return "string"
     if schema.get("type") == "object":

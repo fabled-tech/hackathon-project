@@ -1,7 +1,10 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+from .analysis import Evidence, EvidenceSelection
 
 
 class ReviewerStatus(StrEnum):
@@ -9,16 +12,6 @@ class ReviewerStatus(StrEnum):
     ACCEPTED = "accepted"
     DISMISSED = "dismissed"
     ESCALATED = "escalated"
-
-
-class Source(BaseModel):
-    title: str
-    url: str
-
-
-class Evidence(BaseModel):
-    excerpt: str
-    source: Source
 
 
 class Finding(BaseModel):
@@ -32,6 +25,18 @@ class Finding(BaseModel):
     source_urls: list[str]
     retrieved_at: datetime
     reviewer_status: ReviewerStatus
+    evidence: EvidenceSelection = Field(default_factory=EvidenceSelection)
+
+    @model_validator(mode="before")
+    @classmethod
+    def preserve_legacy_evidence(cls, value: Any) -> Any:
+        if not isinstance(value, dict) or "evidence" in value:
+            return value
+        normalized = dict(value)
+        normalized["evidence"] = {
+            "alternatives": list(normalized.get("supporting_evidence") or [])
+        }
+        return normalized
 
 
 class Case(BaseModel):

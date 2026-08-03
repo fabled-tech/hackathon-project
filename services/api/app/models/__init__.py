@@ -1,5 +1,6 @@
+from .analysis import Evidence, EvidenceCurationDecision, EvidenceSelection, Source
 from .assets import Asset, AssetLifecycle, AssetUpload, CaseSummary, StoredAsset
-from .cases import Case, Evidence, Finding, ReviewerStatus, Source
+from .cases import Case, Finding, ReviewerStatus
 
 __all__ = [
     "Asset",
@@ -8,6 +9,8 @@ __all__ = [
     "Case",
     "CaseSummary",
     "Evidence",
+    "EvidenceCurationDecision",
+    "EvidenceSelection",
     "Finding",
     "ReviewerStatus",
     "Source",

@@ -78,7 +78,7 @@ the agent, integrations, and persistence sit behind small interfaces.
 | --- | --- | --- | --- |
 | `mock` (default) | deterministic fixture | deterministic fixture | in-memory |
 | `hybrid` | each `*_MODE` selects `mock` or `real` | independently selected | independently selected |
-| `cloud` | Vertex AI Gemini | Parallel Search API | Firestore and Cloud Storage |
+| `cloud` | Vertex AI Gemini | Parallel Search and Extract APIs | Firestore and Cloud Storage |
 
 Set `RIGHTSRADAR_MODE=hybrid` and any of `RIGHTSRADAR_GEMINI_MODE`,
 `RIGHTSRADAR_PARALLEL_MODE`, or `RIGHTSRADAR_REPOSITORY_MODE` to `real` to enable only that
@@ -86,8 +86,28 @@ adapter. Set `RIGHTSRADAR_MODE=cloud` to enable all real integrations. The real 
 uses Application Default Credentials (ADC) with Vertex AI; it follows the current
 [Google Gen AI SDK for Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/sdks/overview).
 The Parallel adapter uses its documented [Search API](https://docs.parallel.ai/api-reference/search/search)
-with `RIGHTSRADAR_PARALLEL_API_KEY` only on the server. No secret is exposed to the browser or
-written to logs.
+and [Extract API](https://docs.parallel.ai/api-reference/extract/extract) with
+`RIGHTSRADAR_PARALLEL_API_KEY` only on the server. No secret is exposed to the browser or written
+to logs.
+
+### Verified research pipeline
+
+Gemini first detects distinct research leads and includes enough local scene context to disambiguate
+each one. RightsRadar then processes independent leads concurrently, bounded by
+`RIGHTSRADAR_PARALLEL_MAX_CONCURRENCY` (default `4`). Each lead uses one provider session and runs:
+
+1. Parallel Search with three concise queries, `advanced` mode, scene context, and the configured
+   Gemini model as `client_model`.
+2. URL normalization and deduplication, retaining at most five candidates.
+3. One Parallel Extract request for the full shortlist. Extract may partially succeed, but a lead
+   fails safely when none of its shortlisted pages can be verified.
+4. A schema-constrained Gemini curation pass that selects one extracted URL with a relevance
+   rationale or returns a neutral no-source result.
+
+The server validates that Gemini selected an extracted candidate, preserves detector order after
+concurrent processing, and creates the Firestore case only after every lead succeeds. Provider
+failures return a generic retryable response without provider bodies, credentials, or partial case
+data. The default mock mode follows the same contract without making network calls.
 
 ### Repository-only hybrid smoke setup
 
@@ -160,6 +180,6 @@ contacting cloud services.
 ## Current scope and next milestone
 
 This foundation intentionally excludes authentication, payment, queues, deployment automation,
-media analysis, and final legal decisions. The recommended next milestone is configurable Gemini
-and Parallel evaluation with a human-review quality rubric, while preserving the same
-OpenAPI-first contract and reviewer workflow.
+media analysis, and final legal decisions. The recommended next milestone is a labeled Gemini and
+Parallel evaluation harness with a human-review quality rubric, followed by an asynchronous
+Parallel Task API escalation path for ambiguous or reviewer-escalated leads.
