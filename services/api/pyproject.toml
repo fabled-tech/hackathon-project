@@ -18,9 +18,10 @@ dev = [
   "ruff>=0.9,<1",
 ]
 cloud = [
+  "google-adk>=2.6,<3",
   "google-cloud-firestore>=2.20,<3",
   "google-cloud-storage>=2.19,<4",
-  "google-genai>=1.0,<2",
+  "google-genai>=2.9,<3",
 ]
 
 [build-system]
