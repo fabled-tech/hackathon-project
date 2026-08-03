@@ -1,5 +1,5 @@
-from .assets import Asset, AssetLifecycle, AssetUpload, CaseSummary, StoredAsset
 from .analysis import Evidence, EvidenceCurationDecision, EvidenceSelection, Source
+from .assets import Asset, AssetLifecycle, AssetUpload, CaseSummary, StoredAsset
 from .cases import Case, Finding, ReviewerStatus
 
 __all__ = [

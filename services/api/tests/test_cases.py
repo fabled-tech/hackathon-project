@@ -23,6 +23,8 @@ def test_creating_a_case_returns_deterministic_findings() -> None:
         "Time keeps the reel turning",
     }
     assert all(finding["reviewer_status"] == "pending" for finding in case["findings"])
+    assert all(finding["evidence"]["primary"] is not None for finding in case["findings"])
+    assert all(finding["evidence"]["rationale"] for finding in case["findings"])
 
 
 def test_updating_a_finding_status_persists_on_the_case() -> None:

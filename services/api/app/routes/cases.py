@@ -34,16 +34,16 @@ async def _delete_asset_after_increment_failure(
 
 
 @router.post("", response_model=Case, status_code=status.HTTP_201_CREATED)
-def create_case(payload: CreateCaseRequest, request: Request) -> Case:
+async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
     case_id = str(uuid4())
     services = _services(request)
     case = Case(
         id=case_id,
         script_text=payload.script_text,
         created_at=datetime.now(UTC),
-        findings=services.agent_service.analyze(case_id, payload.script_text),
+        findings=await services.agent_service.analyze(case_id, payload.script_text),
     )
-    return services.case_repository.create(case)
+    return await run_in_threadpool(services.case_repository.create, case)
 
 
 @router.get("", response_model=list[CaseSummary])

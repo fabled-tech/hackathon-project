@@ -66,7 +66,8 @@ def build_services(settings: Settings) -> ApplicationServices:
 
     if settings.selected_mode(settings.parallel_mode) is IntegrationMode.REAL:
         parallel = ParallelSearchHttpClient(
-            api_key=_require(settings.parallel_api_key, "RIGHTSRADAR_PARALLEL_API_KEY")
+            api_key=_require(settings.parallel_api_key, "RIGHTSRADAR_PARALLEL_API_KEY"),
+            client_model=settings.gemini_model,
         )
     else:
         parallel = MockParallelSearchClient()

@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from .analysis import Evidence, EvidenceSelection, Source
+from .analysis import Evidence, EvidenceSelection
 
 
 class ReviewerStatus(StrEnum):
