@@ -1,8 +1,9 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.agents.service import RightsClearanceAgentService
 from app.dependencies import ApplicationServices
-from app.models import Case, EvidenceCurationDecision, GeminiSignal, SearchResult
+from app.models import Case, EvidenceCurationDecision, GeminiSignal, SearchResult, Source
 from app.repositories.assets import InMemoryAssetRepository
 from app.repositories.cases import InMemoryCaseRepository
 
@@ -25,6 +26,43 @@ class UnusedParallelProvider:
     ) -> list[SearchResult]:
         del detected_item, category, context_excerpt
         raise AssertionError("search is not reached after detection fails")
+
+
+class CandidateParallelProvider:
+    def search(
+        self, detected_item: str, category: str, context_excerpt: str = ""
+    ) -> list[SearchResult]:
+        del detected_item, category, context_excerpt
+        return [
+            SearchResult(
+                source=Source(title="Known", url="https://source.test/known"),
+                excerpt="Known excerpt",
+            )
+        ]
+
+
+class InvalidRationaleGemini:
+    def __init__(self, rationale: str | None) -> None:
+        self.rationale = rationale
+
+    def identify_material(self, script_text: str) -> list[GeminiSignal]:
+        del script_text
+        return [
+            GeminiSignal(
+                category="brand_reference",
+                detected_item="Example Brand",
+                explanation="A named brand.",
+                confidence=0.8,
+            )
+        ]
+
+    def curate_evidence(
+        self, signal: GeminiSignal, candidates: list[SearchResult]
+    ) -> EvidenceCurationDecision:
+        del signal, candidates
+        return EvidenceCurationDecision.model_validate(
+            {"primary_url": "https://source.test/known", "rationale": self.rationale}
+        )
 
 
 class TrackingCaseRepository(InMemoryCaseRepository):
@@ -97,6 +135,32 @@ def test_creating_a_case_returns_a_safe_503_without_saving_when_analysis_fails()
     client = TestClient(app)
 
     response = client.post("/api/cases", json={"script_text": "A failed analysis."})
+
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "RightsRadar analysis is temporarily unavailable. Please try again."
+    }
+    assert repository.create_calls == 0
+
+
+@pytest.mark.parametrize("rationale", [None, "  \t"])
+def test_creating_a_case_rejects_primary_evidence_without_rationale_before_saving(
+    rationale: str | None,
+) -> None:
+    from app.main import create_app
+
+    app = create_app()
+    repository = TrackingCaseRepository()
+    app.state.services = ApplicationServices(
+        case_repository=repository,
+        asset_repository=InMemoryAssetRepository(),
+        agent_service=RightsClearanceAgentService(
+            InvalidRationaleGemini(rationale), CandidateParallelProvider()
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.post("/api/cases", json={"script_text": "A contextual excerpt."})
 
     assert response.status_code == 503
     assert response.json() == {

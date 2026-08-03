@@ -182,6 +182,8 @@ def test_vertex_curator_accepts_a_neutral_model_decision(monkeypatch: pytest.Mon
         "not json",
         '{"primary_url": null}',
         '{"primary_url": "https://unretrieved.test", "rationale": "Looks good"}',
+        '{"primary_url": "https://source.test/item", "rationale": null}',
+        '{"primary_url": "https://source.test/item", "rationale": "  "}',
     ],
 )
 def test_vertex_curator_rejects_malformed_or_ungrounded_model_output(

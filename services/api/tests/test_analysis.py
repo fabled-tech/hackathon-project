@@ -44,6 +44,30 @@ class StubParallel:
         return self.candidates
 
 
+class InvalidRationaleGemini:
+    def __init__(self, rationale: str | None) -> None:
+        self.rationale = rationale
+
+    def identify_material(self, script_text: str) -> list[GeminiSignal]:
+        del script_text
+        return [
+            GeminiSignal(
+                category="brand_reference",
+                detected_item="Example Brand",
+                explanation="A named brand.",
+                confidence=0.8,
+            )
+        ]
+
+    def curate_evidence(
+        self, signal: GeminiSignal, candidates: list[SearchResult]
+    ) -> EvidenceCurationDecision:
+        del signal, candidates
+        return EvidenceCurationDecision.model_validate(
+            {"primary_url": "https://source.test/known", "rationale": self.rationale}
+        )
+
+
 def test_agent_puts_selected_source_in_primary_and_rest_in_alternatives() -> None:
     candidates = [
         SearchResult(
@@ -95,6 +119,21 @@ def test_unknown_curated_url_fails_before_repository_create() -> None:
             )
         ),
         StubParallel([candidate]),
+    )
+
+    with pytest.raises(AnalysisUnavailableError):
+        service.analyze("case-1", "A contextual excerpt.")
+
+
+@pytest.mark.parametrize("rationale", [None, "", "  \t"])
+def test_agent_rejects_a_primary_source_without_a_nonblank_rationale(
+    rationale: str | None,
+) -> None:
+    candidate = SearchResult(
+        source=Source(title="Known", url="https://source.test/known"), excerpt="Known excerpt"
+    )
+    service = RightsClearanceAgentService(
+        InvalidRationaleGemini(rationale), StubParallel([candidate])
     )
 
     with pytest.raises(AnalysisUnavailableError):
