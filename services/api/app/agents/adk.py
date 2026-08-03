@@ -295,18 +295,24 @@ class NativeAdkInvocation:
                 agent=self._agent,
                 session_service=session_service,
             )
-            events = [
-                event
-                async for event in runner.run_async(
-                    user_id=user_id,
-                    session_id=session_id,
-                    new_message=types.Content(
-                        role="user",
-                        parts=[types.Part(text=script_text)],
-                    ),
-                )
-            ]
-            return _final_response_text(events)
+            try:
+                async with runner:
+                    events = [
+                        event
+                        async for event in runner.run_async(
+                            user_id=user_id,
+                            session_id=session_id,
+                            new_message=types.Content(
+                                role="user",
+                                parts=[types.Part(text=script_text)],
+                            ),
+                        )
+                    ]
+                    return _final_response_text(events)
+            finally:
+                api_client = vars(self._agent.model).get("api_client")
+                if api_client is not None:
+                    await api_client.aio.aclose()
 
         with _suppress_dependency_diagnostic_logging():
             return asyncio.run(run_async())

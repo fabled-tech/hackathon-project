@@ -1,10 +1,15 @@
+import asyncio
 import json
 import logging
 from collections.abc import Callable
+from functools import cached_property
 from types import SimpleNamespace
 
 import pytest
 from google.adk.models.base_llm import BaseLlm
+from google.adk.models.llm_response import LlmResponse
+from google.adk.runners import Runner
+from google.genai import types
 from pydantic import PrivateAttr, ValidationError
 
 from app.agents.adk import (
@@ -469,6 +474,132 @@ def test_native_adk_invocation_has_one_agent_and_one_parallel_tool() -> None:
     assert [getattr(tool, "__name__", None) for tool in invocation.agent.tools] == [
         "search_parallel"
     ]
+
+
+class AsyncClientCloseSpy:
+    def __init__(self) -> None:
+        self.close_count = 0
+        self.closed_with_running_loop: list[bool] = []
+
+    async def aclose(self) -> None:
+        self.close_count += 1
+        self.closed_with_running_loop.append(asyncio.get_running_loop().is_running())
+
+
+class CachedApiClientSpy:
+    def __init__(self) -> None:
+        self.aio = AsyncClientCloseSpy()
+
+
+class LifecycleModel(BaseLlm):
+    create_client: bool
+    fail: bool
+    _api_client_creations: int = PrivateAttr(default=0)
+    _cached_client: CachedApiClientSpy = PrivateAttr(default_factory=CachedApiClientSpy)
+
+    @cached_property
+    def api_client(self) -> CachedApiClientSpy:
+        self._api_client_creations += 1
+        return self._cached_client
+
+    @property
+    def api_client_creations(self) -> int:
+        return self._api_client_creations
+
+    @property
+    def async_client(self) -> AsyncClientCloseSpy:
+        return self._cached_client.aio
+
+    async def generate_content_async(self, llm_request: object, stream: bool = False):
+        del llm_request, stream
+        if self.create_client:
+            _ = self.api_client
+        if self.fail:
+            raise RuntimeError("synthetic model failure")
+        yield LlmResponse(
+            content=types.Content(
+                role="model",
+                parts=[types.Part(text='{"findings": []}')],
+            )
+        )
+
+
+def _native_invocation_with_model(model: BaseLlm) -> NativeAdkInvocation:
+    def search_parallel(
+        research_id: str, detected_item: str, category: str, context_excerpt: str
+    ) -> dict[str, object]:
+        del detected_item, category, context_excerpt
+        return {"research_id": research_id, "candidates": []}
+
+    invocation = NativeAdkInvocation(
+        "project", "global", "gemini-2.5-flash", search_parallel
+    )
+    invocation.agent.model = model
+    return invocation
+
+
+def _record_runner_cleanup(monkeypatch: pytest.MonkeyPatch) -> list[bool]:
+    original_close = Runner.close
+    closed_with_running_loop: list[bool] = []
+
+    async def close_spy(runner: Runner) -> None:
+        closed_with_running_loop.append(asyncio.get_running_loop().is_running())
+        await original_close(runner)
+
+    monkeypatch.setattr(Runner, "close", close_spy)
+    return closed_with_running_loop
+
+
+def test_native_invocation_closes_runner_after_completed_run(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner_cleanup = _record_runner_cleanup(monkeypatch)
+    model = LifecycleModel(model="lifecycle-model", create_client=False, fail=False)
+
+    response = _native_invocation_with_model(model).run("A script.")
+
+    assert response == '{"findings": []}'
+    assert runner_cleanup == [True]
+
+
+def test_native_invocation_closes_cached_async_client_once_after_use() -> None:
+    model = LifecycleModel(model="lifecycle-model", create_client=True, fail=False)
+
+    response = _native_invocation_with_model(model).run("A script.")
+
+    assert response == '{"findings": []}'
+    assert model.api_client_creations == 1
+    assert model.async_client.close_count == 1
+    assert model.async_client.closed_with_running_loop == [True]
+
+
+def test_native_invocation_closes_runner_and_cached_client_after_model_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner_cleanup = _record_runner_cleanup(monkeypatch)
+    model = LifecycleModel(model="lifecycle-model", create_client=True, fail=True)
+
+    with pytest.raises(RuntimeError, match="synthetic model failure"):
+        _native_invocation_with_model(model).run("A script.")
+
+    assert runner_cleanup == [True]
+    assert model.api_client_creations == 1
+    assert model.async_client.close_count == 1
+    assert model.async_client.closed_with_running_loop == [True]
+
+
+def test_native_invocation_cleanup_does_not_create_unused_model_client(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    runner_cleanup = _record_runner_cleanup(monkeypatch)
+    model = LifecycleModel(model="lifecycle-model", create_client=False, fail=True)
+
+    with pytest.raises(RuntimeError, match="synthetic model failure"):
+        _native_invocation_with_model(model).run("A script.")
+
+    assert runner_cleanup == [True]
+    assert model.api_client_creations == 0
+    assert model.async_client.close_count == 0
 
 
 class CountingHandler(logging.Handler):
