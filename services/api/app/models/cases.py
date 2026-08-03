@@ -1,7 +1,11 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import TYPE_CHECKING, Any
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
+
+if TYPE_CHECKING:
+    from .analysis import EvidenceSelection
 
 
 class ReviewerStatus(StrEnum):
@@ -21,6 +25,12 @@ class Evidence(BaseModel):
     source: Source
 
 
+def _empty_evidence_selection() -> "EvidenceSelection":
+    from .analysis import EvidenceSelection
+
+    return EvidenceSelection()
+
+
 class Finding(BaseModel):
     id: str
     case_id: str
@@ -32,6 +42,17 @@ class Finding(BaseModel):
     source_urls: list[str]
     retrieved_at: datetime
     reviewer_status: ReviewerStatus
+    evidence: "EvidenceSelection" = Field(default_factory=_empty_evidence_selection)
+
+    @model_validator(mode="before")
+    @classmethod
+    def map_legacy_supporting_evidence(cls, values: Any) -> Any:
+        if not isinstance(values, dict) or values.get("evidence") is not None:
+            return values
+
+        data = dict(values)
+        data["evidence"] = {"alternatives": data.get("supporting_evidence", [])}
+        return data
 
 
 class Case(BaseModel):
