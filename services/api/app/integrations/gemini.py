@@ -44,8 +44,8 @@ class MockGeminiClient:
                     category="character_reference",
                     detected_item="Captain Aurelia",
                     explanation=(
-                        "The script names a fictional character reference; a reviewer should research "
-                        "whether it merits follow-up before release."
+                        "The script names a fictional character reference; a reviewer should "
+                        "research whether it merits follow-up before release."
                     ),
                     confidence=0.78,
                 )
@@ -56,8 +56,8 @@ class MockGeminiClient:
                     category="franchise_reference",
                     detected_item="The Copper Comet Chronicles",
                     explanation=(
-                        "The script names a fictional franchise-style reference; a reviewer should research "
-                        "its creative source before release."
+                        "The script names a fictional franchise-style reference; a reviewer "
+                        "should research its creative source before release."
                     ),
                     confidence=0.74,
                 )
@@ -68,8 +68,8 @@ class MockGeminiClient:
                     category="likeness_reference",
                     detected_item="Rowan Voss",
                     explanation=(
-                        "The script names a fictional likeness reference; a reviewer should research "
-                        "whether it merits follow-up before release."
+                        "The script names a fictional likeness reference; a reviewer should "
+                        "research whether it merits follow-up before release."
                     ),
                     confidence=0.71,
                 )
