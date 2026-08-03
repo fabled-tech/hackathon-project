@@ -186,8 +186,8 @@ export function ScriptReview() {
         <p className="eyebrow">Rights clearance research</p>
         <h1>RightsRadar</h1>
         <p className="hero-copy">
-          Surface potential brand and quotation references, then let a human reviewer decide what
-          needs follow-up.
+          Surface potential research leads for brands, quotations, characters, franchises, and
+          likenesses, then let a human reviewer decide what needs follow-up.
         </p>
       </header>
 
@@ -234,7 +234,7 @@ export function ScriptReview() {
             <div className="section-heading results-heading">
               <div>
                 <p className="eyebrow">Step 2</p>
-                <h2 id="findings-heading">Potential clearance findings</h2>
+                <h2 id="findings-heading">Potential research leads</h2>
               </div>
               <span className="finding-count">
                 {caseResult.findings.length}{' '}

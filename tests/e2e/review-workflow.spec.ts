@@ -210,6 +210,21 @@ test('reopens a different case with its script, reviewer status, and assets', as
   await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
 });
 
+test('frames cited character leads as research assistance', async ({ page }) => {
+  await page.goto('/');
+  await expect(page.getByText('Potential research leads')).toBeVisible();
+  await expect(page.getByText(/characters, franchises, and likenesses/i)).toBeVisible();
+  await expect(page.getByLabel('Legal disclaimer')).toContainText('Research assistance only.');
+
+  await page.getByLabel('Script text').fill('Captain Aurelia enters the archive.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  const characterFinding = page.getByTestId('finding-card').filter({ hasText: 'Captain Aurelia' });
+  await expect(characterFinding).toContainText('character reference');
+  await expect(characterFinding).toContainText('character reference archive');
+  await expect(characterFinding).toContainText('research');
+});
+
 test('submits a script and lets the reviewer dismiss a finding', async ({ page }) => {
   await page.goto('/');
   await page.getByLabel('Script text').fill(
