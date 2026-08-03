@@ -13,7 +13,7 @@ import {
   uploadAsset,
   updateFindingStatus
 } from '@rightsrader/api-client';
-import { type FormEvent, useRef, useState } from 'react';
+import { type FormEvent, useEffect, useRef, useState } from 'react';
 
 const SAMPLE_SCRIPT =
   'INT. EDIT SUITE — NIGHT\n\nMARA opens a can of Nimbus Soda. "Time keeps the reel turning," she says, and marks the take.';
@@ -40,9 +40,11 @@ export function ScriptReview() {
   const [recentCases, setRecentCases] = useState<CaseSummary[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isLoadingRecentCases, setIsLoadingRecentCases] = useState(false);
   const [isLoadingCaseId, setIsLoadingCaseId] = useState<string | null>(null);
   const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
+  const [expandedEvidenceIds, setExpandedEvidenceIds] = useState<Record<string, boolean>>({});
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const caseOperationGeneration = useRef(0);
@@ -50,6 +52,17 @@ export function ScriptReview() {
   const submissionGeneration = useRef(0);
   const uploadGeneration = useRef(0);
   const caseLoadingGeneration = useRef(0);
+
+  useEffect(() => {
+    if (!isHistoryOpen) return;
+
+    function closeHistoryOnEscape(event: KeyboardEvent) {
+      if (event.key === 'Escape') setIsHistoryOpen(false);
+    }
+
+    window.addEventListener('keydown', closeHistoryOnEscape);
+    return () => window.removeEventListener('keydown', closeHistoryOnEscape);
+  }, [isHistoryOpen]);
 
   async function submitScript(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -65,6 +78,7 @@ export function ScriptReview() {
       activeCaseIdRef.current = nextCase.id;
       setCaseResult(nextCase);
       setAssets([]);
+      setExpandedEvidenceIds({});
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
@@ -140,6 +154,7 @@ export function ScriptReview() {
       setCaseResult(nextCase);
       setAssets(nextAssets);
       setSelectedFile(null);
+      setExpandedEvidenceIds({});
       if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
       if (caseOperationGeneration.current === operationGeneration) {
@@ -180,6 +195,18 @@ export function ScriptReview() {
     }
   }
 
+  function openHistory() {
+    setIsHistoryOpen(true);
+    void refreshRecentCases();
+  }
+
+  function toggleEvidence(findingId: string) {
+    setExpandedEvidenceIds((current) => ({
+      ...current,
+      [findingId]: !current[findingId]
+    }));
+  }
+
   return (
     <main className="page-shell">
       <header className="hero">
@@ -197,30 +224,18 @@ export function ScriptReview() {
         process.
       </aside>
 
-      <section className="workspace" aria-labelledby="script-heading">
-        <div className="section-heading">
-          <p className="eyebrow">Step 1</p>
-          <h2 id="script-heading">Review a script excerpt</h2>
-        </div>
-        <form onSubmit={submitScript} className="script-form">
-          <label htmlFor="script-text">Script text</label>
-          <textarea
-            id="script-text"
-            name="script-text"
-            value={scriptText}
-            onChange={(event) => setScriptText(event.target.value)}
-            rows={8}
-            maxLength={20_000}
-            required
-          />
-          <div className="form-footer">
-            <span>{scriptText.length.toLocaleString()} / 20,000 characters</span>
-            <button type="submit" disabled={isSubmitting || scriptText.trim().length === 0}>
-              {isSubmitting ? 'Analyzing…' : 'Analyze script'}
-            </button>
-          </div>
-        </form>
-      </section>
+      <div className="history-toolbar">
+        <button
+          type="button"
+          className="secondary-button"
+          aria-expanded={isHistoryOpen}
+          aria-haspopup="dialog"
+          onClick={openHistory}
+          disabled={isLoadingRecentCases}
+        >
+          {isLoadingRecentCases ? 'Loading…' : 'Past cases'}
+        </button>
+      </div>
 
       {error ? (
         <p className="error-message" role="alert">
@@ -228,28 +243,67 @@ export function ScriptReview() {
         </p>
       ) : null}
 
-      {caseResult ? (
-        <>
-          <section className="results" aria-labelledby="findings-heading">
+      <div className="focused-workspace" data-testid="focused-workspace">
+        <section className="workspace" aria-labelledby="script-heading">
+          <div className="section-heading">
+            <p className="eyebrow">Script</p>
+            <h2 id="script-heading">Review a script excerpt</h2>
+          </div>
+          <form onSubmit={submitScript} className="script-form">
+            <label htmlFor="script-text">Script text</label>
+            <textarea
+              id="script-text"
+              name="script-text"
+              value={scriptText}
+              onChange={(event) => setScriptText(event.target.value)}
+              rows={12}
+              maxLength={20_000}
+              required
+            />
+            <div className="form-footer">
+              <span>{scriptText.length.toLocaleString()} / 20,000 characters</span>
+              <button type="submit" disabled={isSubmitting || scriptText.trim().length === 0}>
+                {isSubmitting ? 'Analyzing…' : 'Analyze script'}
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section
+          className="results review-queue"
+          data-testid="review-queue"
+          aria-labelledby="findings-heading"
+        >
             <div className="section-heading results-heading">
               <div>
-                <p className="eyebrow">Step 2</p>
+                <p className="eyebrow">Review queue</p>
                 <h2 id="findings-heading">Potential clearance findings</h2>
               </div>
-              <span className="finding-count">
-                {caseResult.findings.length}{' '}
-                {caseResult.findings.length === 1 ? 'finding' : 'findings'}
-              </span>
+              {caseResult ? (
+                <span className="finding-count">
+                  {caseResult.findings.length}{' '}
+                  {caseResult.findings.length === 1 ? 'finding' : 'findings'}
+                </span>
+              ) : null}
             </div>
-            {caseResult.findings.length === 0 ? (
+            {!caseResult ? (
+              <p className="empty-state">
+                Analyze a script excerpt to create a research review queue.
+              </p>
+            ) : caseResult.findings.length === 0 ? (
               <p className="empty-state">
                 No deterministic research leads were found in this excerpt. That is not a clearance
                 conclusion.
               </p>
             ) : (
               <div className="finding-list">
-                {caseResult.findings.map((finding) => (
-                  <article className="finding-card" data-testid="finding-card" key={finding.id}>
+                {caseResult.findings.map((finding) => {
+                  const primaryEvidence = finding.evidence?.primary ?? null;
+                  const alternatives = finding.evidence?.alternatives ?? [];
+                  const isEvidenceExpanded = expandedEvidenceIds[finding.id] ?? false;
+
+                  return (
+                    <article className="finding-card" data-testid="finding-card" key={finding.id}>
                     <div className="finding-topline">
                       <span className="category">{finding.category.replace('_', ' ')}</span>
                       <span className={`status status-${finding.reviewer_status}`}>
@@ -269,15 +323,56 @@ export function ScriptReview() {
                       </div>
                     </dl>
                     <div className="evidence-block">
-                      <h4>Evidence and citations</h4>
-                      {finding.supporting_evidence.map((evidence) => (
-                        <blockquote key={evidence.source.url}>
-                          <p>“{evidence.excerpt}”</p>
-                          <a href={evidence.source.url} target="_blank" rel="noreferrer">
-                            {evidence.source.title}
-                          </a>
-                        </blockquote>
-                      ))}
+                      <h4>Evidence</h4>
+                      {primaryEvidence ? (
+                        <div data-testid="evidence-primary">
+                          <blockquote>
+                            <p>“{primaryEvidence.excerpt}”</p>
+                            <a href={primaryEvidence.source.url} target="_blank" rel="noreferrer">
+                              {primaryEvidence.source.title}
+                            </a>
+                          </blockquote>
+                          {finding.evidence?.rationale ? (
+                            <p className="evidence-rationale">
+                              <strong>Why this source:</strong> {finding.evidence.rationale}
+                            </p>
+                          ) : null}
+                        </div>
+                      ) : (
+                        <p className="empty-state" data-testid="no-source-state">
+                          No validated source was selected for this research lead. This neutral state
+                          is not a clearance conclusion.
+                        </p>
+                      )}
+                      {alternatives.length > 0 ? (
+                        <>
+                          <button
+                            type="button"
+                            className="evidence-toggle secondary-button"
+                            aria-controls={`evidence-alternatives-${finding.id}`}
+                            aria-expanded={isEvidenceExpanded}
+                            onClick={() => toggleEvidence(finding.id)}
+                          >
+                            More evidence
+                          </button>
+                          <div
+                            id={`evidence-alternatives-${finding.id}`}
+                            className="evidence-alternatives"
+                            data-testid="evidence-alternatives"
+                            hidden={!isEvidenceExpanded}
+                          >
+                            <h5>Alternative sources</h5>
+                            {alternatives.map((evidence) => (
+                              <blockquote key={evidence.source.url}>
+                                <p>“{evidence.excerpt}”</p>
+                                <a href={evidence.source.url} target="_blank" rel="noreferrer">
+                                  {evidence.source.title}
+                                </a>
+                              </blockquote>
+                            ))}
+                          </div>
+                        </>
+                      ) : null}
                     </div>
                     <div className="review-actions">
                       <span>Human review</span>
@@ -299,15 +394,18 @@ export function ScriptReview() {
                         </button>
                       </div>
                     </div>
-                  </article>
-                ))}
+                    </article>
+                  );
+                })}
               </div>
             )}
-          </section>
+        </section>
+      </div>
 
+      {caseResult ? (
           <section className="asset-panel" aria-labelledby="assets-heading">
             <div className="section-heading">
-              <p className="eyebrow">Step 3</p>
+              <p className="eyebrow">Production note</p>
               <h2 id="assets-heading">Attach a production note</h2>
             </div>
             <form onSubmit={submitAsset} className="asset-form">
@@ -352,44 +450,60 @@ export function ScriptReview() {
               )}
             </div>
           </section>
-        </>
       ) : null}
 
-      <section className="recent-cases-panel" aria-labelledby="recent-cases-heading">
-        <div className="section-heading results-heading">
-          <div>
-            <p className="eyebrow">Case history</p>
-            <h2 id="recent-cases-heading">Recent cases</h2>
-          </div>
-          <button type="button" onClick={refreshRecentCases} disabled={isLoadingRecentCases}>
-            {isLoadingRecentCases ? 'Loading…' : 'Refresh recent cases'}
-          </button>
+      {isHistoryOpen ? (
+        <div className="drawer-backdrop">
+          <section
+            className="past-cases-drawer"
+            data-testid="past-cases"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="past-cases-heading"
+          >
+            <div className="section-heading results-heading">
+              <div>
+                <p className="eyebrow">Case history</p>
+                <h2 id="past-cases-heading">Past cases</h2>
+              </div>
+              <button
+                type="button"
+                className="secondary-button"
+                aria-label="Close Past cases"
+                onClick={() => setIsHistoryOpen(false)}
+              >
+                Close
+              </button>
+            </div>
+            <div className="recent-cases" data-testid="recent-cases" aria-live="polite">
+              {recentCases.length === 0 ? (
+                <p className="empty-state">
+                  {isLoadingRecentCases ? 'Loading recently reviewed cases…' : 'No past cases yet.'}
+                </p>
+              ) : (
+                <ul>
+                  {recentCases.map((recentCase) => (
+                    <li key={recentCase.id}>
+                      <button
+                        type="button"
+                        className="recent-case-button"
+                        disabled={isLoadingCaseId === recentCase.id}
+                        onClick={() => reopenCase(recentCase.id)}
+                      >
+                        <span>{recentCase.script_excerpt}</span>
+                        <small>
+                          {recentCase.finding_count} findings · {recentCase.asset_count} assets ·{' '}
+                          {new Date(recentCase.created_at).toLocaleString()}
+                        </small>
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </section>
         </div>
-        <div className="recent-cases" data-testid="recent-cases" aria-live="polite">
-          {recentCases.length === 0 ? (
-            <p className="empty-state">Refresh to load recently reviewed cases.</p>
-          ) : (
-            <ul>
-              {recentCases.map((recentCase) => (
-                <li key={recentCase.id}>
-                  <button
-                    type="button"
-                    className="recent-case-button"
-                    disabled={isLoadingCaseId === recentCase.id}
-                    onClick={() => reopenCase(recentCase.id)}
-                  >
-                    <span>{recentCase.script_excerpt}</span>
-                    <small>
-                      {recentCase.finding_count} findings · {recentCase.asset_count} assets ·{' '}
-                      {new Date(recentCase.created_at).toLocaleString()}
-                    </small>
-                  </button>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </section>
+      ) : null}
     </main>
   );
 }

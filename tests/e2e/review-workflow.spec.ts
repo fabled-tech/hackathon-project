@@ -15,8 +15,12 @@ test('keeps the visible case usable after reopening another case fails', async (
   await page.getByRole('button', { name: 'Analyze script' }).click();
   const failedCase = await (await failedCaseResponse).json();
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
-  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(visibleScript) }).click();
+  await page.getByRole('button', { name: 'Past cases' }).click();
+  await page
+    .getByTestId('recent-cases')
+    .getByRole('button', { name: new RegExp(visibleScript) })
+    .first()
+    .click();
   await expect(page.getByLabel('Script text')).toHaveValue(visibleScript);
 
   await page.route(`**/api/cases/${failedCase.id}`, async (route) => {
@@ -26,9 +30,14 @@ test('keeps the visible case usable after reopening another case fails', async (
       body: JSON.stringify({ detail: 'forced reopen failure' })
     });
   });
-  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(failedScript) }).click();
+  await page
+    .getByTestId('recent-cases')
+    .getByRole('button', { name: new RegExp(failedScript) })
+    .first()
+    .click();
   await expect(page.getByText('This case could not be reopened. Please try again.')).toBeVisible();
   await expect(page.getByLabel('Script text')).toHaveValue(visibleScript);
+  await page.keyboard.press('Escape');
 
   await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
   await page.getByRole('button', { name: 'Upload asset' }).click();
@@ -56,9 +65,14 @@ test('ignores stale asset uploads after a newer case is selected', async ({ page
   await page.getByRole('button', { name: 'Analyze script' }).click();
   const newerCase = await (await newerCaseResponse).json();
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
-  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(olderScript) }).click();
+  await page.getByRole('button', { name: 'Past cases' }).click();
+  await page
+    .getByTestId('recent-cases')
+    .getByRole('button', { name: new RegExp(olderScript) })
+    .first()
+    .click();
   await expect(page.getByLabel('Script text')).toHaveValue(olderScript);
+  await page.keyboard.press('Escape');
 
   let releaseOlderAssetsResponse: (() => void) | undefined;
   let signalOlderAssetsRequestStarted: (() => void) | undefined;
@@ -80,7 +94,12 @@ test('ignores stale asset uploads after a newer case is selected', async ({ page
   await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
   await page.getByRole('button', { name: 'Upload asset' }).click();
   await olderAssetsRequestStarted;
-  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(newerScript) }).click();
+  await page.getByRole('button', { name: 'Past cases' }).click();
+  await page
+    .getByTestId('recent-cases')
+    .getByRole('button', { name: new RegExp(newerScript) })
+    .first()
+    .click();
   await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
 
   const staleAssetsResponse = page.waitForResponse(
@@ -121,7 +140,7 @@ test('ignores stale case reopen responses after a newer case is selected', async
   await page.getByRole('button', { name: 'Analyze script' }).click();
   const newerCase = await (await newerCaseResponse).json();
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await page.getByRole('button', { name: 'Past cases' }).click();
   await expect(page.getByTestId('recent-cases')).toContainText(olderScript);
 
   let releaseOlderCaseResponse: (() => void) | undefined;
@@ -137,9 +156,17 @@ test('ignores stale case reopen responses after a newer case is selected', async
     await route.continue();
   });
 
-  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(olderScript) }).click();
+  await page
+    .getByTestId('recent-cases')
+    .getByRole('button', { name: new RegExp(olderScript) })
+    .first()
+    .click();
   await olderCaseRequestStarted;
-  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(newerScript) }).click();
+  await page
+    .getByTestId('recent-cases')
+    .getByRole('button', { name: new RegExp(newerScript) })
+    .first()
+    .click();
   await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
 
   const staleAssetsResponse = page.waitForResponse(
@@ -171,7 +198,7 @@ test('uploads a text asset and reopens it from recent cases', async ({ page }) =
   await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
   await expect(page.getByTestId('asset-list')).toContainText('text/plain');
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await page.getByRole('button', { name: 'Past cases' }).click();
   await page.getByTestId('recent-cases').getByRole('button').first().click();
   await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
   await expect(page.getByTestId('asset-list')).toContainText('text/plain');
@@ -197,10 +224,11 @@ test('reopens a different case with its script, reviewer status, and assets', as
   await page.getByRole('button', { name: 'Analyze script' }).click();
   await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await page.getByRole('button', { name: 'Past cases' }).click();
   await page
     .getByTestId('recent-cases')
     .getByRole('button', { name: new RegExp(originalScript) })
+    .first()
     .click();
 
   await expect(page.getByLabel('Script text')).toHaveValue(originalScript);
@@ -217,10 +245,139 @@ test('submits a script and lets the reviewer dismiss a finding', async ({ page }
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
+  await expect(page.getByTestId('focused-workspace')).toBeVisible();
+  await expect(page.getByTestId('review-queue')).toBeVisible();
   const brandFinding = page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' });
+  await expect(brandFinding.getByTestId('evidence-primary')).toContainText(
+    'Nimbus Soda brand reference archive'
+  );
   await expect(brandFinding).toContainText('brand reference archive');
   await expect(brandFinding).toContainText('Pending');
 
   await brandFinding.getByRole('button', { name: 'Dismiss' }).click();
   await expect(brandFinding).toContainText('Dismissed');
+});
+
+test('keeps alternative citations hidden until the reviewer asks for more evidence', async ({ page }) => {
+  await page.route('**/api/cases', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'alternative-evidence-case',
+        script_text: 'A reference needs evidence review.',
+        created_at: '2026-08-02T00:00:00Z',
+        findings: [
+          {
+            id: 'alternative-evidence-finding',
+            case_id: 'alternative-evidence-case',
+            category: 'brand_reference',
+            detected_item: 'Example Brand',
+            explanation: 'The reviewer should assess this research lead.',
+            confidence: 0.75,
+            supporting_evidence: [
+              {
+                excerpt: 'Primary research excerpt.',
+                source: { title: 'Official source', url: 'https://source.test/official' }
+              },
+              {
+                excerpt: 'Alternative research excerpt.',
+                source: { title: 'Alternative source', url: 'https://source.test/alternative' }
+              }
+            ],
+            source_urls: ['https://source.test/official', 'https://source.test/alternative'],
+            retrieved_at: '2026-08-02T00:00:00Z',
+            reviewer_status: 'pending',
+            evidence: {
+              primary: {
+                excerpt: 'Primary research excerpt.',
+                source: { title: 'Official source', url: 'https://source.test/official' }
+              },
+              rationale: 'The official source directly addresses the referenced item.',
+              alternatives: [
+                {
+                  excerpt: 'Alternative research excerpt.',
+                  source: { title: 'Alternative source', url: 'https://source.test/alternative' }
+                }
+              ]
+            }
+          }
+        ]
+      })
+    });
+  });
+
+  await page.goto('/');
+  await page.getByLabel('Script text').fill('A reference needs evidence review.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  const finding = page.getByTestId('finding-card');
+  await expect(finding.getByTestId('evidence-primary')).toContainText('Official source');
+  await expect(finding.getByTestId('evidence-alternatives')).toBeHidden();
+  await finding.getByRole('button', { name: 'More evidence' }).click();
+  await expect(finding.getByTestId('evidence-alternatives')).toContainText('Alternative source');
+});
+
+test('renders a neutral no-source finding without hiding the review actions', async ({ page }) => {
+  await page.route('**/api/cases', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+
+    await route.fulfill({
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'no-source-case',
+        script_text: 'A reference needs human follow-up.',
+        created_at: '2026-08-02T00:00:00Z',
+        findings: [
+          {
+            id: 'no-source-finding',
+            case_id: 'no-source-case',
+            category: 'brand_reference',
+            detected_item: 'Unverified reference',
+            explanation: 'The reference needs a reviewer to decide next steps.',
+            confidence: 0.5,
+            supporting_evidence: [],
+            source_urls: [],
+            retrieved_at: '2026-08-02T00:00:00Z',
+            reviewer_status: 'pending',
+            evidence: { primary: null, rationale: null, alternatives: [] }
+          }
+        ]
+      })
+    });
+  });
+
+  await page.goto('/');
+  await page.getByLabel('Script text').fill('A reference needs human follow-up.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  await expect(page.getByTestId('no-source-state')).toBeVisible();
+  await expect(page.getByTestId('finding-card').getByRole('button', { name: 'Dismiss' })).toBeEnabled();
+});
+
+test('opens and closes the newest-first Past cases drawer with the keyboard', async ({ page }) => {
+  const olderScript = 'Older chronological case.';
+  const newerScript = 'Newer chronological case.';
+
+  await page.goto('/');
+  await page.getByLabel('Script text').fill(olderScript);
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  await page.getByLabel('Script text').fill(newerScript);
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  await page.getByRole('button', { name: 'Past cases' }).click();
+  const drawer = page.getByTestId('past-cases');
+  await expect(drawer).toBeVisible();
+  await expect(drawer.getByTestId('recent-cases').getByRole('button').first()).toContainText(
+    newerScript
+  );
+  await page.keyboard.press('Escape');
+  await expect(drawer).toBeHidden();
 });
