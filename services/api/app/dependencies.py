@@ -77,5 +77,7 @@ def build_services(settings: Settings) -> ApplicationServices:
     return ApplicationServices(
         case_repository=case_repository,
         asset_repository=asset_repository,
-        agent_service=RightsClearanceAgentService(gemini, parallel),
+        agent_service=RightsClearanceAgentService(
+            gemini, parallel, max_concurrency=settings.parallel_max_concurrency
+        ),
     )

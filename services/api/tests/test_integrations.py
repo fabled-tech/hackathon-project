@@ -26,9 +26,18 @@ class FakeGenAIModels:
         return FakeGenerateContentResponse(self._response_text)
 
 
+class FakeGenAio:
+    def __init__(self, response_text: str) -> None:
+        self.models = FakeGenAIModels(response_text)
+        self.closed = False
+
+    async def aclose(self) -> None:
+        self.closed = True
+
+
 class FakeGenAIClient:
     def __init__(self, response_text: str) -> None:
-        self.aio = type("FakeAio", (), {"models": FakeGenAIModels(response_text)})()
+        self.aio = FakeGenAio(response_text)
 
 
 def test_search_then_extract_reuses_session_and_restricts_urls() -> None:
@@ -230,3 +239,14 @@ def test_vertex_curation_wraps_malformed_json_without_exposing_it() -> None:
         asyncio.run(client.curate_evidence(signal, candidates))
 
     assert "secret malformed provider output" not in str(error.value)
+
+
+def test_vertex_client_closes_its_async_transport() -> None:
+    fake = FakeGenAIClient("[]")
+    client = VertexGeminiClient(
+        "project", "global", "gemini-2.5-flash", client=fake
+    )
+
+    asyncio.run(client.aclose())
+
+    assert fake.aio.closed is True

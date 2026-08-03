@@ -7,6 +7,7 @@ from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, 
 from starlette.concurrency import run_in_threadpool
 
 from app.dependencies import ApplicationServices
+from app.errors import AnalysisUnavailableError
 from app.models import Asset, AssetUpload, Case, CaseSummary, Finding, StoredAsset
 from app.models.requests import (
     ALLOWED_ASSET_CONTENT_TYPE,
@@ -37,11 +38,18 @@ async def _delete_asset_after_increment_failure(
 async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
     case_id = str(uuid4())
     services = _services(request)
+    try:
+        findings = await services.agent_service.analyze(case_id, payload.script_text)
+    except AnalysisUnavailableError as error:
+        raise HTTPException(
+            status_code=503,
+            detail="RightsRadar analysis is temporarily unavailable. Please try again.",
+        ) from error
     case = Case(
         id=case_id,
         script_text=payload.script_text,
         created_at=datetime.now(UTC),
-        findings=await services.agent_service.analyze(case_id, payload.script_text),
+        findings=findings,
     )
     return await run_in_threadpool(services.case_repository.create, case)
 

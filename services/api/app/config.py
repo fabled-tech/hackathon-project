@@ -1,5 +1,6 @@
 from enum import StrEnum
 
+from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +28,7 @@ class Settings(BaseSettings):
     google_cloud_location: str = "global"
     gemini_model: str = "gemini-2.5-flash"
     parallel_api_key: str | None = None
+    parallel_max_concurrency: int = Field(default=4, ge=1, le=16)
     firestore_collection: str = "rightsrader_cases"
     cloud_storage_bucket: str | None = None
     enable_real_smoke: bool = False

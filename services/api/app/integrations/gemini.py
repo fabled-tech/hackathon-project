@@ -75,6 +75,9 @@ class VertexGeminiClient:
         self._model = model
         self._client = client or self._build_client()
 
+    async def aclose(self) -> None:
+        await self._client.aio.aclose()
+
     def _build_client(self) -> Any:
         from google import genai
         from google.genai import types
