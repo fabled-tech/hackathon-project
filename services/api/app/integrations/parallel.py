@@ -32,6 +32,36 @@ class MockParallelSearchClient:
                 "in this deterministic local evidence record."
             ),
         ),
+        "Captain Aurelia": SearchResult(
+            source=Source(
+                title="Captain Aurelia character reference archive (mock)",
+                url="https://example.com/captain-aurelia-character-reference",
+            ),
+            excerpt=(
+                "Mock search fixture: Captain Aurelia appears in a fictional character-reference "
+                "archive used only for the RightsRadar local workflow."
+            ),
+        ),
+        "The Copper Comet Chronicles": SearchResult(
+            source=Source(
+                title="The Copper Comet Chronicles franchise reference archive (mock)",
+                url="https://example.com/copper-comet-chronicles-franchise-reference",
+            ),
+            excerpt=(
+                "Mock search fixture: The Copper Comet Chronicles appears in a fictional franchise "
+                "reference archive used only for the RightsRadar local workflow."
+            ),
+        ),
+        "Rowan Voss": SearchResult(
+            source=Source(
+                title="Rowan Voss likeness reference archive (mock)",
+                url="https://example.com/rowan-voss-likeness-reference",
+            ),
+            excerpt=(
+                "Mock search fixture: Rowan Voss appears in a fictional likeness-reference archive "
+                "used only for the RightsRadar local workflow."
+            ),
+        ),
     }
 
     def search(self, detected_item: str, category: str) -> list[SearchResult]:
