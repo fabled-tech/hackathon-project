@@ -47,6 +47,42 @@ class MockGeminiClient:
                     context_excerpt=script_text,
                 )
             )
+        if "captain aurelia" in normalized:
+            signals.append(
+                GeminiSignal(
+                    category="character_reference",
+                    detected_item="Captain Aurelia",
+                    explanation=(
+                        "The script names a fictional character reference; a reviewer should "
+                        "research whether it merits follow-up before release."
+                    ),
+                    confidence=0.78,
+                )
+            )
+        if "the copper comet chronicles" in normalized:
+            signals.append(
+                GeminiSignal(
+                    category="franchise_reference",
+                    detected_item="The Copper Comet Chronicles",
+                    explanation=(
+                        "The script names a fictional franchise-style reference; a reviewer "
+                        "should research its creative source before release."
+                    ),
+                    confidence=0.74,
+                )
+            )
+        if "rowan voss" in normalized:
+            signals.append(
+                GeminiSignal(
+                    category="likeness_reference",
+                    detected_item="Rowan Voss",
+                    explanation=(
+                        "The script names a fictional likeness reference; a reviewer should "
+                        "research whether it merits follow-up before release."
+                    ),
+                    confidence=0.71,
+                )
+            )
         return signals
 
     async def curate_evidence(
