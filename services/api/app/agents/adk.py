@@ -36,17 +36,32 @@ class AdkAnalysisResponse(BaseModel):
 
 _PROHIBITED_RESEARCH_CONCLUSIONS = (
     re.compile(r"\b(?:is|are|was|were)\s+(?:an?\s+)?(?:infringement|infringing)\b", re.I),
+    re.compile(r"\b(?:violates?|violation of)\s+(?:copyright|trademark)\b", re.I),
     re.compile(r"\b(?:is|are|was|were)\s+(?:not\s+)?(?:cleared|licensed|permitted)\b", re.I),
+    re.compile(
+        r"\b(?:permission|authorization|licen[cs](?:e|ing))\s+(?:is\s+)?"
+        r"(?:not\s+)?(?:required|needed|granted|denied)\b",
+        re.I,
+    ),
     re.compile(
         r"\b(?:you|the production)\s+(?:may|can|cannot|should)\s+"
         r"(?:legally\s+)?(?:use|publish|release|distribute)\b",
         re.I,
     ),
     re.compile(r"\b(?:is|are|was|were)\s+(?:un)?registered\b", re.I),
+    re.compile(
+        r"\bregistration\s+(?:is\s+)?(?:confirmed|unconfirmed|complete|incomplete|pending)\b",
+        re.I,
+    ),
     re.compile(r"\b(?:owns?|owned by|has rights to)\b", re.I),
     re.compile(r"\b(?:qualifies?|does not qualify)\s+as\s+fair use\b", re.I),
     re.compile(r"\b(?:is|are|was|were)\s+(?:a\s+)?fair use\b", re.I),
     re.compile(r"\b(?:is|are|was|were)\s+(?:a\s+)?(?:valid|invalid)\s+trademark\b", re.I),
+    re.compile(
+        r"\b(?:release|publication|distribution)\s+(?:is\s+)?"
+        r"(?:legally\s+)?(?:allowed|permitted|prohibited)\b",
+        re.I,
+    ),
     re.compile(r"\b(?:no|low|high)\s+legal risk\b", re.I),
 )
 
