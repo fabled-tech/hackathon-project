@@ -2,12 +2,15 @@ from typing import Protocol
 
 import httpx
 
+from app.errors import AnalysisProviderError
 from app.models import Source
 from app.models.analysis import SearchResult
 
 
 class ParallelSearchClient(Protocol):
-    def search(self, detected_item: str, category: str) -> list[SearchResult]: ...
+    def search(
+        self, detected_item: str, category: str, context_excerpt: str = ""
+    ) -> list[SearchResult]: ...
 
 
 class MockParallelSearchClient:
@@ -34,8 +37,10 @@ class MockParallelSearchClient:
         ),
     }
 
-    def search(self, detected_item: str, category: str) -> list[SearchResult]:
-        del category
+    def search(
+        self, detected_item: str, category: str, context_excerpt: str = ""
+    ) -> list[SearchResult]:
+        del category, context_excerpt
         result = self._FIXTURES.get(detected_item)
         return [result] if result else []
 
@@ -44,32 +49,70 @@ class ParallelSearchHttpClient:
     def __init__(self, api_key: str) -> None:
         self._api_key = api_key
 
-    def search(self, detected_item: str, category: str) -> list[SearchResult]:
-        response = httpx.post(
-            "https://api.parallel.ai/v1/search",
-            headers={"x-api-key": self._api_key},
-            json={
-                "objective": (
-                    "Gather current, traceable research sources for a human rights-clearance "
-                    f"review of this {category}: {detected_item}. Do not provide legal advice."
-                ),
-                "search_queries": [detected_item, f"{detected_item} {category}"],
-                "max_chars_total": 2_000,
-            },
-            timeout=20,
-        )
-        response.raise_for_status()
+    def search(
+        self, detected_item: str, category: str, context_excerpt: str = ""
+    ) -> list[SearchResult]:
+        try:
+            response = httpx.post(
+                "https://api.parallel.ai/v1/search",
+                headers={"x-api-key": self._api_key},
+                json={
+                    "objective": (
+                        "Gather current, traceable research sources for a human rights-clearance "
+                        f"review of this {category}: {detected_item}. Scene context: "
+                        f"{context_excerpt or 'No scene context provided.'} "
+                        "Use results solely for research; do not provide legal advice."
+                    ),
+                    "search_queries": self._build_search_queries(detected_item, category),
+                    "max_chars_total": 2_000,
+                },
+                timeout=20,
+            )
+        except httpx.HTTPError as error:
+            raise AnalysisProviderError("Parallel Search request failed.") from error
+
+        if not 200 <= response.status_code < 300:
+            raise AnalysisProviderError("Parallel Search request failed.")
+
+        try:
+            payload = response.json()
+            raw_results = payload["results"]
+        except (KeyError, TypeError, ValueError) as error:
+            raise AnalysisProviderError("Parallel Search returned a malformed response.") from error
+
+        if not isinstance(raw_results, list):
+            raise AnalysisProviderError("Parallel Search returned a malformed response.")
+
         results: list[SearchResult] = []
-        for item in response.json().get("results", []):
-            excerpts = item.get("excerpts") or []
+        seen_urls: set[str] = set()
+        for item in raw_results:
+            if not isinstance(item, dict):
+                continue
+            url = item.get("url")
+            if not isinstance(url, str) or not url or url in seen_urls:
+                continue
+            title = item.get("title")
+            excerpts = item.get("excerpts")
+            excerpt = excerpts[0] if isinstance(excerpts, list) and excerpts else None
+            if not isinstance(excerpt, str):
+                excerpt = "No excerpt was returned by Parallel Search."
             results.append(
                 SearchResult(
-                    source=Source(title=item.get("title") or item["url"], url=item["url"]),
-                    excerpt=(
-                        excerpts[0]
-                        if excerpts
-                        else "No excerpt was returned by Parallel Search."
+                    source=Source(
+                        title=title if isinstance(title, str) and title else url, url=url
                     ),
+                    excerpt=excerpt,
                 )
             )
+            seen_urls.add(url)
+            if len(results) == 5:
+                break
         return results
+
+    def _build_search_queries(self, detected_item: str, category: str) -> list[str]:
+        category_keywords = category.replace("_", " ")
+        return [
+            f"{detected_item} {category_keywords} details",
+            f"{detected_item} official {category_keywords}",
+            f"{detected_item} {category_keywords} source",
+        ]

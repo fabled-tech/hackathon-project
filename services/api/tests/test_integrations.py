@@ -1,10 +1,12 @@
 import sys
 from types import ModuleType, SimpleNamespace
 
+import httpx
 import pytest
 
-from app.errors import EvidenceCurationError
+from app.errors import AnalysisProviderError, EvidenceCurationError
 from app.integrations.gemini import MockGeminiClient, VertexGeminiClient
+from app.integrations.parallel import ParallelSearchHttpClient
 from app.models.analysis import GeminiSignal, SearchResult
 from app.models.cases import Source
 
@@ -35,6 +37,106 @@ def test_mock_curator_returns_a_neutral_decision_without_candidates() -> None:
 
     assert decision.primary_url is None
     assert decision.rationale is None
+
+
+def test_parallel_search_includes_context_and_returns_unique_bounded_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_post(
+        url: str, *, headers: dict[str, str], json: dict[str, object], timeout: int
+    ) -> httpx.Response:
+        del url, headers, timeout
+        captured.update(json)
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {"url": "https://source.test/1", "title": "One", "excerpts": ["A"]},
+                    {
+                        "url": "https://source.test/1",
+                        "title": "One duplicate",
+                        "excerpts": ["A2"],
+                    },
+                    {"url": "https://source.test/2", "title": "Two", "excerpts": ["B"]},
+                    {"url": "https://source.test/3", "title": "Three", "excerpts": ["C"]},
+                    {"url": "https://source.test/4", "title": "Four", "excerpts": ["D"]},
+                    {"url": "https://source.test/5", "title": "Five", "excerpts": ["E"]},
+                    {"url": "https://source.test/6", "title": "Six", "excerpts": ["F"]},
+                    {"title": "Missing URL", "excerpts": ["ignored"]},
+                ]
+            },
+        )
+
+    monkeypatch.setattr("app.integrations.parallel.httpx.post", fake_post)
+
+    results = ParallelSearchHttpClient("secret-test-key").search(
+        "Example Brand", "brand_reference", "She holds the product in the scene."
+    )
+
+    assert [result.source.url for result in results] == [
+        "https://source.test/1",
+        "https://source.test/2",
+        "https://source.test/3",
+        "https://source.test/4",
+        "https://source.test/5",
+    ]
+    assert results[0].source.title == "One"
+    assert results[0].excerpt == "A"
+    objective = captured["objective"]
+    search_queries = captured["search_queries"]
+    assert isinstance(objective, str)
+    assert isinstance(search_queries, list)
+    assert "She holds the product" in objective
+    assert len(search_queries) == 3
+
+
+@pytest.mark.parametrize(
+    "post_error",
+    [httpx.TimeoutException("connection timed out"), httpx.HTTPError("request failed")],
+)
+def test_parallel_search_converts_http_client_errors_without_exposing_credentials(
+    monkeypatch: pytest.MonkeyPatch, post_error: httpx.HTTPError
+) -> None:
+    def fake_post(url: str, **kwargs: object) -> httpx.Response:
+        del url, kwargs
+        raise post_error
+
+    monkeypatch.setattr("app.integrations.parallel.httpx.post", fake_post)
+
+    with pytest.raises(AnalysisProviderError) as error:
+        ParallelSearchHttpClient("secret-test-key").search("Example Brand", "brand_reference")
+
+    assert "secret-test-key" not in str(error.value)
+
+
+def test_parallel_search_converts_non_success_responses(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_post(url: str, **kwargs: object) -> httpx.Response:
+        del url, kwargs
+        return httpx.Response(503, json={"error": "provider details"})
+
+    monkeypatch.setattr("app.integrations.parallel.httpx.post", fake_post)
+
+    with pytest.raises(AnalysisProviderError) as error:
+        ParallelSearchHttpClient("secret-test-key").search("Example Brand", "brand_reference")
+
+    assert "malformed" not in str(error.value)
+    assert "provider details" not in str(error.value)
+    assert "secret-test-key" not in str(error.value)
+
+
+def test_parallel_search_rejects_malformed_provider_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_post(url: str, **kwargs: object) -> httpx.Response:
+        del url, kwargs
+        return httpx.Response(200, json={"results": "not a list"})
+
+    monkeypatch.setattr("app.integrations.parallel.httpx.post", fake_post)
+
+    with pytest.raises(AnalysisProviderError, match="malformed"):
+        ParallelSearchHttpClient("secret-test-key").search("Example Brand", "brand_reference")
 
 
 def test_vertex_curator_accepts_a_neutral_model_decision(monkeypatch: pytest.MonkeyPatch) -> None:
