@@ -35,7 +35,12 @@ describe('createCase', () => {
                     source: { title: 'Official source', url: 'https://source.test/best' }
                   },
                   rationale: 'Confirms the brand named in the scene.',
-                  alternatives: []
+                  alternatives: [
+                    {
+                      excerpt: 'Alternative source excerpt.',
+                      source: { title: 'Alternative source', url: 'https://source.test/alternative' }
+                    }
+                  ]
                 },
                 supporting_evidence: [],
                 source_urls: []
@@ -49,6 +54,9 @@ describe('createCase', () => {
 
     expect(response.findings[0].evidence?.primary?.source.url).toBe('https://source.test/best');
     expect(response.findings[0].evidence?.rationale).toContain('Confirms');
+    expect(response.findings[0].evidence?.alternatives?.[0].source.url).toBe(
+      'https://source.test/alternative'
+    );
   });
 });
 
