@@ -1,10 +1,18 @@
+from pytest import MonkeyPatch
+
 from app.agents import RightsClearanceAgentService
 from app.agents.adk import AdkRightsResearchAgentService
 from app.config import EnvironmentMode, IntegrationMode, Settings
 from app.dependencies import build_services
+from app.repositories import InMemoryAssetRepository, InMemoryCaseRepository
 
 
-def test_cloud_mode_uses_the_single_adk_agent_service() -> None:
+def test_cloud_mode_uses_the_single_adk_agent_service(monkeypatch: MonkeyPatch) -> None:
+    monkeypatch.setattr(
+        "app.dependencies.build_repositories",
+        lambda _settings: (InMemoryCaseRepository(), InMemoryAssetRepository()),
+    )
+
     services = build_services(
         Settings(
             mode=EnvironmentMode.CLOUD,
