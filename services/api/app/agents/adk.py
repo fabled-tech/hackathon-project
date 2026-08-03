@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 import re
 from collections.abc import Callable, Iterable
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Protocol, Self
+from typing import TYPE_CHECKING, Literal, Protocol, Self
 from uuid import uuid4
 
 from pydantic import BaseModel, Field, model_validator
@@ -22,6 +23,8 @@ _RESEARCH_AGENT_INSTRUCTION = (
     "leads only.\n"
     "Use search_parallel before citing a source. Return JSON only with a findings array.\n"
     "Each finding must reference exactly one research_id produced by search_parallel.\n"
+    "category must be brand_reference or quotation; detected_item must be an exact substring "
+    "of the submitted script.\n"
     "primary_url may only be a URL returned for that research_id; otherwise use null.\n"
     "Do not give legal advice or state conclusions about infringement, ownership, registration,\n"
     "validity, permission, licensing, fair use, clearance, legal risk, or what anyone may release."
@@ -34,11 +37,18 @@ class AdkInvocation(Protocol):
 
 SearchParallelTool = Callable[[str, str, str, str], dict[str, object]]
 InvocationFactory = Callable[[str, str, str, SearchParallelTool], AdkInvocation]
+ResearchCategory = Literal["brand_reference", "quotation"]
+_RESEARCH_CATEGORIES = frozenset({"brand_reference", "quotation"})
+_SAFE_EXPLANATIONS: dict[ResearchCategory, str] = {
+    "brand_reference": "Possible brand reference for human research review.",
+    "quotation": "Possible quotation for human research review.",
+}
+_SAFE_PRIMARY_RATIONALE = "Retrieved source selected for human research review."
 
 
 class AdkFindingResponse(BaseModel):
     research_id: str = Field(min_length=1)
-    category: str = Field(min_length=1)
+    category: ResearchCategory
     detected_item: str = Field(min_length=1)
     context_excerpt: str = ""
     explanation: str = Field(min_length=1)
@@ -65,12 +75,31 @@ class AdkAnalysisResponse(BaseModel):
 
 
 _PROHIBITED_RESEARCH_CONCLUSIONS = (
+    re.compile(
+        r"\b(?:infring\w*|violat\w*|clearance|permission|authorization|approval|"
+        r"licen[cs]\w*|ownership|owners?|held)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\b(?:holds?|controls?)\s+(?:the\s+)?(?:copyright|trademark|rights?)\b",
+        re.I,
+    ),
     re.compile(r"\b(?:is|are|was|were)\s+(?:an?\s+)?(?:infringement|infringing)\b", re.I),
+    re.compile(r"\binfring(?:es?|ed)\s+(?:copyright|trademark)\b", re.I),
     re.compile(r"\b(?:violates?|violation of)\s+(?:copyright|trademark)\b", re.I),
     re.compile(r"\b(?:is|are|was|were)\s+(?:not\s+)?(?:cleared|licensed|permitted)\b", re.I),
     re.compile(
         r"\b(?:permission|authorization|licen[cs](?:e|ing))\s+(?:is\s+)?"
         r"(?:not\s+)?(?:required|needed|granted|denied)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\bclearance\s+(?:is\s+)?(?:not\s+)?(?:required|needed|granted|denied)\b",
+        re.I,
+    ),
+    re.compile(
+        r"\b(?:you|the production)\s+(?:need|needs|require|requires)\s+"
+        r"(?:permission|authorization|clearance|licen[cs](?:e|ing))\b",
         re.I,
     ),
     re.compile(
@@ -84,6 +113,7 @@ _PROHIBITED_RESEARCH_CONCLUSIONS = (
         re.I,
     ),
     re.compile(r"\b(?:owns?|owned by|has rights to)\b", re.I),
+    re.compile(r"\b(?:copyright|trademark|rights?)\s+belongs?\s+to\b", re.I),
     re.compile(r"\b(?:qualifies?|does not qualify)\s+as\s+fair use\b", re.I),
     re.compile(r"\b(?:is|are|was|were)\s+(?:a\s+)?fair use\b", re.I),
     re.compile(r"\b(?:is|are|was|were)\s+(?:a\s+)?(?:valid|invalid)\s+trademark\b", re.I),
@@ -94,6 +124,26 @@ _PROHIBITED_RESEARCH_CONCLUSIONS = (
     ),
     re.compile(r"\b(?:no|low|high)\s+legal risk\b", re.I),
 )
+_URL_LIKE = re.compile(
+    r"(?<![\w@])(?:"
+    r"[a-z][a-z0-9+.-]*:[^\s<>\"']+"
+    r"|//[^\s<>\"']+"
+    r"|www\.[^\s<>\"']+"
+    r"|(?:\d{1,3}\.){3}\d{1,3}(?::\d{1,5})?(?:/[^\s<>\"']*)?"
+    r"|\[[0-9a-f:.]+\](?::\d{1,5})?(?:/[^\s<>\"']*)?"
+    r"|(?:\w(?:[\w-]{0,61}\w)?\.)+[\w-]{2,63}(?:/[^\s<>\"']*)?"
+    r")",
+    re.I,
+)
+_URL_TRAILING_PUNCTUATION = ".,;:!?)]}"
+
+_PRIVATE_DEPENDENCY_LOGGER_PREFIXES = ("google_adk", "google_genai", "google.genai")
+
+
+def _suppress_dependency_diagnostic_logging() -> None:
+    disabled_level = logging.CRITICAL + 1
+    for prefix in _PRIVATE_DEPENDENCY_LOGGER_PREFIXES:
+        logging.getLogger(prefix).setLevel(disabled_level)
 
 
 def ensure_research_assistance_text(*texts: str | None) -> None:
@@ -105,6 +155,26 @@ def ensure_research_assistance_text(*texts: str | None) -> None:
         raise ResearchBoundaryError("Agent output did not remain within research assistance.")
 
 
+def _ensure_supported_research_category(category: str) -> None:
+    if category not in _RESEARCH_CATEGORIES:
+        raise ResearchBoundaryError("Agent output used an unsupported research category.")
+
+
+def _ensure_detected_item_is_grounded(script_text: str, detected_item: str) -> None:
+    if detected_item not in script_text:
+        raise ResearchBoundaryError("Agent output was not grounded in the submitted script.")
+
+
+def _ensure_provenance_backed_urls(allowed_urls: set[str], *texts: str | None) -> None:
+    for text in texts:
+        for match in _URL_LIKE.finditer(text or ""):
+            candidate = match.group(0).rstrip(_URL_TRAILING_PUNCTUATION)
+            if candidate not in allowed_urls:
+                raise ResearchBoundaryError(
+                    "Agent output referenced a source that was not retrieved."
+                )
+
+
 def _final_response_text(events: Iterable[object]) -> str:
     for event in events:
         is_final_response = getattr(event, "is_final_response", None)
@@ -114,8 +184,13 @@ def _final_response_text(events: Iterable[object]) -> str:
         parts = getattr(content, "parts", None)
         if not parts:
             continue
-        text = getattr(parts[0], "text", None)
-        if isinstance(text, str) and text.strip():
+        text = "".join(
+            part_text
+            for part in parts
+            if not getattr(part, "thought", False)
+            and isinstance((part_text := getattr(part, "text", None)), str)
+        )
+        if text.strip():
             return text
     raise AnalysisUnavailableError("ADK did not return a final response.")
 
@@ -155,28 +230,34 @@ class NativeAdkInvocation:
         app_name = "rights_radar"
         user_id = str(uuid4())
         session_id = str(uuid4())
-        session_service = InMemorySessionService()  # type: ignore[no-untyped-call]
-        asyncio.run(
-            session_service.create_session(
+
+        async def run_async() -> str:
+            session_service = InMemorySessionService()  # type: ignore[no-untyped-call]
+            await session_service.create_session(
                 app_name=app_name,
                 user_id=user_id,
                 session_id=session_id,
             )
-        )
-        runner = Runner(
-            app_name=app_name,
-            agent=self._agent,
-            session_service=session_service,
-        )
-        events = runner.run(
-            user_id=user_id,
-            session_id=session_id,
-            new_message=types.Content(
-                role="user",
-                parts=[types.Part(text=script_text)],
-            ),
-        )
-        return _final_response_text(events)
+            runner = Runner(
+                app_name=app_name,
+                agent=self._agent,
+                session_service=session_service,
+            )
+            events = [
+                event
+                async for event in runner.run_async(
+                    user_id=user_id,
+                    session_id=session_id,
+                    new_message=types.Content(
+                        role="user",
+                        parts=[types.Part(text=script_text)],
+                    ),
+                )
+            ]
+            return _final_response_text(events)
+
+        _suppress_dependency_diagnostic_logging()
+        return asyncio.run(run_async())
 
 
 class AdkRightsResearchAgentService:
@@ -207,6 +288,9 @@ class AdkRightsResearchAgentService:
             """Retrieve traceable research sources for one possible rights research lead."""
             if research_id in results_by_research_id:
                 raise AnalysisUnavailableError("Agent reused a research identifier.")
+            _ensure_supported_research_category(category)
+            ensure_research_assistance_text(category, detected_item)
+            _ensure_detected_item_is_grounded(script_text, detected_item)
             results = self._parallel_search.search(detected_item, category, context_excerpt)
             results_by_research_id[research_id] = results
             identity_by_research_id[research_id] = (detected_item, category)
@@ -233,7 +317,13 @@ class AdkRightsResearchAgentService:
             retrieved_at = datetime.now(UTC)
             findings: list[Finding] = []
             for item in response.findings:
-                ensure_research_assistance_text(item.explanation, item.rationale)
+                ensure_research_assistance_text(
+                    item.category,
+                    item.detected_item,
+                    item.explanation,
+                    item.rationale,
+                )
+                _ensure_detected_item_is_grounded(script_text, item.detected_item)
                 search_results = results_by_research_id.get(item.research_id)
                 if search_results is None:
                     raise AnalysisUnavailableError(
@@ -246,6 +336,11 @@ class AdkRightsResearchAgentService:
                     raise AnalysisUnavailableError(
                         "Agent changed the identity of a researched item."
                     )
+                _ensure_provenance_backed_urls(
+                    {result.source.url for result in search_results},
+                    item.explanation,
+                    item.rationale,
+                )
                 evidence = [
                     Evidence(excerpt=result.excerpt, source=result.source)
                     for result in search_results
@@ -266,7 +361,7 @@ class AdkRightsResearchAgentService:
                         )
                 selection = EvidenceSelection(
                     primary=primary,
-                    rationale=item.rationale,
+                    rationale=_SAFE_PRIMARY_RATIONALE if primary is not None else None,
                     alternatives=[
                         candidate
                         for candidate in evidence
@@ -279,7 +374,7 @@ class AdkRightsResearchAgentService:
                         case_id=case_id,
                         category=item.category,
                         detected_item=item.detected_item,
-                        explanation=item.explanation,
+                        explanation=_SAFE_EXPLANATIONS[item.category],
                         confidence=item.confidence,
                         supporting_evidence=evidence,
                         source_urls=[result.source.url for result in search_results],
@@ -289,7 +384,5 @@ class AdkRightsResearchAgentService:
                     )
                 )
             return findings
-        except AnalysisUnavailableError:
-            raise
-        except Exception as error:
-            raise AnalysisUnavailableError("RightsRadar analysis failed.") from error
+        except Exception:
+            raise AnalysisUnavailableError("RightsRadar analysis failed.") from None

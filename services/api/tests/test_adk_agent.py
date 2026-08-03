@@ -1,8 +1,10 @@
 import json
+import logging
 from collections.abc import Callable
 from types import SimpleNamespace
 
 import pytest
+from google.adk.models.base_llm import BaseLlm
 from pydantic import ValidationError
 
 from app.agents.adk import (
@@ -105,7 +107,9 @@ def test_adk_service_builds_multiple_findings_from_matching_tool_results() -> No
         parallel,
     )
 
-    findings = service.analyze("case-1", "A script.")
+    findings = service.analyze(
+        "case-1", "Example Brand appears and Example Quote is spoken."
+    )
 
     assert len(findings) == 2
     assert all(item.case_id == "case-1" for item in findings)
@@ -139,7 +143,7 @@ def test_adk_service_rejects_a_url_not_returned_by_that_research_id() -> None:
     )
 
     with pytest.raises(AnalysisUnavailableError):
-        service.analyze("case-1", "A script.")
+        service.analyze("case-1", "Example Brand appears in this script.")
 
 
 @pytest.mark.parametrize(
@@ -173,7 +177,9 @@ def test_adk_service_rejects_identity_not_matching_the_tool_call(
     )
 
     with pytest.raises(AnalysisUnavailableError):
-        service.analyze("case-1", "A script.")
+        service.analyze(
+            "case-1", "Example Brand and Different Brand appear in this script."
+        )
 
 
 @pytest.mark.parametrize(
@@ -220,7 +226,179 @@ def test_adk_service_rejects_invalid_or_non_research_output(response_text: str) 
     )
 
     with pytest.raises(AnalysisUnavailableError):
-        service.analyze("case-1", "A script.")
+        service.analyze("case-1", "Example Brand appears in this script.")
+
+
+@pytest.mark.parametrize(
+    ("field", "unsafe_text"),
+    [
+        ("category", "definitely_infringing"),
+        ("detected_item", "This use infringes copyright."),
+        ("explanation", "Clearance is required before release."),
+        ("rationale", "You need permission to use this quotation."),
+        ("detected_item", "The copyright belongs to the studio."),
+        ("explanation", "Permission must be obtained before release."),
+        ("rationale", "The studio holds the copyright."),
+        ("detected_item", "This likely infringes the studio's copyright."),
+        ("explanation", "Clearance must be secured before distribution."),
+        ("detected_item", "The studio is the copyright owner."),
+        ("rationale", "The copyright is held by the studio."),
+        ("explanation", "Approval must be obtained before release."),
+        ("detected_item", "This violates the studio's IP rights."),
+    ],
+)
+def test_adk_service_rejects_legal_conclusions_in_every_displayed_field(
+    field: str, unsafe_text: str
+) -> None:
+    finding = {
+        "research_id": "lead-1",
+        "category": "brand_reference",
+        "detected_item": "Example Brand",
+        "explanation": "A possible research lead for human review.",
+        "confidence": 0.8,
+        "primary_url": None,
+        "rationale": None,
+    }
+    finding[field] = unsafe_text
+    service = _service(
+        json.dumps({"findings": [finding]}),
+        [
+            (
+                "lead-1",
+                str(finding["detected_item"]),
+                str(finding["category"]),
+                "A scene excerpt.",
+            )
+        ],
+        StubParallel(),
+    )
+
+    with pytest.raises(AnalysisUnavailableError):
+        service.analyze(
+            "case-1", f"The submitted script contains {finding['detected_item']}"
+        )
+
+
+@pytest.mark.parametrize("field", ["explanation", "rationale"])
+@pytest.mark.parametrize(
+    "unretrieved_url",
+    [
+        "https://invented.test/claim",
+        "invented.test/claim",
+        "//invented.test/claim",
+        "ftp://invented.test/claim",
+        "203.0.113.10/claim",
+        "8.8.8.8/claim",
+        "1.1.1.1",
+        "[2001:db8::1]/claim",
+        "[::1]/claim",
+        "invented.测试/claim",
+    ],
+)
+def test_adk_service_rejects_unretrieved_urls_in_model_authored_text(
+    field: str, unretrieved_url: str
+) -> None:
+    finding = {
+        "research_id": "lead-1",
+        "category": "brand_reference",
+        "detected_item": "Example Brand",
+        "explanation": "A possible research lead for human review.",
+        "confidence": 0.8,
+        "primary_url": None,
+        "rationale": None,
+    }
+    finding[field] = f"Review the invented source at {unretrieved_url}."
+    service = _service(
+        json.dumps({"findings": [finding]}),
+        [("lead-1", "Example Brand", "brand_reference", "A scene excerpt.")],
+        StubParallel(),
+    )
+
+    with pytest.raises(AnalysisUnavailableError):
+        service.analyze("case-1", "Example Brand appears in this script.")
+
+
+def test_adk_service_allows_a_retrieved_url_in_model_authored_text() -> None:
+    service = _service(
+        json.dumps(
+            {
+                "findings": [
+                    {
+                        "research_id": "lead-1",
+                        "category": "brand_reference",
+                        "detected_item": "Example Brand",
+                        "explanation": (
+                            "A research lead backed by "
+                            "https://source.test/example-brand for human review."
+                        ),
+                        "confidence": 0.8,
+                        "primary_url": None,
+                        "rationale": None,
+                    }
+                ]
+            }
+        ),
+        [("lead-1", "Example Brand", "brand_reference", "A scene excerpt.")],
+        StubParallel(),
+    )
+
+    findings = service.analyze("case-1", "Example Brand appears in this script.")
+
+    assert len(findings) == 1
+
+
+def test_adk_service_rejects_a_detected_item_not_grounded_in_the_script() -> None:
+    service = _service(
+        json.dumps(
+            {
+                "findings": [
+                    {
+                        "research_id": "lead-1",
+                        "category": "brand_reference",
+                        "detected_item": "Invented Brand",
+                        "explanation": "A possible research lead for human review.",
+                        "confidence": 0.8,
+                        "primary_url": None,
+                        "rationale": None,
+                    }
+                ]
+            }
+        ),
+        [("lead-1", "Invented Brand", "brand_reference", "A scene excerpt.")],
+        StubParallel(),
+    )
+
+    with pytest.raises(AnalysisUnavailableError):
+        service.analyze("case-1", "Only Example Brand appears in this script.")
+
+
+def test_adk_service_persists_only_server_authored_neutral_descriptions() -> None:
+    service = _service(
+        json.dumps(
+            {
+                "findings": [
+                    {
+                        "research_id": "lead-1",
+                        "category": "brand_reference",
+                        "detected_item": "Example Brand",
+                        "explanation": "Model-authored research wording.",
+                        "confidence": 0.8,
+                        "primary_url": "https://source.test/example-brand",
+                        "rationale": "Model-authored source wording.",
+                    }
+                ]
+            }
+        ),
+        [("lead-1", "Example Brand", "brand_reference", "A scene excerpt.")],
+        StubParallel(),
+    )
+
+    findings = service.analyze("case-1", "Example Brand appears in this script.")
+
+    assert findings[0].explanation == "Possible brand reference for human research review."
+    assert findings[0].evidence.rationale == (
+        "Retrieved source selected for human research review."
+    )
 
 
 def test_adk_service_rejects_duplicate_tool_research_ids() -> None:
@@ -234,14 +412,22 @@ def test_adk_service_rejects_duplicate_tool_research_ids() -> None:
     )
 
     with pytest.raises(AnalysisUnavailableError):
-        service.analyze("case-1", "A script.")
+        service.analyze("case-1", "Example Brand appears in this script.")
 
 
 class FakeEvent:
-    def __init__(self, final: bool, text: str | None) -> None:
+    def __init__(
+        self,
+        final: bool,
+        text: str | None = None,
+        *,
+        parts: list[object] | None = None,
+    ) -> None:
         self._final = final
         self.content = SimpleNamespace(
-            parts=[] if text is None else [SimpleNamespace(text=text)]
+            parts=([] if text is None else [SimpleNamespace(text=text)])
+            if parts is None
+            else parts
         )
 
     def is_final_response(self) -> bool:
@@ -251,6 +437,19 @@ class FakeEvent:
 def test_final_response_text_rejects_a_runner_without_final_text() -> None:
     with pytest.raises(AnalysisUnavailableError):
         _final_response_text([FakeEvent(final=False, text="intermediate")])
+
+
+def test_final_response_text_joins_non_thought_text_parts_in_order() -> None:
+    event = FakeEvent(
+        final=True,
+        parts=[
+            SimpleNamespace(text="private reasoning", thought=True),
+            SimpleNamespace(text='{"find', thought=False),
+            SimpleNamespace(text='ings": []}', thought=False),
+        ],
+    )
+
+    assert _final_response_text([event]) == '{"findings": []}'
 
 
 def test_native_adk_invocation_has_one_agent_and_one_parallel_tool() -> None:
@@ -270,6 +469,59 @@ def test_native_adk_invocation_has_one_agent_and_one_parallel_tool() -> None:
     assert [getattr(tool, "__name__", None) for tool in invocation.agent.tools] == [
         "search_parallel"
     ]
+
+
+class FailingProviderModel(BaseLlm):
+    async def generate_content_async(self, llm_request: object, stream: bool = False):
+        del llm_request, stream
+        logger = logging.getLogger("google_genai.synthetic_provider")
+        late_handler = logging.StreamHandler()
+        logger.addHandler(late_handler)
+        try:
+            logger.error("SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC")
+        finally:
+            logger.removeHandler(late_handler)
+        raise RuntimeError("SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC")
+        yield
+
+
+def test_native_provider_failure_is_generic_and_does_not_leak_diagnostics(
+    capsys: pytest.CaptureFixture[str], caplog: pytest.LogCaptureFixture
+) -> None:
+    def invocation_factory(
+        project: str,
+        location: str,
+        model: str,
+        tool: Callable[[str, str, str, str], dict[str, object]],
+    ) -> NativeAdkInvocation:
+        invocation = NativeAdkInvocation(project, location, model, tool)
+        invocation.agent.model = FailingProviderModel(model="failing-provider")
+        return invocation
+
+    service = AdkRightsResearchAgentService(
+        project="project",
+        location="global",
+        model="gemini-2.5-flash",
+        parallel_search=StubParallel(),
+        invocation_factory=invocation_factory,
+    )
+
+    with pytest.raises(AnalysisUnavailableError) as caught:
+        service.analyze("case-1", "A script.")
+
+    captured = capsys.readouterr()
+    assert "SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC" not in captured.out
+    assert "SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC" not in captured.err
+    assert "SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC" not in caplog.text
+    assert str(caught.value) == "RightsRadar analysis failed."
+    assert caught.value.__cause__ is None
+
+    caplog.clear()
+    try:
+        raise caught.value
+    except AnalysisUnavailableError:
+        logging.getLogger("app.public_boundary").exception("Generic analysis failure")
+    assert "SENSITIVE_SYNTHETIC_PROVIDER_DIAGNOSTIC" not in caplog.text
 
 
 def test_adk_response_requires_a_rationale_for_a_primary_url() -> None:

@@ -31,6 +31,8 @@ def test_hybrid_real_gemini_uses_adk_with_mock_parallel() -> None:
 
 
 def test_mock_gemini_keeps_the_deterministic_service() -> None:
-    services = build_services(Settings())
+    services = build_services(
+        Settings(mode=EnvironmentMode.MOCK, _env_file=None)  # type: ignore[call-arg]
+    )
 
     assert isinstance(services.agent_service, RightsClearanceAgentService)
