@@ -8,3 +8,7 @@ class AnalysisProviderError(AnalysisUnavailableError):
 
 class EvidenceCurationError(AnalysisUnavailableError):
     """Gemini returned malformed or ungrounded evidence curation output."""
+
+
+class ResearchBoundaryError(AnalysisUnavailableError):
+    """Agent output exceeded RightsRadar's research-assistance boundary."""

@@ -31,12 +31,16 @@ Open <http://127.0.0.1:3000>. `make dev` starts FastAPI with reload on port 8000
 hot reload on port 3000. The default `RIGHTSRADAR_MODE=mock` uses in-memory repositories and
 deterministic Gemini/Parallel fixtures, so no API keys or cloud credentials are needed.
 
-For a deliberately enabled live demo, set `RIGHTSRADAR_MODE=cloud`. Cloud mode uses Gemini
-Enterprise Agent Platform (Google's renamed Vertex AI platform), Parallel Search, Firestore, and
-Cloud Storage. Gemini and Parallel remain separate research integrations: Gemini identifies and
-curates leads, while Parallel retrieves candidate sources. Configure cloud settings only in the
-server environment; the browser never receives credentials, and credentials or provider diagnostics
-must not be logged.
+For a deliberately enabled live demo, set `RIGHTSRADAR_MODE=cloud`.
+
+Cloud mode uses one native Google ADK Gemini research agent on Vertex AI.
+Parallel Search is that agent's traceable research tool. The agent returns research leads for
+human review only; it does not provide legal advice or make infringement or clearance determinations.
+Mock mode remains deterministic and makes no cloud or network request.
+
+The cloud model runs on Gemini Enterprise Agent Platform (Vertex AI), alongside Firestore and Cloud
+Storage. Configure cloud settings only in the server environment; the browser never receives
+credentials, and credentials or provider diagnostics must not be logged.
 
 ## Commands
 
@@ -62,8 +66,8 @@ you explicitly set other environment values.
 ```text
 apps/web/                  Next.js App Router UI
 services/api/app/
-  agents/                  AgentService orchestration
-  integrations/            GeminiClient and ParallelSearchClient adapters
+  agents/                  AgentService orchestration and native ADK research agent
+  integrations/            Deterministic Gemini mock and ParallelSearchClient adapters
   repositories/            CaseRepository and AssetRepository adapters
   routes/                  Thin FastAPI HTTP routes
   models/                  Pydantic domain and request models
@@ -85,25 +89,27 @@ the agent, integrations, and persistence sit behind small interfaces.
 | --- | --- | --- | --- |
 | `mock` (default) | deterministic fixture | deterministic fixture | in-memory |
 | `hybrid` | each `*_MODE` selects `mock` or `real` | independently selected | independently selected |
-| `cloud` | Gemini Enterprise Agent Platform (Vertex AI) | Parallel Search API | Firestore and Cloud Storage |
+| `cloud` | one native Google ADK Gemini agent on Gemini Enterprise Agent Platform (Vertex AI) | agent function tool backed by Parallel Search | Firestore and Cloud Storage |
 
 Set `RIGHTSRADAR_MODE=hybrid` and any of `RIGHTSRADAR_GEMINI_MODE`,
 `RIGHTSRADAR_PARALLEL_MODE`, or `RIGHTSRADAR_REPOSITORY_MODE` to `real` to enable only that
-adapter. Set `RIGHTSRADAR_MODE=cloud` to enable all real integrations. The real Gemini adapter
-uses Application Default Credentials (ADC) with Gemini Enterprise Agent Platform / Vertex AI; it follows the current
-[Google Gen AI SDK for Vertex AI](https://cloud.google.com/vertex-ai/generative-ai/docs/sdks/overview).
-The Parallel adapter uses its documented [Search API](https://docs.parallel.ai/api-reference/search/search)
-with `RIGHTSRADAR_PARALLEL_API_KEY` only on the server. No secret is exposed to the browser or
-written to logs.
+adapter. Set `RIGHTSRADAR_MODE=cloud` to enable all real integrations. Whenever Gemini is real,
+the analysis path uses one native Google ADK agent with Application Default Credentials (ADC) on
+Gemini Enterprise Agent Platform (Vertex AI). The configured Parallel adapter is available only as
+that agent's `search_parallel` function tool; it uses the documented
+[Search API](https://docs.parallel.ai/api-reference/search/search) with
+`RIGHTSRADAR_PARALLEL_API_KEY` only on the server. No secret is exposed to the browser or written to
+logs.
 
 ### Curated evidence and case review
 
-Each detected research lead is saved with either one validated primary citation and a concise
-relevance rationale, or an explicit neutral no-source state. The default review card shows only
-the primary citation and its rationale. When other retrieved sources exist, the reviewer must
-choose **More evidence** to disclose the alternatives. A no-source state is still saveable and
-does not imply clearance or an infringement conclusion. Provider, invalid-curation, and persistence
-failures are retryable and do not return a partially created case.
+Each detected research lead is saved with either one validated primary citation from its matching
+recorded Parallel tool result and a concise relevance rationale, or an explicit neutral no-source
+state. A citation is a research lead, not proof of rights, clearance, or infringement status. The
+default review card shows only the primary citation and its rationale. When other retrieved sources
+exist, the reviewer must choose **More evidence** to disclose the alternatives. A no-source state is
+still saveable and does not imply clearance or an infringement conclusion. Provider, invalid-agent-
+response, and persistence failures are retryable and do not return a partially created case.
 
 The desktop workspace keeps the script and review queue side by side, stacking them on narrow
 screens. **Past cases** opens an accessible drawer containing chronological case history only,
@@ -114,11 +120,12 @@ newest first; reopening a case restores its findings, saved reviewer statuses, a
 The normal checks use mock integrations. A real-cloud review smoke is an intentional, local-only
 operation: with a server-side `.env` configured and ADC active, restart the API and web processes
 in `RIGHTSRADAR_MODE=cloud`, then submit one controlled excerpt containing a recognizable brand
-and quotation. Confirm that it saves either curated evidence (primary citation plus rationale, with
-alternatives disclosed on demand) or the neutral no-source state. Open **Past cases**, verify the
-new case is first, reopen it, change a reviewer status, and verify that status persists after
-reopening. Do not paste request/response bodies, credentials, or provider diagnostics into terminal
-output, tickets, or logs.
+and quotation. Confirm that any saved finding remains a research lead for human review and contains
+only evidence returned by its matching recorded Parallel tool result; a neutral no-source state is
+also valid. Confirm that no UI copy states or implies a legal, infringement, or clearance conclusion.
+Open **Past cases**, verify the new case is first, reopen it, change a reviewer status, and verify
+that status persists after reopening. Do not paste prompts, provider payloads, request/response
+bodies, credentials, or provider diagnostics into terminal output, tickets, or logs.
 
 `make smoke-real` is a separate opt-in repository smoke: it exercises a disposable Firestore and
 Cloud Storage record only when `RIGHTSRADAR_ENABLE_REAL_SMOKE=true`. It does not call Gemini or
