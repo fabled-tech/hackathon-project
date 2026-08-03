@@ -19,7 +19,9 @@ class RightsClearanceAgentService:
         retrieved_at = datetime.now(UTC)
         findings: list[Finding] = []
         for signal in self._gemini.identify_material(script_text):
-            search_results = self._parallel_search.search(signal.detected_item, signal.category)
+            search_results = self._parallel_search.search(
+                signal.detected_item, signal.category, signal.context_excerpt
+            )
             evidence = [
                 Evidence(excerpt=result.excerpt, source=result.source) for result in search_results
             ]

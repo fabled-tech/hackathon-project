@@ -4,10 +4,11 @@ from types import ModuleType, SimpleNamespace
 import httpx
 import pytest
 
+from app.agents import RightsClearanceAgentService
 from app.errors import AnalysisProviderError, EvidenceCurationError
 from app.integrations.gemini import MockGeminiClient, VertexGeminiClient
 from app.integrations.parallel import ParallelSearchHttpClient
-from app.models.analysis import GeminiSignal, SearchResult
+from app.models.analysis import EvidenceCurationDecision, GeminiSignal, SearchResult
 from app.models.cases import Source
 
 
@@ -90,6 +91,25 @@ def test_parallel_search_includes_context_and_returns_unique_bounded_results(
     assert isinstance(search_queries, list)
     assert "She holds the product" in objective
     assert len(search_queries) == 3
+    assert all(3 <= len(query.split()) <= 6 for query in search_queries)
+
+
+def test_parallel_search_queries_stay_within_word_limit_for_long_inputs() -> None:
+    queries = ParallelSearchHttpClient("secret-test-key")._build_search_queries(
+        "The Very Long Example Product Name", "extremely_specific_brand_reference_category"
+    )
+
+    assert len(queries) == 3
+    assert all(3 <= len(query.split()) <= 6 for query in queries)
+
+
+def test_agent_passes_signal_context_to_parallel_search() -> None:
+    signal = _signal()
+    parallel = ContextCapturingParallelClient()
+
+    RightsClearanceAgentService(ContextGeminiClient(signal), parallel).analyze("case-1", "Script")
+
+    assert parallel.context_excerpts == [signal.context_excerpt]
 
 
 @pytest.mark.parametrize(
@@ -190,6 +210,33 @@ def _candidate() -> SearchResult:
         source=Source(title="Official source", url="https://source.test/item"),
         excerpt="A relevant excerpt.",
     )
+
+
+class ContextGeminiClient:
+    def __init__(self, signal: GeminiSignal) -> None:
+        self._signal = signal
+
+    def identify_material(self, script_text: str) -> list[GeminiSignal]:
+        del script_text
+        return [self._signal]
+
+    def curate_evidence(
+        self, signal: GeminiSignal, candidates: list[SearchResult]
+    ) -> EvidenceCurationDecision:
+        del signal, candidates
+        return EvidenceCurationDecision()
+
+
+class ContextCapturingParallelClient:
+    def __init__(self) -> None:
+        self.context_excerpts: list[str] = []
+
+    def search(
+        self, detected_item: str, category: str, context_excerpt: str = ""
+    ) -> list[SearchResult]:
+        del detected_item, category
+        self.context_excerpts.append(context_excerpt)
+        return []
 
 
 def _install_vertex_response(monkeypatch: pytest.MonkeyPatch, response_text: str) -> dict[str, str]:

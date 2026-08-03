@@ -110,9 +110,16 @@ class ParallelSearchHttpClient:
         return results
 
     def _build_search_queries(self, detected_item: str, category: str) -> list[str]:
-        category_keywords = category.replace("_", " ")
+        item_keywords = self._normalized_keywords(detected_item, ("item",), maximum=3)
+        category_keywords = self._normalized_keywords(category, ("reference",), maximum=2)
+        base_keywords = [*item_keywords, *category_keywords]
         return [
-            f"{detected_item} {category_keywords} details",
-            f"{detected_item} official {category_keywords}",
-            f"{detected_item} {category_keywords} source",
+            " ".join([*base_keywords, "details"]),
+            " ".join([*item_keywords, "official", *category_keywords]),
+            " ".join([*base_keywords, "source"]),
         ]
+
+    @staticmethod
+    def _normalized_keywords(value: str, fallback: tuple[str, ...], maximum: int) -> list[str]:
+        keywords = value.replace("_", " ").split()
+        return keywords[:maximum] or list(fallback)
