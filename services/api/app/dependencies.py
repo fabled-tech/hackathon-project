@@ -1,14 +1,12 @@
 from dataclasses import dataclass
 
-from app.agents import AgentService, RightsClearanceAgentService
+from app.agents import AdkRightsResearchAgentService, AgentService, RightsClearanceAgentService
 from app.config import IntegrationMode, Settings
 from app.integrations import (
-    GeminiClient,
     MockGeminiClient,
     MockParallelSearchClient,
     ParallelSearchClient,
     ParallelSearchHttpClient,
-    VertexGeminiClient,
 )
 from app.repositories import (
     AssetRepository,
@@ -52,17 +50,7 @@ def build_repositories(settings: Settings) -> tuple[CaseRepository, AssetReposit
 
 
 def build_services(settings: Settings) -> ApplicationServices:
-    gemini: GeminiClient
     parallel: ParallelSearchClient
-
-    if settings.selected_mode(settings.gemini_mode) is IntegrationMode.REAL:
-        gemini = VertexGeminiClient(
-            project=_require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT"),
-            location=settings.google_cloud_location,
-            model=settings.gemini_model,
-        )
-    else:
-        gemini = MockGeminiClient()
 
     if settings.selected_mode(settings.parallel_mode) is IntegrationMode.REAL:
         parallel = ParallelSearchHttpClient(
@@ -71,10 +59,20 @@ def build_services(settings: Settings) -> ApplicationServices:
     else:
         parallel = MockParallelSearchClient()
 
+    if settings.selected_mode(settings.gemini_mode) is IntegrationMode.REAL:
+        agent_service: AgentService = AdkRightsResearchAgentService(
+            project=_require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT"),
+            location=settings.google_cloud_location,
+            model=settings.gemini_model,
+            parallel_search=parallel,
+        )
+    else:
+        agent_service = RightsClearanceAgentService(MockGeminiClient(), parallel)
+
     case_repository, asset_repository = build_repositories(settings)
 
     return ApplicationServices(
         case_repository=case_repository,
         asset_repository=asset_repository,
-        agent_service=RightsClearanceAgentService(gemini, parallel),
+        agent_service=agent_service,
     )
