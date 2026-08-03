@@ -1,10 +1,56 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  createCase,
   listAssets,
   listCases,
   updateFindingStatus,
   uploadAsset
 } from '@rightsrader/api-client';
+
+describe('createCase', () => {
+  it('returns curated primary evidence and its rationale', async () => {
+    const response = await createCase(
+      { script_text: 'A focused excerpt.' },
+      'http://api.test',
+      vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 'case-1',
+            script_text: 'A focused excerpt.',
+            created_at: '2026-08-02T00:00:00Z',
+            asset_count: 0,
+            findings: [
+              {
+                id: 'finding-1',
+                case_id: 'case-1',
+                category: 'brand_reference',
+                detected_item: 'Example Brand',
+                explanation: 'A named brand.',
+                confidence: 0.8,
+                reviewer_status: 'pending',
+                retrieved_at: '2026-08-02T00:00:00Z',
+                evidence: {
+                  primary: {
+                    excerpt: 'Official excerpt.',
+                    source: { title: 'Official source', url: 'https://source.test/best' }
+                  },
+                  rationale: 'Confirms the brand named in the scene.',
+                  alternatives: []
+                },
+                supporting_evidence: [],
+                source_urls: []
+              }
+            ]
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } }
+        )
+      )
+    );
+
+    expect(response.findings[0].evidence?.primary?.source.url).toBe('https://source.test/best');
+    expect(response.findings[0].evidence?.rationale).toContain('Confirms');
+  });
+});
 
 describe('updateFindingStatus', () => {
   it('sends the selected reviewer status to the API', async () => {

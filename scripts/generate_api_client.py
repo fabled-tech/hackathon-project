@@ -64,6 +64,8 @@ def to_type(schema: dict[str, Any]) -> str:
         return "string"
     if schema.get("type") == "object":
         return "Record<string, unknown>"
+    if schema.get("type") == "null":
+        return "null"
     return "unknown"
 
 
