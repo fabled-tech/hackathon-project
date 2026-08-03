@@ -1,7 +1,7 @@
 # Character, Franchise, and Likeness Research Leads Design
 
-**Date:** 2026-08-02  
-**Issue:** FAB-10  
+**Date:** 2026-08-02
+**Issue:** FAB-10
 **Status:** Approved for specification review
 
 ## Goal
