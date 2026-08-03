@@ -1,7 +1,7 @@
 # Curated Evidence and Focused Workspace Design
 
 **Date:** 2026-08-02
-**Status:** Approved for specification review
+**Status:** Approved
 
 ## Goal
 
@@ -13,7 +13,8 @@ RightsRadar remains research assistance only. It must not make legal conclusions
 
 - Use the existing Gemini Enterprise Agent Platform, Parallel Search, Firestore, and Cloud Storage integrations in `RIGHTSRADAR_MODE=cloud`.
 - Keep Gemini for lead detection and add a second Gemini curation pass for source selection and relevance explanation.
-- Keep Parallel Search as the retrieval provider.
+- Keep Parallel Search as the retrieval provider and use Parallel Extract to verify shortlisted pages.
+- Process independent leads concurrently with a small configurable bound while preserving detector order in the saved case.
 - Persist and reopen cases in newest-first chronological order.
 - Replace the vertically stacked review UI with the approved Focused Canvas layout.
 - Show one selected citation and a concise relevance rationale by default; place any remaining candidates behind an explicit disclosure.
@@ -25,10 +26,13 @@ RightsRadar remains research assistance only. It must not make legal conclusions
 - Adding chatbot-style conversations, free-text case search, filters, tags, or manual case titles.
 - Giving legal advice, issuing clearance conclusions, or asserting ownership.
 - Persisting a case when detection, retrieval, or citation curation fails.
+- Adding Parallel Task API, Task Groups, webhooks, Cloud Tasks, or deployment resources in this milestone; those remain an escalation-path follow-up.
 
 ## Runtime and configuration
 
 The demo starts in `RIGHTSRADAR_MODE=cloud`. It uses the existing environment variables for the Google Cloud project, location, Gemini model, Parallel API key, Firestore collection, and Cloud Storage bucket. Local Application Default Credentials authenticate Google Cloud calls.
+
+`RIGHTSRADAR_PARALLEL_MAX_CONCURRENCY` defaults to `4` and bounds the number of lead pipelines active inside one analysis request. Search and Extract share a provider session identifier derived from the case ID and lead index, never from script text. Search uses the configured Gemini model as `client_model`, returns at most five unique candidate URLs, and uses the Parallel `advanced` mode. Extract receives those URLs in one batch and returns only verified candidates from that shortlist.
 
 The launch procedure restarts both the API and web application after configuration validation. Credentials and API keys remain server-only and are never logged or passed to the browser.
 
@@ -37,10 +41,12 @@ The launch procedure restarts both the API and web application after configurati
 For each submitted excerpt:
 
 1. Gemini identifies potential rights-clearance research leads, including the detected item, category, explanation, confidence, and enough scene context to make retrieval specific.
-2. The server constructs a self-contained Parallel objective and a small set of concise, contextual retrieval queries for that lead. Results are normalized, deduplicated, and bounded before curation.
-3. Gemini receives only the lead plus returned candidate titles, URLs, and excerpts. It selects at most one candidate URL and writes a short explanation of why that source is relevant to the lead.
-4. The server validates that the selected URL exactly matches a retrieved candidate. Gemini must not create citations, URLs, or quoted evidence.
-5. The API persists the complete case and its curated findings to Firestore only after the full analysis succeeds.
+2. The server starts one asynchronous pipeline per lead, bounded by `RIGHTSRADAR_PARALLEL_MAX_CONCURRENCY`. Each pipeline constructs a self-contained Parallel objective and three concise contextual queries.
+3. Parallel Search returns a bounded shortlist. The server normalizes and deduplicates candidate URLs, then sends the shortlist to Parallel Extract in one request using the same provider session.
+4. Extracted candidates are restricted to URLs returned by Search. A partial Extract success uses the successful candidates; a complete Extract failure is a retryable provider failure. An empty Search result is a valid no-source result.
+5. Gemini receives only the lead plus extracted candidate titles, URLs, publication dates, and excerpts. It selects at most one candidate URL and writes a short explanation of why that source is relevant to the lead.
+6. The server validates that the selected URL exactly matches an extracted candidate. Gemini must not create citations, URLs, or quoted evidence.
+7. The server gathers lead results in detector order and persists the complete case to Firestore only after every lead pipeline succeeds.
 
 Gemini may return no suitable source. That is a valid result and produces a saved lead with an explicit neutral `no reliable source selected` state. In contrast, invalid structured output, a citation URL not present in the candidate set, a Gemini/Parallel service failure, or persistence failure produces a retryable error and no partial case is saved.
 
@@ -86,6 +92,8 @@ On narrow viewports, the two panes stack accessibly, while the evidence and case
 Automated coverage will include:
 
 - Lead detection, retrieval-query construction, candidate normalization, and candidate deduplication.
+- Search-to-Extract session reuse, batched URL extraction, partial extraction success, and complete extraction failure.
+- A concurrency test proving independent lead pipelines overlap without exceeding the configured bound and retain detector order.
 - Gemini curation selecting a valid candidate, declining all candidates, returning invalid JSON, and returning an unknown URL.
 - No case persistence after detector, retriever, curator, or repository failures.
 - API serialization and TypeScript-client freshness for the new evidence object.
@@ -101,3 +109,4 @@ An opt-in real-cloud smoke run submits a controlled test excerpt, validates that
 4. A user can reopen prior cloud cases in newest-first order and recover their review state.
 5. Provider failures do not produce partial cases or secret-bearing error output.
 6. The desktop UI is primarily horizontal and remains usable on narrow screens.
+7. Multiple leads are researched concurrently within the configured bound, and every citation selected by Gemini comes from a successfully extracted Parallel candidate.
