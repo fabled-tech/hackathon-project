@@ -1,5 +1,5 @@
-import { ScriptReview } from '@/components/script-review';
+import { ProductionMonitor } from '@/components/production-monitor';
 
 export default function HomePage() {
-  return <ScriptReview />;
+  return <ProductionMonitor />;
 }
