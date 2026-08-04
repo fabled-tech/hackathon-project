@@ -177,8 +177,11 @@ test('ignores a delayed review response after a different run is selected', asyn
   await reviewStarted;
   await page.getByTestId('run-list').getByRole('button').last().click();
   await expect(page.getByTestId('production-finding')).toContainText('Pending');
+  const auditTimeline = page.getByRole('region', { name: 'Audit timeline' });
+  await expect(auditTimeline).toContainText('No review updates have been recorded yet.');
   releaseReview?.();
   await expect(page.getByTestId('production-finding')).toContainText('Pending');
+  await expect(auditTimeline).toContainText('No review updates have been recorded yet.');
 });
 
 test('uses horizontal panes on desktop and stacks the workspace below 760px', async ({ page }) => {
