@@ -435,3 +435,39 @@ def test_in_memory_repository_returns_isolated_copies_and_newest_first_history()
         "run-2",
         "run-1",
     ]
+
+
+def test_append_complete_run_rejects_a_forged_incomplete_snapshot() -> None:
+    repository = seeded_repository_with_one_script()
+    snapshot = repository.get_monitoring_snapshot("production-1").model_copy(
+        update={"sources": []}, deep=True
+    )
+    forged_run = StoredProductionRun(
+        id="run-forged",
+        production_id=snapshot.production.id,
+        production_revision=snapshot.production.revision,
+        trigger=ProductionRunTrigger.INITIAL,
+        created_at=utc(2),
+        source_snapshots=[],
+        findings=[],
+    )
+
+    with pytest.raises(ValueError, match="current monitoring sources"):
+        repository.append_complete_run(snapshot, forged_run)
+
+    assert repository.list_runs("production-1", 10) == []
+
+
+def test_append_source_version_rejects_a_retired_source() -> None:
+    repository = seeded_repository_with_one_script()
+    snapshot = repository.get_monitoring_snapshot("production-1")
+    repository.append_complete_run(snapshot, make_run(snapshot, "run-1"))
+    repository.retire_source("production-1", "source-1", utc(2))
+
+    with pytest.raises(ValueError, match="retired source"):
+        repository.append_source_version(
+            "production-1",
+            "source-1",
+            make_script_version("version-2", "source-1", "New text."),
+            utc(3),
+        )

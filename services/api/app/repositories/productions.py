@@ -206,6 +206,8 @@ class InMemoryProductionRepository:
         updated_at: datetime,
     ) -> ProductionSource:
         source = self._source(production_id, source_id)
+        if not source.active:
+            raise ValueError("Cannot append a version to a retired source")
         if version.source_id != source.id:
             raise ValueError("Version must belong to the requested source")
         if version.id in self._versions_by_source[source_id]:
@@ -251,6 +253,8 @@ class InMemoryProductionRepository:
             raise ProductionRepositoryNotFound(snapshot.production.id)
         if current.revision != snapshot.production.revision:
             raise ProductionRevisionConflict(snapshot.production.id)
+        if snapshot.sources != self._monitoring_sources(snapshot.production.id):
+            raise ValueError("Run snapshot must match the current monitoring sources")
         if (
             run.production_id != snapshot.production.id
             or run.production_revision != snapshot.production.revision
