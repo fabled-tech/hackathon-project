@@ -12,6 +12,7 @@ from .cases import (
     InMemoryCaseRepository,
 )
 from .productions import (
+    FirestoreProductionRepository,
     InMemoryProductionRepository,
     ProductionFindingNotFound,
     ProductionRepository,
@@ -28,6 +29,7 @@ __all__ = [
     "CloudStorageAssetRepository",
     "FindingNotFound",
     "FirestoreCaseRepository",
+    "FirestoreProductionRepository",
     "InMemoryAssetRepository",
     "InMemoryCaseRepository",
     "InMemoryProductionRepository",
