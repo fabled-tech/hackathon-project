@@ -48,6 +48,17 @@ class ProductionSource(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+    @model_validator(mode="after")
+    def require_kind_specific_metadata(self) -> Self:
+        if self.kind is ProductionSourceKind.ASSET:
+            if self.content_type != "text/plain":
+                raise ValueError("asset sources must use content type text/plain")
+            if self.byte_size is None:
+                raise ValueError("asset sources require a byte size")
+        elif self.content_type is not None or self.byte_size is not None:
+            raise ValueError("script sources cannot include asset metadata")
+        return self
+
 
 def fingerprint_utf8(text: str) -> str:
     """Return the lowercase SHA-256 digest for the text's exact UTF-8 bytes."""

@@ -83,6 +83,23 @@ def test_source_version_rejects_non_lowercase_sha256_fingerprint() -> None:
         )
 
 
+def test_asset_source_rejects_non_plain_text_content_type() -> None:
+    with pytest.raises(ValidationError, match="text/plain"):
+        ProductionSource(
+            id="asset-source-1",
+            production_id="production-1",
+            kind=ProductionSourceKind.ASSET,
+            name="private-document.pdf",
+            active=True,
+            current_version_id="asset-version-1",
+            last_monitored_version_id=None,
+            content_type="application/pdf",
+            byte_size=12,
+            created_at=datetime(2026, 8, 3, tzinfo=UTC),
+            updated_at=datetime(2026, 8, 3, tzinfo=UTC),
+        )
+
+
 def test_public_run_omits_internal_fingerprint_and_version_identifier() -> None:
     public = to_public_run(
         StoredProductionRun.model_validate(
