@@ -1188,3 +1188,100 @@ Expected: PASS; the generated client is up to date and every production request 
 git add scripts/generate_api_client.py services/api/tests/test_generate_api_client.py apps/web/tests/api-client.test.ts packages/api-client/src/generated.ts
 git commit -m "feat: generate production monitoring client"
 ~~~
+
+### Task 7: Build the production monitoring workspace and browser acceptance flow
+
+**Files:**
+- Create: `apps/web/components/production-monitor.tsx`
+- Modify: `apps/web/app/page.tsx`
+- Modify: `apps/web/app/styles.css`
+- Modify: `tests/e2e/review-workflow.spec.ts`
+- Modify: `README.md`
+
+**Interfaces:**
+- Consumes: the generated production helpers and public types from Task 6.
+- Produces: a production-first home experience that creates/opens productions, edits named
+  scripts, uploads/replaces/retire plain-text assets, starts normal monitoring or explicit
+  rechecks, selects chronological runs, updates finding review status, and displays the
+  production summary plus audit timeline without exposing private fields.
+
+- [ ] **Step 1: Write the failing component and browser assertions**
+
+Add a component test or browser assertions for the following visible behavior:
+
+```typescript
+test('production workspace shows source inventory, monitoring summary, and audit history', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Production name').fill('Summer feature');
+  await page.getByRole('button', { name: 'Create production' }).click();
+  await page.getByLabel('Script name').fill('Opening scene');
+  await page.getByLabel('Script text').fill('Nimbus Soda appears.');
+  await page.getByRole('button', { name: 'Save script' }).click();
+  await page.getByRole('button', { name: 'Monitor changes' }).click();
+  await expect(page.getByRole('heading', { name: 'Monitoring summary' })).toBeVisible();
+  await expect(page.getByText('1 script')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Recheck all sources' })).toBeVisible();
+});
+```
+
+Extend the mocked route fixture to cover production list/detail, scripts, runs, finding status,
+and review events. Assert that an unchanged monitor response preserves the production selection
+and offers the explicit recheck action; selecting an older run restores its findings; a dismissed
+finding appears in the audit timeline; and asset rows show filename/type/size/timestamp but never
+source fingerprints, private IDs, storage references, or bytes.
+
+- [ ] **Step 2: Run the focused browser test to verify it fails**
+
+Run: `pnpm exec playwright test tests/e2e/review-workflow.spec.ts --project=chromium`
+
+Expected: FAIL because the home page still renders the one-off `ScriptReview` component and has no
+production controls.
+
+- [ ] **Step 3: Implement the production-first workspace**
+
+Create `ProductionMonitor` with request-generation refs so a stale production/run/review response
+cannot replace a newer selection. Keep script edits visible after recoverable failures. The layout
+must be a horizontal two-pane grid above 760px and stack below it:
+
+```text
+left pane: production picker + source inventory/editor
+right pane: Monitoring summary + Monitor changes/Recheck all sources + chronological runs
+below summary: selected run findings grouped by source + human review controls + audit timeline
+```
+
+Use visible labels for every input and button, `aria-live="polite"` for progress/errors, and copy
+that describes only possible research leads. The summary must show script count, asset count,
+sources needing recheck, latest run timestamp, lead count, and reviewer-status counts. The run list
+must show trigger, timestamp, source count, and changed-source count newest first. Source inventory
+must show active/retired/change-state labels; scripts expose editable text, assets expose metadata
+only. A retired source is shown in the next run snapshot but cannot be analyzed again.
+
+Keep the existing legacy case UI available only through its API contract; the home page may replace
+it with production monitoring. Do not add search, filters, tags, scheduler, notifications, legal
+conclusions, clearance labels, or provider diagnostics.
+
+- [ ] **Step 4: Add responsive styles and safe empty/error states**
+
+Update `apps/web/app/styles.css` with the two-pane desktop grid, the sub-760px stacked layout,
+source/run cards, summary counts, audit timeline, and keyboard-visible focus states. Include neutral
+copy for no sources, no possible research leads, unchanged monitoring, and unavailable providers.
+Never render fingerprints, private asset IDs, storage references, or raw asset text.
+
+- [ ] **Step 5: Run focused browser and type checks**
+
+Run: `pnpm exec playwright test tests/e2e/review-workflow.spec.ts --project=chromium`
+
+Run: `pnpm --filter @rightsrader/web typecheck`
+
+Expected: PASS with production creation, multi-source inventory, changed-source state, normal
+monitoring, explicit recheck, chronological run selection, evidence review, and audit history.
+
+- [ ] **Step 6: Document the operator workflow and commit the UI**
+
+Update `README.md` with the production monitoring workflow, explicit recheck behavior, retained
+run/audit history, and the research-assistance-only guardrail. Then run:
+
+```bash
+git add apps/web/components/production-monitor.tsx apps/web/app/page.tsx apps/web/app/styles.css tests/e2e/review-workflow.spec.ts README.md
+git commit -m "feat: add production monitoring workspace"
+```
