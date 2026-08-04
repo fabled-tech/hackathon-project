@@ -13,16 +13,22 @@ from app.repositories import (
     CaseRepository,
     CloudStorageAssetRepository,
     FirestoreCaseRepository,
+    FirestoreProductionRepository,
     InMemoryAssetRepository,
     InMemoryCaseRepository,
+    InMemoryProductionRepository,
+    ProductionRepository,
 )
+from app.services import ProductionMonitoringService
 
 
 @dataclass(frozen=True)
 class ApplicationServices:
     case_repository: CaseRepository
     asset_repository: AssetRepository
+    production_repository: ProductionRepository
     agent_service: AgentService
+    production_monitoring_service: ProductionMonitoringService
 
 
 def _require(value: str | None, setting_name: str) -> str:
@@ -31,13 +37,19 @@ def _require(value: str | None, setting_name: str) -> str:
     return value
 
 
-def build_repositories(settings: Settings) -> tuple[CaseRepository, AssetRepository]:
+def build_repositories(
+    settings: Settings,
+) -> tuple[CaseRepository, AssetRepository, ProductionRepository]:
     case_repository: CaseRepository
     asset_repository: AssetRepository
+    production_repository: ProductionRepository
 
     if settings.selected_mode(settings.repository_mode) is IntegrationMode.REAL:
         project = _require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT")
         case_repository = FirestoreCaseRepository(project, settings.firestore_collection)
+        production_repository = FirestoreProductionRepository(
+            project, settings.firestore_collection
+        )
         asset_repository = CloudStorageAssetRepository(
             project=project,
             bucket_name=_require(settings.cloud_storage_bucket, "RIGHTSRADAR_CLOUD_STORAGE_BUCKET"),
@@ -46,7 +58,8 @@ def build_repositories(settings: Settings) -> tuple[CaseRepository, AssetReposit
     else:
         case_repository = InMemoryCaseRepository()
         asset_repository = InMemoryAssetRepository()
-    return case_repository, asset_repository
+        production_repository = InMemoryProductionRepository()
+    return case_repository, asset_repository, production_repository
 
 
 def build_services(settings: Settings) -> ApplicationServices:
@@ -69,10 +82,14 @@ def build_services(settings: Settings) -> ApplicationServices:
     else:
         agent_service = RightsClearanceAgentService(MockGeminiClient(), parallel)
 
-    case_repository, asset_repository = build_repositories(settings)
+    case_repository, asset_repository, production_repository = build_repositories(settings)
 
     return ApplicationServices(
         case_repository=case_repository,
         asset_repository=asset_repository,
+        production_repository=production_repository,
         agent_service=agent_service,
+        production_monitoring_service=ProductionMonitoringService(
+            production_repository, asset_repository, agent_service
+        ),
     )

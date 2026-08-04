@@ -10,7 +10,9 @@ from app.models import AssetUpload, Case, Finding, StoredAsset
 from app.models.requests import MAX_ASSET_BYTES
 from app.repositories.assets import InMemoryAssetRepository
 from app.repositories.cases import InMemoryCaseRepository
+from app.repositories.productions import InMemoryProductionRepository
 from app.routes.cases import upload_asset
+from app.services import ProductionMonitoringService
 
 
 class EmptyAgentService:
@@ -73,10 +75,16 @@ def make_request(
     case_repository: InMemoryCaseRepository, asset_repository: InMemoryAssetRepository
 ) -> Request:
     app = FastAPI()
+    production_repository = InMemoryProductionRepository()
+    agent_service = EmptyAgentService()
     app.state.services = ApplicationServices(
         case_repository=case_repository,
         asset_repository=asset_repository,
-        agent_service=EmptyAgentService(),
+        production_repository=production_repository,
+        agent_service=agent_service,
+        production_monitoring_service=ProductionMonitoringService(
+            production_repository, asset_repository, agent_service
+        ),
     )
     return Request({"type": "http", "app": app, "headers": []})
 

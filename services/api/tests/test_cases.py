@@ -6,6 +6,8 @@ from app.dependencies import ApplicationServices
 from app.models import Case, EvidenceCurationDecision, GeminiSignal, SearchResult, Source
 from app.repositories.assets import InMemoryAssetRepository
 from app.repositories.cases import InMemoryCaseRepository
+from app.repositories.productions import InMemoryProductionRepository
+from app.services import ProductionMonitoringService
 
 
 class FailingGeminiProvider:
@@ -125,11 +127,16 @@ def test_creating_a_case_returns_a_safe_503_without_saving_when_analysis_fails()
 
     app = create_app()
     repository = TrackingCaseRepository()
+    asset_repository = InMemoryAssetRepository()
+    production_repository = InMemoryProductionRepository()
+    agent_service = RightsClearanceAgentService(FailingGeminiProvider(), UnusedParallelProvider())
     app.state.services = ApplicationServices(
         case_repository=repository,
-        asset_repository=InMemoryAssetRepository(),
-        agent_service=RightsClearanceAgentService(
-            FailingGeminiProvider(), UnusedParallelProvider()
+        asset_repository=asset_repository,
+        production_repository=production_repository,
+        agent_service=agent_service,
+        production_monitoring_service=ProductionMonitoringService(
+            production_repository, asset_repository, agent_service
         ),
     )
     client = TestClient(app)
@@ -151,11 +158,18 @@ def test_creating_a_case_rejects_primary_evidence_without_rationale_before_savin
 
     app = create_app()
     repository = TrackingCaseRepository()
+    asset_repository = InMemoryAssetRepository()
+    production_repository = InMemoryProductionRepository()
+    agent_service = RightsClearanceAgentService(
+        InvalidRationaleGemini(rationale), CandidateParallelProvider()
+    )
     app.state.services = ApplicationServices(
         case_repository=repository,
-        asset_repository=InMemoryAssetRepository(),
-        agent_service=RightsClearanceAgentService(
-            InvalidRationaleGemini(rationale), CandidateParallelProvider()
+        asset_repository=asset_repository,
+        production_repository=production_repository,
+        agent_service=agent_service,
+        production_monitoring_service=ProductionMonitoringService(
+            production_repository, asset_repository, agent_service
         ),
     )
     client = TestClient(app)
