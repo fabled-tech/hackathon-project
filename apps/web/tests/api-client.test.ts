@@ -240,7 +240,11 @@ describe('production monitoring API helpers', () => {
     expect(fetcher).toHaveBeenNthCalledWith(
       1,
       'http://api.test/api/productions',
-      expect.objectContaining({ method: 'POST', body: JSON.stringify({ name: 'Summer feature' }) })
+      expect.objectContaining({
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ name: 'Summer feature' })
+      })
     );
     expect(fetcher).toHaveBeenNthCalledWith(
       2,
@@ -257,13 +261,18 @@ describe('production monitoring API helpers', () => {
       'http://api.test/api/productions/production%2Fone/scripts',
       expect.objectContaining({
         method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Opening scene', script_text: 'INT. STUDIO - DAY' })
       })
     );
     expect(fetcher).toHaveBeenNthCalledWith(
       5,
       'http://api.test/api/productions/production%2Fone/scripts/source%20two',
-      expect.objectContaining({ method: 'PUT', body: JSON.stringify({ script_text: 'EXT. LOT - NIGHT' }) })
+      expect.objectContaining({
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ script_text: 'EXT. LOT - NIGHT' })
+      })
     );
     expect(fetcher).toHaveBeenNthCalledWith(
       6,
@@ -296,6 +305,7 @@ describe('production monitoring API helpers', () => {
       'http://api.test/api/productions/production%2Fone/runs/run%2Ftwo/findings/finding%20three',
       expect.objectContaining({
         method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ reviewer_status: 'accepted' })
       })
     );
