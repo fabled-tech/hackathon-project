@@ -149,6 +149,13 @@ def replace_script(
     request: Request,
 ) -> ProductionSourceView:
     now = _now()
+    services = _services(request)
+    existing = _source_from_detail(services, production_id, source_id)
+    if existing.kind is not ProductionSourceKind.SCRIPT:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+            detail="Source kind does not support script versions.",
+        )
     version = ProductionSourceVersion(
         id=str(uuid4()),
         source_id=source_id,
@@ -156,7 +163,6 @@ def replace_script(
         script_text=payload.script_text,
         created_at=now,
     )
-    services = _services(request)
     try:
         source = services.production_repository.append_source_version(
             production_id, source_id, version, now
@@ -243,6 +249,14 @@ async def replace_asset(
         created_at=now,
     )
     try:
+        existing = await run_in_threadpool(
+            _source_from_detail, services, production_id, source_id
+        )
+        if existing.kind is not ProductionSourceKind.ASSET:
+            raise HTTPException(
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
+                detail="Source kind does not support asset versions.",
+            )
         source = await run_in_threadpool(
             services.production_repository.append_source_version,
             production_id,

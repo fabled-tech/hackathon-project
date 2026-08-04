@@ -155,6 +155,46 @@ def test_named_script_replacement_preserves_its_name_and_updates_public_text() -
     }
 
 
+def test_script_replacement_rejects_an_asset_source_without_corrupting_monitoring() -> None:
+    """Appending script content to an asset source must be rejected before monitoring breaks."""
+    client = _client()
+    production_id = _production_id(client)
+    asset = client.post(
+        f"/api/productions/{production_id}/assets",
+        files={"file": ("cue.txt", b"Nimbus Soda cue", "text/plain")},
+    )
+
+    response = client.put(
+        f"/api/productions/{production_id}/scripts/{asset.json()['id']}",
+        json={"script_text": "A mismatched script version."},
+    )
+
+    assert asset.status_code == 201
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Source kind does not support script versions."}
+    assert client.post(f"/api/productions/{production_id}/runs").status_code == 201
+
+
+def test_asset_replacement_rejects_a_script_source_and_cleans_stored_upload() -> None:
+    """A rejected asset version must not leave private bytes behind or corrupt a script source."""
+    from app.main import create_app
+
+    app = create_app()
+    client = TestClient(app)
+    production_id = _production_id(client)
+    script = _script(client, production_id)
+
+    response = client.post(
+        f"/api/productions/{production_id}/assets/{script['id']}/versions",
+        files={"file": ("mismatch.txt", b"orphaned private bytes", "text/plain")},
+    )
+
+    assert response.status_code == 422
+    assert response.json() == {"detail": "Source kind does not support asset versions."}
+    assert app.state.services.asset_repository.list_for_case(production_id) == []
+    assert client.post(f"/api/productions/{production_id}/runs").status_code == 201
+
+
 def test_asset_replacement_keeps_public_metadata_without_exposing_uploaded_content() -> None:
     """An asset version update must expose only safe current source metadata."""
     client = _client()
@@ -216,6 +256,20 @@ def test_production_rejects_invalid_names(name: str) -> None:
     response = _client().post("/api/productions", json={"name": name})
 
     assert response.status_code == 422
+
+
+def test_script_creation_rejects_a_whitespace_only_name() -> None:
+    """A named script must not persist an identifier that has no visible characters."""
+    client = _client()
+    production_id = _production_id(client)
+
+    response = client.post(
+        f"/api/productions/{production_id}/scripts",
+        json={"name": " \t ", "script_text": "Nimbus Soda appears."},
+    )
+
+    assert response.status_code == 422
+    assert client.get(f"/api/productions/{production_id}").json()["script_count"] == 0
 
 
 @pytest.mark.parametrize(
