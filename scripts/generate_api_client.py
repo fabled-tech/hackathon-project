@@ -232,10 +232,83 @@ def _render_parameters(parameters: tuple[ParameterSpec, ...]) -> str:
     )
 
 
+def _render_parameter_block(parameters: tuple[ParameterSpec, ...]) -> str:
+    rendered = _render_parameters(parameters)
+    return f"{rendered}\n" if rendered else ""
+
+
 def _require_json_body(operation: OperationSpec) -> str:
     if operation.json_body_component is None:
         raise RuntimeError("Expected an application/json request body component")
     return operation.json_body_component
+
+
+def _render_query_path(operation: OperationSpec) -> str:
+    path = _render_path(operation)
+    for index, parameter in enumerate(operation.query_parameters):
+        separator = "?" if index == 0 else "&"
+        path += (
+            f" + '{separator}{parameter.name}='"
+            f" + encodeURIComponent({parameter.argument_name})"
+        )
+    return path
+
+
+def render_json_operation(function_name: str, operation: OperationSpec) -> str:
+    body_type = _require_json_body(operation)
+    return f"""export function {function_name}(
+{_render_parameter_block(operation.path_parameters)}  payload: {body_type},
+{_render_parameter_block(operation.query_parameters)}  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  return request<{operation.response_type}>({_render_query_path(operation)}, baseUrl, {{
+    method: '{operation.method}',
+    headers: {{ 'Content-Type': 'application/json' }},
+    body: JSON.stringify(payload)
+  }}, fetcher);
+}}"""
+
+
+def render_path_operation(function_name: str, operation: OperationSpec) -> str:
+    return f"""export function {function_name}(
+{_render_parameter_block(operation.path_parameters)}  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{ method: '{operation.method}' }}, fetcher);
+}}"""
+
+
+def render_query_operation(function_name: str, operation: OperationSpec) -> str:
+    return f"""export function {function_name}(
+{_render_parameter_block(operation.path_parameters)}{_render_parameter_block(operation.query_parameters)}  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  return request<{operation.response_type}>(
+    {_render_query_path(operation)},
+    baseUrl,
+    {{ method: '{operation.method}' }},
+    fetcher
+  );
+}}"""
+
+
+def render_multipart_operation(function_name: str, operation: OperationSpec) -> str:
+    if operation.multipart_field != "file":
+        raise RuntimeError("Expected exactly one binary multipart field named file")
+    return f"""export function {function_name}(
+{_render_parameter_block(operation.path_parameters)}  file: File,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  const body = new FormData();
+  body.append('file', file);
+  return request<{operation.response_type}>(
+    {_render_path(operation)},
+    baseUrl,
+    {{ method: '{operation.method}', body }},
+    fetcher
+  );
+}}"""
 
 
 def render_create_case(operation: OperationSpec) -> str:
@@ -353,6 +426,76 @@ def generate() -> str:
             schema, "update_finding_api_cases__case_id__findings__finding_id__patch"
         ),
     }
+    production_operations = (
+        ("createProduction", "create_production_api_productions_post", "json"),
+        ("listProductions", "list_productions_api_productions_get", "query"),
+        ("getProduction", "get_production_api_productions__production_id__get", "path"),
+        (
+            "createProductionScript",
+            "create_script_api_productions__production_id__scripts_post",
+            "json",
+        ),
+        (
+            "replaceProductionScript",
+            "replace_script_api_productions__production_id__scripts__source_id__put",
+            "json",
+        ),
+        (
+            "retireProductionSource",
+            "retire_source_api_productions__production_id__sources__source_id__delete",
+            "path",
+        ),
+        (
+            "createProductionAsset",
+            "create_asset_api_productions__production_id__assets_post",
+            "multipart",
+        ),
+        (
+            "replaceProductionAsset",
+            "replace_asset_api_productions__production_id__assets__source_id__versions_post",
+            "multipart",
+        ),
+        (
+            "monitorProductionChanges",
+            "monitor_changes_api_productions__production_id__runs_post",
+            "path",
+        ),
+        (
+            "recheckProductionSources",
+            "recheck_all_sources_api_productions__production_id__rechecks_post",
+            "path",
+        ),
+        (
+            "listProductionRuns",
+            "list_runs_api_productions__production_id__runs_get",
+            "query",
+        ),
+        (
+            "getProductionRun",
+            "get_run_api_productions__production_id__runs__run_id__get",
+            "path",
+        ),
+        (
+            "updateProductionFindingStatus",
+            "update_production_finding_api_productions__production_id__runs__run_id__findings__finding_id__patch",
+            "json",
+        ),
+        (
+            "listProductionReviewEvents",
+            "list_review_events_api_productions__production_id__review_events_get",
+            "query",
+        ),
+    )
+    renderers = {
+        "json": render_json_operation,
+        "path": render_path_operation,
+        "query": render_query_operation,
+        "multipart": render_multipart_operation,
+    }
+    rendered_production_operations = "\n\n".join(
+        renderers[renderer](function_name, _operation_by_id(schema, operation_id))
+        for function_name, operation_id, renderer in production_operations
+    )
     components = schema["components"]["schemas"]
     component_definitions = "\n\n".join(
         render_component(name, component_schema)
@@ -392,6 +535,8 @@ async function request<T>(
 {render_list_assets(operations["list_assets"])}
 
 {render_update_finding_status(operations["update_finding"])}
+
+{rendered_production_operations}
 """
 
 
