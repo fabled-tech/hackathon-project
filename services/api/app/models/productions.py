@@ -181,6 +181,7 @@ class ProductionSourceView(BaseModel):
     name: str
     active: bool
     change_state: SourceChangeState
+    updated_at: datetime
     script_text: str | None = None
     content_type: str | None = None
     byte_size: int | None = Field(default=None, ge=0)
@@ -196,6 +197,7 @@ def to_public_source(
         name=source.name,
         active=source.active,
         change_state=source_change_state(source),
+        updated_at=source.updated_at,
         script_text=version.script_text if source.kind is ProductionSourceKind.SCRIPT else None,
         content_type=source.content_type if source.kind is ProductionSourceKind.ASSET else None,
         byte_size=source.byte_size if source.kind is ProductionSourceKind.ASSET else None,

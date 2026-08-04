@@ -144,6 +144,7 @@ export interface ProductionSourceView {
   name: string;
   active: boolean;
   change_state: SourceChangeState;
+  updated_at: string;
   script_text?: string | null;
   content_type?: string | null;
   byte_size?: number | null;

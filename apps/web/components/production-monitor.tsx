@@ -68,6 +68,7 @@ export function ProductionMonitor() {
   const [production, setProduction] = useState<ProductionDetail | null>(null);
   const [runs, setRuns] = useState<ProductionRunSummary[]>([]);
   const [selectedRun, setSelectedRun] = useState<ProductionRun | null>(null);
+  const [latestRun, setLatestRun] = useState<ProductionRun | null>(null);
   const [reviewEvents, setReviewEvents] = useState<ReviewEvent[]>([]);
   const [productionName, setProductionName] = useState('');
   const [scriptName, setScriptName] = useState('');
@@ -128,11 +129,14 @@ export function ProductionMonitor() {
         listProductionReviewEvents(productionId, 50, API_BASE_URL)
       ]);
       if (productionGeneration.current !== requestGeneration) return;
-      const selectedSummary =
-        nextRuns.find((run) => run.id === preferredRunId) ?? nextRuns[0] ?? null;
-      const nextSelectedRun = selectedSummary
-        ? await getProductionRun(productionId, selectedSummary.id, API_BASE_URL)
-        : null;
+      const latestSummary = nextRuns[0] ?? null;
+      const selectedSummary = nextRuns.find((run) => run.id === preferredRunId) ?? latestSummary;
+      const [nextLatestRun, nextSelectedRun] = await Promise.all([
+        latestSummary ? getProductionRun(productionId, latestSummary.id, API_BASE_URL) : null,
+        selectedSummary && selectedSummary.id !== latestSummary?.id
+          ? getProductionRun(productionId, selectedSummary.id, API_BASE_URL)
+          : null
+      ]);
       if (
         productionGeneration.current !== requestGeneration ||
         runGeneration.current !== nextRunGeneration
@@ -141,7 +145,8 @@ export function ProductionMonitor() {
       }
       setProduction(detail);
       setRuns(nextRuns);
-      chooseRun(nextSelectedRun);
+      setLatestRun(nextLatestRun);
+      chooseRun(nextSelectedRun ?? nextLatestRun);
       setReviewEvents(nextEvents);
       setEditingScriptId(null);
       setScriptName('');
@@ -487,7 +492,7 @@ export function ProductionMonitor() {
                 {assets.map((source) => (
                   <article className="source-card" key={source.id}>
                     <div className="source-card-heading"><div><span className="source-kind">Plain-text asset</span><h3>{source.name}</h3></div><span className={`status status-${source.change_state}`}>{sentenceCase(source.change_state)}</span></div>
-                    <dl className="asset-metadata"><div><dt>Type</dt><dd>{source.content_type ?? 'text/plain'}</dd></div><div><dt>Size</dt><dd>{formatSize(source.byte_size)}</dd></div><div><dt>Updated</dt><dd>{formatDate(production.updated_at)}</dd></div></dl>
+                    <dl className="asset-metadata"><div><dt>Type</dt><dd>{source.content_type ?? 'text/plain'}</dd></div><div><dt>Size</dt><dd>{formatSize(source.byte_size)}</dd></div><div><dt>Updated</dt><dd>{formatDate(source.updated_at)}</dd></div></dl>
                     <p className="source-state">{source.active ? 'Active source' : 'Retired source'}</p>
                     <label htmlFor={`replace-${source.id}`}>Replace {source.name}</label>
                     <input id={`replace-${source.id}`} type="file" accept="text/plain,.txt" disabled={!source.active} onChange={(event: ChangeEvent<HTMLInputElement>) => setAssetReplacement((current) => ({ ...current, [source.id]: event.currentTarget.files?.[0] ?? null }))} />
@@ -506,7 +511,7 @@ export function ProductionMonitor() {
           <div className="section-heading"><p className="eyebrow">Current view</p><h2 id="monitoring-heading">Monitoring summary</h2></div>
           {!production ? <p className="empty-state">No production is selected for monitoring.</p> : <>
             <div className="summary-counts">
-              <span>{sourceSummary(production.script_count, 'script')}</span><span>{sourceSummary(production.asset_count, 'asset')}</span><span>{sourceSummary(production.sources_needing_recheck, 'source needing recheck')}</span><span>Latest run: {formatDate(production.latest_run_at)}</span><span>{sourceSummary(selectedRun?.findings.length ?? 0, 'possible research lead')}</span>
+              <span>{sourceSummary(production.script_count, 'script')}</span><span>{sourceSummary(production.asset_count, 'asset')}</span><span>{sourceSummary(production.sources_needing_recheck, 'source needing recheck')}</span><span>Latest run: {formatDate(production.latest_run_at)}</span><span>{sourceSummary(latestRun?.findings.length ?? 0, 'latest possible research lead')}</span>
             </div>
             <dl className="reviewer-counts">{reviewerStatusCounts(production).map(([status, count]) => <div key={status}><dt>{sentenceCase(status)}</dt><dd>{count}</dd></div>)}</dl>
             <div className="monitor-actions"><button type="button" onClick={() => void startMonitoring(false)} disabled={isMonitoring}>{isMonitoring ? 'Monitoring…' : 'Monitor changes'}</button><button type="button" className="secondary-button" onClick={() => void startMonitoring(true)} disabled={isMonitoring}>{isMonitoring ? 'Monitoring…' : 'Recheck all sources'}</button></div>
