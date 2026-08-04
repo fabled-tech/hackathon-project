@@ -46,6 +46,23 @@ class ProductionRevisionConflict(Exception):
     pass
 
 
+def _validate_source_version_metadata(
+    source: ProductionSource, version: ProductionSourceVersion, *, creating: bool = False
+) -> None:
+    if source.kind.value == "script":
+        if version.script_text is None:
+            raise ValueError("Script sources require script source versions")
+        return
+    if version.asset_id is None:
+        raise ValueError("Asset sources require asset source versions")
+    if creating and (
+        source.name != version.asset_filename
+        or source.content_type != version.asset_content_type
+        or source.byte_size != version.asset_byte_size
+    ):
+        raise ValueError("Asset source metadata must match its current immutable version")
+
+
 class ProductionRepository(Protocol):
     def create(self, production: Production) -> Production: ...
 
@@ -118,10 +135,10 @@ class InMemoryProductionRepository:
         sources = self._sources_by_production[production_id]
         monitoring_sources: list[ProductionMonitoringSource] = []
         for source in sources.values():
-            change_state = source_change_state(source)
+            version = self._versions_by_source[source.id][source.current_version_id]
+            change_state = source_change_state(source, version.fingerprint_sha256)
             if not source.active and change_state is not SourceChangeState.RETIRED:
                 continue
-            version = self._versions_by_source[source.id][source.current_version_id]
             monitoring_sources.append(
                 ProductionMonitoringSource(
                     source=source.model_copy(deep=True),
@@ -192,6 +209,7 @@ class InMemoryProductionRepository:
             raise ValueError("Source and version must belong to the requested production source")
         if source.current_version_id != version.id:
             raise ValueError("Source current version must match the created version")
+        _validate_source_version_metadata(source, version, creating=True)
         if source.id in self._sources_by_production[production_id]:
             raise ValueError(f"Source already exists: {source.id}")
 
@@ -215,9 +233,20 @@ class InMemoryProductionRepository:
         if version.id in self._versions_by_source[source_id]:
             raise ValueError(f"Source version already exists: {version.id}")
 
-        next_source = source.model_copy(
-            update={"current_version_id": version.id, "updated_at": updated_at}, deep=True
-        )
+        _validate_source_version_metadata(source, version)
+        source_updates: dict[str, object] = {
+            "current_version_id": version.id,
+            "updated_at": updated_at,
+        }
+        if source.kind.value == "asset":
+            source_updates.update(
+                {
+                    "name": version.asset_filename,
+                    "content_type": version.asset_content_type,
+                    "byte_size": version.asset_byte_size,
+                }
+            )
+        next_source = source.model_copy(update=source_updates, deep=True)
         next_versions = copy.deepcopy(self._versions_by_source[source_id])
         next_versions[version.id] = version.model_copy(deep=True)
         self._versions_by_source[source_id] = next_versions
@@ -295,6 +324,9 @@ class InMemoryProductionRepository:
         next_sources = copy.deepcopy(self._sources_by_production[snapshot.production.id])
         for item in snapshot.sources:
             next_sources[item.source.id].last_monitored_version_id = item.version.id
+            next_sources[item.source.id].last_monitored_fingerprint_sha256 = (
+                item.version.fingerprint_sha256
+            )
         next_runs = copy.deepcopy(self._runs_by_production[snapshot.production.id])
         next_runs[run.id] = run.model_copy(deep=True)
 
@@ -488,10 +520,10 @@ class FirestoreProductionRepository:
             if document is None:
                 continue
             source = ProductionSource.model_validate(document)
-            change_state = source_change_state(source)
+            version = self._get_version(production_id, source.id, source.current_version_id)
+            change_state = source_change_state(source, version.fingerprint_sha256)
             if not source.active and change_state is not SourceChangeState.RETIRED:
                 continue
-            version = self._get_version(production_id, source.id, source.current_version_id)
             monitoring_sources.append(
                 ProductionMonitoringSource(
                     source=source,
@@ -580,6 +612,7 @@ class FirestoreProductionRepository:
             raise ValueError("Source and version must belong to the requested production source")
         if source.current_version_id != version.id:
             raise ValueError("Source current version must match the created version")
+        _validate_source_version_metadata(source, version, creating=True)
 
         def create_source_transaction(transaction: Any) -> ProductionSource:
             production = self._get_production(production_id, transaction=transaction)
@@ -613,13 +646,24 @@ class FirestoreProductionRepository:
                 raise ValueError("Cannot append a version to a retired source")
             if version.source_id != source.id:
                 raise ValueError("Version must belong to the requested source")
+            _validate_source_version_metadata(source, version)
             version_document = self._version_document(production_id, source_id, version.id)
             if version_document.get(transaction=transaction).exists:
                 raise ValueError(f"Source version already exists: {version.id}")
 
-            next_source = source.model_copy(
-                update={"current_version_id": version.id, "updated_at": updated_at}, deep=True
-            )
+            source_updates: dict[str, object] = {
+                "current_version_id": version.id,
+                "updated_at": updated_at,
+            }
+            if source.kind.value == "asset":
+                source_updates.update(
+                    {
+                        "name": version.asset_filename,
+                        "content_type": version.asset_content_type,
+                        "byte_size": version.asset_byte_size,
+                    }
+                )
+            next_source = source.model_copy(update=source_updates, deep=True)
             transaction.set(version_document, version.model_dump(mode="json"))
             transaction.update(
                 self._source_document(production_id, source_id), next_source.model_dump(mode="json")
@@ -713,7 +757,8 @@ class FirestoreProductionRepository:
                 )
                 if (
                     source != item.source
-                    or source_change_state(source) is not item.change_state
+                    or source_change_state(source, version.fingerprint_sha256)
+                    is not item.change_state
                     or version != item.version
                 ):
                     raise ProductionRevisionConflict(production_id)
@@ -730,7 +775,11 @@ class FirestoreProductionRepository:
                     (
                         self._source_document(production_id, source_id),
                         source.model_copy(
-                            update={"last_monitored_version_id": version.id}, deep=True
+                            update={
+                                "last_monitored_version_id": version.id,
+                                "last_monitored_fingerprint_sha256": version.fingerprint_sha256,
+                            },
+                            deep=True,
                         ),
                     )
                 )

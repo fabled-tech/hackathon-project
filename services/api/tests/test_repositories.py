@@ -21,6 +21,7 @@ from app.models import (
     ProductionSourceVersion,
     ReviewerStatus,
     Source,
+    SourceChangeState,
     StoredAsset,
     StoredProductionRun,
     StoredProductionRunSourceSnapshot,
@@ -280,6 +281,37 @@ def make_script_version(
     )
 
 
+def make_asset_source(source_id: str, production_id: str, version_id: str) -> ProductionSource:
+    return ProductionSource(
+        id=source_id,
+        production_id=production_id,
+        kind=ProductionSourceKind.ASSET,
+        name="first.txt",
+        active=True,
+        current_version_id=version_id,
+        last_monitored_version_id=None,
+        content_type="text/plain",
+        byte_size=10,
+        created_at=utc(0),
+        updated_at=utc(0),
+    )
+
+
+def make_asset_version(
+    version_id: str, source_id: str, text: str, *, filename: str
+) -> ProductionSourceVersion:
+    return ProductionSourceVersion(
+        id=version_id,
+        source_id=source_id,
+        fingerprint_sha256=fingerprint_utf8(text),
+        asset_id=f"private-{version_id}",
+        asset_filename=filename,
+        asset_content_type="text/plain",
+        asset_byte_size=len(text.encode("utf-8")),
+        created_at=utc(1),
+    )
+
+
 def make_run(
     snapshot: ProductionMonitoringSnapshot,
     run_id: str,
@@ -405,6 +437,52 @@ def test_firestore_run_listing_is_newest_first_and_rejects_a_stale_revision() ->
         repository.append_complete_run(first, make_run(first, "run-stale", created_at=utc(4)))
 
     assert [run.id for run in repository.list_runs("production-1", 10)] == ["run-2", "run-1"]
+
+
+def test_firestore_identical_script_replacement_is_unchanged_by_fingerprint() -> None:
+    firestore = FakeFirestoreClient()
+    repository = seeded_firestore_production_repository(firestore)
+
+    repository.append_source_version(
+        "production-1",
+        "source-1",
+        make_script_version("version-2", "source-1", "Nimbus Soda appears."),
+        utc(3),
+    )
+
+    replacement = repository.get_monitoring_snapshot("production-1").sources[0]
+    assert replacement.source.current_version_id == "version-2"
+    assert replacement.change_state is SourceChangeState.UNCHANGED
+
+
+def test_firestore_identical_asset_replacement_updates_metadata_without_marking_changed() -> None:
+    firestore = FakeFirestoreClient()
+    repository = fake_production_repository(firestore)
+    production = repository.create(make_production("production-1", revision=0))
+    source = make_asset_source("asset-1", production.id, "asset-version-1")
+    repository.create_source(
+        production.id,
+        source,
+        make_asset_version(
+            "asset-version-1", source.id, "same bytes", filename="first.txt"
+        ),
+    )
+    first = repository.get_monitoring_snapshot(production.id)
+    repository.append_complete_run(first, make_run(first, "run-1"))
+
+    updated = repository.append_source_version(
+        production.id,
+        source.id,
+        make_asset_version(
+            "asset-version-2", source.id, "same bytes", filename="replacement-name.txt"
+        ),
+        utc(3),
+    )
+
+    replacement = repository.get_monitoring_snapshot(production.id).sources[0]
+    assert replacement.change_state is SourceChangeState.UNCHANGED
+    assert updated.name == "replacement-name.txt"
+    assert updated.byte_size == len(b"same bytes")
 
 
 class FakeStorageNotFound(Exception):

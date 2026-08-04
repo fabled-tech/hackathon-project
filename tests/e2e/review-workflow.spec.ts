@@ -39,12 +39,80 @@ test('keeps a production selected after unchanged monitoring, restores older run
   await page.getByRole('button', { name: 'Recheck all sources' }).click();
   const latestFinding = page.getByTestId('production-finding').first();
   await latestFinding.getByRole('button', { name: 'Dismiss' }).click();
-  await expect(page.getByRole('region', { name: 'Audit timeline' })).toContainText('Dismissed');
+  const auditTimeline = page.getByRole('region', { name: 'Audit timeline' });
+  await expect(auditTimeline).toContainText('Dismissed');
+  await expect(auditTimeline).toContainText(/Run \S+ · finding \S+/);
 
   await page.getByTestId('run-list').getByRole('button').last().click();
   await expect(page.getByRole('heading', { name: 'Research leads' })).toBeVisible();
   await expect(page.getByTestId('production-finding')).toContainText('Pending');
   await expect(page.getByTestId('monitoring-workspace')).toContainText('Dismissed');
+});
+
+test('distinguishes a stale production revision from an unchanged monitor request', async ({
+  page
+}) => {
+  await page.goto('/');
+  await page.getByLabel('Production name').fill('Revision race feature');
+  await page.getByRole('button', { name: 'Create production' }).click();
+  await page.getByLabel('Script name').fill('Opening scene');
+  await page.getByLabel('Script text').fill('Nimbus Soda appears.');
+  await page.getByRole('button', { name: 'Save script' }).click();
+  await page.route('**/api/productions/*/runs', async (route) => {
+    await route.fulfill({
+      status: 409,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        detail: 'The production changed while monitoring. Review the latest sources and try again.'
+      })
+    });
+  });
+
+  await page.getByRole('button', { name: 'Monitor changes' }).click();
+
+  await expect(page.locator('.error-message')).toContainText(
+    'The production changed while monitoring. Refresh the production and try again.'
+  );
+  await expect(page.getByText('No source changes need monitoring right now.')).toHaveCount(0);
+});
+
+test('discloses alternative evidence when no primary source was selected', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Production name').fill('Alternative evidence feature');
+  await page.getByRole('button', { name: 'Create production' }).click();
+  await page.getByLabel('Script name').fill('Opening scene');
+  await page.getByLabel('Script text').fill('Nimbus Soda appears.');
+  await page.getByRole('button', { name: 'Save script' }).click();
+  await page.route('**/api/productions/*/runs/*', async (route) => {
+    const response = await route.fetch();
+    const body = await response.json();
+    const finding = body.findings?.[0];
+    if (finding) {
+      finding.evidence = {
+        primary: null,
+        rationale: null,
+        alternatives: [
+          {
+            excerpt: 'A traceable alternative research excerpt.',
+            source: {
+              title: 'Alternative research source',
+              url: 'https://example.test/alternative'
+            }
+          }
+        ]
+      };
+    }
+    await route.fulfill({ response, json: body });
+  });
+
+  await page.getByRole('button', { name: 'Monitor changes' }).click();
+
+  const finding = page.getByTestId('production-finding');
+  await expect(finding).toContainText(
+    'No primary source was selected. The alternative evidence below is additional research material for human review.'
+  );
+  await expect(finding.getByRole('link', { name: 'Alternative research source' })).toBeVisible();
+  await expect(finding).not.toContainText('No supporting source is available');
 });
 
 test('renders asset inventory metadata without private implementation fields', async ({ page }) => {

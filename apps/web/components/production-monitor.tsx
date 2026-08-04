@@ -1,6 +1,7 @@
 'use client';
 
 import {
+  ApiError,
   createProduction,
   createProductionAsset,
   createProductionScript,
@@ -55,12 +56,55 @@ function reviewerStatusCounts(detail: ProductionDetail): Array<[ReviewerStatus, 
   const counts = detail.reviewer_status_counts ?? {};
   return (['pending', 'accepted', 'dismissed', 'escalated'] as ReviewerStatus[]).map((status) => [
     status,
-    typeof counts[status] === 'number' ? counts[status] : 0
+    counts[status] ?? 0
   ]);
 }
 
 function sourceSummary(count: number, noun: string): string {
   return `${count} ${noun}${count === 1 ? '' : 's'}`;
+}
+
+function FindingEvidence({ finding }: { finding: ProductionFinding }) {
+  const primary = finding.evidence?.primary;
+  const rationale = finding.evidence?.rationale?.trim();
+  const alternatives = finding.evidence?.alternatives ?? [];
+
+  if (primary && rationale) {
+    return (
+      <div className="evidence-block">
+        <a href={primary.source.url} target="_blank" rel="noreferrer">
+          {primary.source.title}
+        </a>
+        <p>{rationale}</p>
+      </div>
+    );
+  }
+
+  if (alternatives.length > 0) {
+    return (
+      <div className="evidence-block alternative-evidence">
+        <p className="evidence-disclosure">
+          No primary source was selected. The alternative evidence below is additional research
+          material for human review.
+        </p>
+        {alternatives.map((evidence) => (
+          <blockquote key={evidence.source.url}>
+            <p>“{evidence.excerpt}”</p>
+            <a href={evidence.source.url} target="_blank" rel="noreferrer">
+              {evidence.source.title}
+            </a>
+          </blockquote>
+        ))}
+      </div>
+    );
+  }
+
+  return (
+    <p className="empty-state">
+      No supporting source is available for this possible lead. This neutral state is not a
+      research conclusion.
+    </p>
+  );
 }
 
 export function ProductionMonitor() {
@@ -330,10 +374,20 @@ export function ProductionMonitor() {
       await openProduction(productionId, run.id);
     } catch (cause) {
       if (productionGeneration.current === selectionGeneration && runGeneration.current === requestGeneration) {
-        if (explicitRecheck || !String(cause).includes('(409)')) {
-          setError('Monitoring is temporarily unavailable. Please try again.');
-        } else {
+        if (
+          cause instanceof ApiError &&
+          cause.status === 409 &&
+          cause.detail?.startsWith('No changed sources are available to monitor.')
+        ) {
           setNotice('No source changes need monitoring right now. Use Recheck all sources to run research again.');
+        } else if (
+          cause instanceof ApiError &&
+          cause.status === 409 &&
+          cause.detail?.startsWith('The production changed while monitoring.')
+        ) {
+          setError('The production changed while monitoring. Refresh the production and try again.');
+        } else {
+          setError('Monitoring is temporarily unavailable. Please try again.');
         }
       }
     } finally {
@@ -521,8 +575,8 @@ export function ProductionMonitor() {
       </div>
 
       {production ? <section className="review-history" aria-label="Review history">
-        <section className="workspace findings-panel" aria-labelledby="research-leads-heading"><div className="section-heading"><p className="eyebrow">Selected run</p><h2 id="research-leads-heading">Research leads</h2></div>{!selectedRun ? <p className="empty-state">Select a monitoring run to review its possible research leads.</p> : <><ul className="run-source-snapshots" aria-label="Selected run source snapshot">{selectedRun.source_snapshots.map((source) => <li key={source.source_id}><strong>{source.name}</strong><span>{sentenceCase(source.kind)} · {sentenceCase(source.change_state)}</span></li>)}</ul>{selectedRun.findings.length === 0 ? <p className="empty-state">No possible research leads were found in this run. That is not a clearance conclusion.</p> : Object.entries(groupedFindings ?? {}).map(([sourceId, findings]) => <section className="finding-source-group" key={sourceId}><h3>{selectedRun.source_snapshots.find((source) => source.source_id === sourceId)?.name ?? 'Source'}</h3>{findings.map((finding) => <article className="finding-card" data-testid="production-finding" key={finding.id}><div className="finding-topline"><div><span className="category">{sentenceCase(finding.category)}</span><h3>{finding.detected_item}</h3></div><span className={`status status-${finding.reviewer_status}`}>{sentenceCase(finding.reviewer_status)}</span></div><p>{finding.explanation}</p><p className="finding-meta-line">Possible research lead · {Math.round(finding.confidence * 100)}% confidence</p>{finding.evidence?.primary && finding.evidence.rationale ? <div className="evidence-block"><a href={finding.evidence.primary.source.url} target="_blank" rel="noreferrer">{finding.evidence.primary.source.title}</a><p>{finding.evidence.rationale}</p></div> : <p className="empty-state">No supporting source is available for this possible lead.</p>}<div className="review-actions"><span>Human review</span><div><button type="button" className="secondary-button" onClick={() => void updateFinding(finding, 'dismissed')} disabled={updatingFindingId === finding.id}>Dismiss</button><button type="button" onClick={() => void updateFinding(finding, 'escalated')} disabled={updatingFindingId === finding.id}>Escalate</button></div></div></article>)}</section>)}</>}</section>
-        <section className="workspace audit-panel" aria-labelledby="audit-heading"><div className="section-heading"><p className="eyebrow">Review record</p><h2 id="audit-heading">Audit timeline</h2></div>{reviewEvents.length === 0 ? <p className="empty-state">No review updates have been recorded yet.</p> : <ol className="audit-timeline">{reviewEvents.map((event) => <li key={event.id}><strong>{sentenceCase(event.reviewer_status)}</strong><span>{formatDate(event.created_at)}</span><small>Changed from {sentenceCase(event.previous_status)}</small></li>)}</ol>}</section>
+        <section className="workspace findings-panel" aria-labelledby="research-leads-heading"><div className="section-heading"><p className="eyebrow">Selected run</p><h2 id="research-leads-heading">Research leads</h2></div>{!selectedRun ? <p className="empty-state">Select a monitoring run to review its possible research leads.</p> : <><ul className="run-source-snapshots" aria-label="Selected run source snapshot">{selectedRun.source_snapshots.map((source) => <li key={source.source_id}><strong>{source.name}</strong><span>{sentenceCase(source.kind)} · {sentenceCase(source.change_state)}</span></li>)}</ul>{selectedRun.findings.length === 0 ? <p className="empty-state">No possible research leads were found in this run. That is not a clearance conclusion.</p> : Object.entries(groupedFindings ?? {}).map(([sourceId, findings]) => <section className="finding-source-group" key={sourceId}><h3>{selectedRun.source_snapshots.find((source) => source.source_id === sourceId)?.name ?? 'Source'}</h3>{findings.map((finding) => <article className="finding-card" data-testid="production-finding" key={finding.id}><div className="finding-topline"><div><span className="category">{sentenceCase(finding.category)}</span><h3>{finding.detected_item}</h3></div><span className={`status status-${finding.reviewer_status}`}>{sentenceCase(finding.reviewer_status)}</span></div><p>{finding.explanation}</p><p className="finding-meta-line">Possible research lead · {Math.round(finding.confidence * 100)}% confidence</p><FindingEvidence finding={finding} /><div className="review-actions"><span>Human review</span><div><button type="button" className="secondary-button" onClick={() => void updateFinding(finding, 'dismissed')} disabled={updatingFindingId === finding.id}>Dismiss</button><button type="button" onClick={() => void updateFinding(finding, 'escalated')} disabled={updatingFindingId === finding.id}>Escalate</button></div></div></article>)}</section>)}</>}</section>
+        <section className="workspace audit-panel" aria-labelledby="audit-heading"><div className="section-heading"><p className="eyebrow">Review record</p><h2 id="audit-heading">Audit timeline</h2></div>{reviewEvents.length === 0 ? <p className="empty-state">No review updates have been recorded yet.</p> : <ol className="audit-timeline">{reviewEvents.map((event) => <li key={event.id}><strong>{sentenceCase(event.reviewer_status)}</strong><span>{formatDate(event.created_at)}</span><small>Run {event.run_id} · finding {event.finding_id}</small><small>Changed from {sentenceCase(event.previous_status)}</small></li>)}</ol>}</section>
       </section> : null}
     </main>
   );

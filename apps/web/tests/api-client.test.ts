@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { describe, expect, expectTypeOf, it, vi } from 'vitest';
 import {
   createProduction,
   createProductionAsset,
@@ -18,7 +18,9 @@ import {
   retireProductionSource,
   updateProductionFindingStatus,
   updateFindingStatus,
-  uploadAsset
+  uploadAsset,
+  type ProductionDetail,
+  type ReviewerStatus
 } from '@rightsrader/api-client';
 
 describe('createCase', () => {
@@ -161,6 +163,31 @@ describe('asset and case-history API helpers', () => {
 });
 
 describe('production monitoring API helpers', () => {
+  it('preserves safe HTTP status and detail on API errors', async () => {
+    const detail =
+      'The production changed while monitoring. Review the latest sources and try again.';
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail }), {
+        status: 409,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+
+    await expect(
+      monitorProductionChanges('production-1', 'http://api.test', fetcher)
+    ).rejects.toMatchObject({
+      name: 'ApiError',
+      status: 409,
+      detail
+    });
+  });
+
+  it('types reviewer status counts as numeric values keyed by reviewer status', () => {
+    expectTypeOf<NonNullable<ProductionDetail['reviewer_status_counts']>>().toEqualTypeOf<
+      Partial<Record<ReviewerStatus, number>>
+    >();
+  });
+
   it('posts an explicit recheck and uploads a replacement asset with encoded identifiers', async () => {
     const fetcher = vi.fn().mockImplementation(() =>
       Promise.resolve(new Response(JSON.stringify({ id: 'run-1', findings: [], source_snapshots: [] }), {

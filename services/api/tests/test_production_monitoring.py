@@ -137,6 +137,9 @@ def seeded_production_with_script_and_asset(
             source_id=asset.id,
             fingerprint_sha256=fingerprint_utf8(asset_content.decode("utf-8", errors="replace")),
             asset_id=stored_asset.id,
+            asset_filename=stored_asset.filename,
+            asset_content_type=stored_asset.content_type,
+            asset_byte_size=stored_asset.byte_size,
             created_at=utc(1),
         ),
     )

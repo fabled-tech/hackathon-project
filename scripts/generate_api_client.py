@@ -63,6 +63,14 @@ def to_type(schema: dict[str, Any]) -> str:
     if schema.get("type") == "string":
         return "string"
     if schema.get("type") == "object":
+        additional_properties = schema.get("additionalProperties")
+        property_names = schema.get("propertyNames")
+        if isinstance(additional_properties, dict):
+            value_type = to_type(additional_properties)
+            if isinstance(property_names, dict) and "$ref" in property_names:
+                key_type = property_names["$ref"].rsplit("/", maxsplit=1)[-1]
+                return f"Partial<Record<{key_type}, {value_type}>>"
+            return f"Record<string, {value_type}>"
         return "Record<string, unknown>"
     if schema.get("type") == "null":
         return "null"
@@ -507,6 +515,18 @@ def generate() -> str:
 
 export type ApiFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+export class ApiError extends Error {{
+  readonly status: number;
+  readonly detail: string | null;
+
+  constructor(status: number, detail: string | null) {{
+    super(`API request failed (${{status}})`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+  }}
+}}
+
 function apiUrl(baseUrl: string, path: string): string {{
   return `${{baseUrl.replace(/\\/$/, '')}}${{path}}`;
 }}
@@ -519,7 +539,21 @@ async function request<T>(
 ): Promise<T> {{
   const response = await fetcher(apiUrl(baseUrl, path), init);
   if (!response.ok) {{
-    throw new Error(`API request failed (${{response.status}})`);
+    let detail: string | null = null;
+    try {{
+      const payload = (await response.json()) as unknown;
+      if (
+        typeof payload === 'object' &&
+        payload !== null &&
+        'detail' in payload &&
+        typeof payload.detail === 'string'
+      ) {{
+        detail = payload.detail;
+      }}
+    }} catch {{
+      // Keep malformed or non-JSON response bodies private.
+    }}
+    throw new ApiError(response.status, detail);
   }}
   return (await response.json()) as T;
 }}

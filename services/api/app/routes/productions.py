@@ -202,6 +202,9 @@ async def create_asset(
         source_id=source_id,
         fingerprint_sha256=fingerprint_utf8(upload.content.decode("utf-8")),
         asset_id=stored.id,
+        asset_filename=upload.filename,
+        asset_content_type=upload.content_type,
+        asset_byte_size=len(upload.content),
         created_at=now,
     )
     source = ProductionSource(
@@ -246,6 +249,9 @@ async def replace_asset(
         source_id=source_id,
         fingerprint_sha256=fingerprint_utf8(upload.content.decode("utf-8")),
         asset_id=stored.id,
+        asset_filename=upload.filename,
+        asset_content_type=upload.content_type,
+        asset_byte_size=len(upload.content),
         created_at=now,
     )
     try:

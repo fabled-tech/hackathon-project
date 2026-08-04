@@ -66,6 +66,41 @@ def make_script_version(
     )
 
 
+def make_asset_source(source_id: str, production_id: str, version_id: str) -> ProductionSource:
+    return ProductionSource(
+        id=source_id,
+        production_id=production_id,
+        kind=ProductionSourceKind.ASSET,
+        name="first.txt",
+        active=True,
+        current_version_id=version_id,
+        last_monitored_version_id=None,
+        content_type="text/plain",
+        byte_size=10,
+        created_at=utc(0),
+        updated_at=utc(0),
+    )
+
+
+def make_asset_version(
+    version_id: str,
+    source_id: str,
+    text: str,
+    *,
+    filename: str,
+) -> ProductionSourceVersion:
+    return ProductionSourceVersion(
+        id=version_id,
+        source_id=source_id,
+        fingerprint_sha256=fingerprint_utf8(text),
+        asset_id=f"private-{version_id}",
+        asset_filename=filename,
+        asset_content_type="text/plain",
+        asset_byte_size=len(text.encode("utf-8")),
+        created_at=utc(1),
+    )
+
+
 def make_run(snapshot: ProductionMonitoringSnapshot, run_id: str) -> StoredProductionRun:
     source = snapshot.sources[0]
     finding = ProductionFinding(
@@ -129,18 +164,21 @@ def test_fingerprint_utf8_uses_exact_lowercase_sha256() -> None:
 
 
 @pytest.mark.parametrize(
-    ("active", "last_version_id", "expected"),
+    ("active", "last_version_id", "last_fingerprint", "expected"),
     [
-        (True, None, SourceChangeState.NEW),
-        (True, "older-version", SourceChangeState.CHANGED),
-        (True, "version-1", SourceChangeState.UNCHANGED),
-        (False, None, SourceChangeState.RETIRED),
-        (False, "older-version", SourceChangeState.RETIRED),
-        (False, "version-1", SourceChangeState.UNCHANGED),
+        (True, None, None, SourceChangeState.NEW),
+        (True, "older-version", "b" * 64, SourceChangeState.CHANGED),
+        (True, "version-1", "a" * 64, SourceChangeState.UNCHANGED),
+        (False, None, None, SourceChangeState.RETIRED),
+        (False, "older-version", "b" * 64, SourceChangeState.RETIRED),
+        (False, "version-1", "a" * 64, SourceChangeState.UNCHANGED),
     ],
 )
 def test_source_change_state_marks_a_retirement_once(
-    active: bool, last_version_id: str | None, expected: SourceChangeState
+    active: bool,
+    last_version_id: str | None,
+    last_fingerprint: str | None,
+    expected: SourceChangeState,
 ) -> None:
     source = ProductionSource(
         id="source-1",
@@ -150,11 +188,12 @@ def test_source_change_state_marks_a_retirement_once(
         active=active,
         current_version_id="version-1",
         last_monitored_version_id=last_version_id,
+        last_monitored_fingerprint_sha256=last_fingerprint,
         created_at=datetime(2026, 8, 3, tzinfo=UTC),
         updated_at=datetime(2026, 8, 3, tzinfo=UTC),
     )
 
-    assert source_change_state(source) is expected
+    assert source_change_state(source, "a" * 64) is expected
 
 
 @pytest.mark.parametrize(
@@ -291,6 +330,9 @@ def test_public_detail_exposes_safe_source_views_and_reviewer_counts() -> None:
                     source_id=asset.id,
                     fingerprint_sha256="b" * 64,
                     asset_id="private-asset-id",
+                    asset_filename="production-note.txt",
+                    asset_content_type="text/plain",
+                    asset_byte_size=12,
                     created_at=created_at,
                 ),
                 change_state=SourceChangeState.RETIRED,
@@ -370,6 +412,52 @@ def test_in_memory_repository_preserves_versions_runs_and_review_audit() -> None
     assert [event.finding_id for event in repository.list_review_events(production.id, 10)] == [
         saved.findings[0].id
     ]
+
+
+def test_in_memory_identical_script_replacement_is_unchanged_by_fingerprint() -> None:
+    repository = seeded_repository_with_one_script()
+    first = repository.get_monitoring_snapshot("production-1")
+    repository.append_complete_run(first, make_run(first, "run-1"))
+
+    repository.append_source_version(
+        "production-1",
+        "source-1",
+        make_script_version("version-2", "source-1", "Nimbus Soda appears."),
+        utc(2),
+    )
+
+    replacement = repository.get_monitoring_snapshot("production-1").sources[0]
+    assert replacement.source.current_version_id == "version-2"
+    assert replacement.change_state is SourceChangeState.UNCHANGED
+
+
+def test_in_memory_identical_asset_replacement_updates_metadata_without_marking_changed() -> None:
+    repository = InMemoryProductionRepository()
+    production = repository.create(make_production("production-1", revision=0))
+    source = make_asset_source("asset-1", production.id, "asset-version-1")
+    repository.create_source(
+        production.id,
+        source,
+        make_asset_version(
+            "asset-version-1", source.id, "same bytes", filename="first.txt"
+        ),
+    )
+    first = repository.get_monitoring_snapshot(production.id)
+    repository.append_complete_run(first, make_run(first, "run-1"))
+
+    updated = repository.append_source_version(
+        production.id,
+        source.id,
+        make_asset_version(
+            "asset-version-2", source.id, "same bytes", filename="replacement-name.txt"
+        ),
+        utc(2),
+    )
+
+    replacement = repository.get_monitoring_snapshot(production.id).sources[0]
+    assert replacement.change_state is SourceChangeState.UNCHANGED
+    assert updated.name == "replacement-name.txt"
+    assert updated.byte_size == len(b"same bytes")
 
 
 def test_stale_run_is_revision_fenced_without_partial_source_advance() -> None:

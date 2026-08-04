@@ -90,7 +90,7 @@ export interface ProductionDetail {
   latest_run_at?: string | null;
   created_at: string;
   sources: ProductionSourceView[];
-  reviewer_status_counts?: Record<string, unknown>;
+  reviewer_status_counts?: Partial<Record<ReviewerStatus, number>>;
 }
 
 export interface ProductionFinding {
@@ -207,6 +207,18 @@ export interface ValidationError {
 
 export type ApiFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: string | null;
+
+  constructor(status: number, detail: string | null) {
+    super(`API request failed (${status})`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 function apiUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/$/, '')}${path}`;
 }
@@ -219,7 +231,21 @@ async function request<T>(
 ): Promise<T> {
   const response = await fetcher(apiUrl(baseUrl, path), init);
   if (!response.ok) {
-    throw new Error(`API request failed (${response.status})`);
+    let detail: string | null = null;
+    try {
+      const payload = (await response.json()) as unknown;
+      if (
+        typeof payload === 'object' &&
+        payload !== null &&
+        'detail' in payload &&
+        typeof payload.detail === 'string'
+      ) {
+        detail = payload.detail;
+      }
+    } catch {
+      // Keep malformed or non-JSON response bodies private.
+    }
+    throw new ApiError(response.status, detail);
   }
   return (await response.json()) as T;
 }

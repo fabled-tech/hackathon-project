@@ -215,13 +215,13 @@ def test_asset_replacement_keeps_public_metadata_without_exposing_uploaded_conte
     assert response.json() == {
         "id": created.json()["id"],
         "kind": "asset",
-        "name": "first.txt",
+        "name": "second.txt",
         "active": True,
         "change_state": "new",
         "updated_at": response.json()["updated_at"],
         "script_text": None,
         "content_type": "text/plain",
-        "byte_size": len(b"first private text"),
+        "byte_size": len(b"second private text"),
     }
     assert "second private text" not in str(response.json())
 

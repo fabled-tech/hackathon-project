@@ -43,6 +43,9 @@ class ProductionSource(BaseModel):
     active: bool
     current_version_id: str
     last_monitored_version_id: str | None
+    last_monitored_fingerprint_sha256: str | None = Field(
+        default=None, pattern=r"^[0-9a-f]{64}$"
+    )
     content_type: str | None = None
     byte_size: int | None = Field(default=None, ge=0)
     created_at: datetime
@@ -65,13 +68,21 @@ def fingerprint_utf8(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
 
-def source_change_state(source: ProductionSource) -> SourceChangeState:
+def source_change_state(
+    source: ProductionSource, current_fingerprint_sha256: str
+) -> SourceChangeState:
     """Return the one-time retirement or current monitoring state for a source."""
     if not source.active and source.last_monitored_version_id != source.current_version_id:
         return SourceChangeState.RETIRED
     if source.last_monitored_version_id is None:
         return SourceChangeState.NEW
-    if source.last_monitored_version_id != source.current_version_id:
+    if source.last_monitored_fingerprint_sha256 is None:
+        return (
+            SourceChangeState.CHANGED
+            if source.last_monitored_version_id != source.current_version_id
+            else SourceChangeState.UNCHANGED
+        )
+    if source.last_monitored_fingerprint_sha256 != current_fingerprint_sha256:
         return SourceChangeState.CHANGED
     return SourceChangeState.UNCHANGED
 
@@ -82,12 +93,23 @@ class ProductionSourceVersion(BaseModel):
     fingerprint_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     script_text: str | None = None
     asset_id: str | None = None
+    asset_filename: str | None = None
+    asset_content_type: str | None = None
+    asset_byte_size: int | None = Field(default=None, ge=0)
     created_at: datetime
 
     @model_validator(mode="after")
     def require_one_content_reference(self) -> Self:
         if (self.script_text is None) == (self.asset_id is None):
             raise ValueError("exactly one source content reference is required")
+        asset_metadata = (self.asset_filename, self.asset_content_type, self.asset_byte_size)
+        if self.asset_id is not None:
+            if any(value is None for value in asset_metadata):
+                raise ValueError("asset source versions require immutable asset metadata")
+            if self.asset_content_type != "text/plain":
+                raise ValueError("asset source versions must use content type text/plain")
+        elif any(value is not None for value in asset_metadata):
+            raise ValueError("script source versions cannot include asset metadata")
         return self
 
 
@@ -196,7 +218,7 @@ def to_public_source(
         kind=source.kind,
         name=source.name,
         active=source.active,
-        change_state=source_change_state(source),
+        change_state=source_change_state(source, version.fingerprint_sha256),
         updated_at=source.updated_at,
         script_text=version.script_text if source.kind is ProductionSourceKind.SCRIPT else None,
         content_type=source.content_type if source.kind is ProductionSourceKind.ASSET else None,
