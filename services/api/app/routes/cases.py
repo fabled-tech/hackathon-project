@@ -8,14 +8,10 @@ from starlette.concurrency import run_in_threadpool
 
 from app.dependencies import ApplicationServices
 from app.errors import AnalysisUnavailableError
-from app.models import Asset, AssetUpload, Case, CaseSummary, Finding, StoredAsset
-from app.models.requests import (
-    ALLOWED_ASSET_CONTENT_TYPE,
-    MAX_ASSET_BYTES,
-    CreateCaseRequest,
-    UpdateFindingRequest,
-)
+from app.models import Asset, Case, CaseSummary, Finding, StoredAsset
+from app.models.requests import CreateCaseRequest, UpdateFindingRequest
 from app.repositories import CaseRepositoryNotFound, FindingNotFound
+from app.routes.asset_uploads import read_text_asset_upload
 
 router = APIRouter(prefix="/api/cases", tags=["cases"])
 logger = logging.getLogger(__name__)
@@ -79,28 +75,11 @@ async def upload_asset(
     except CaseRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Case not found") from error
 
-    if file.content_type != ALLOWED_ASSET_CONTENT_TYPE:
-        raise HTTPException(status_code=422, detail="Only text/plain assets are supported")
-    content = await file.read(MAX_ASSET_BYTES + 1)
-    if len(content) > MAX_ASSET_BYTES:
-        raise HTTPException(status_code=422, detail="Asset must not exceed 256 KiB")
-    if b"\x00" in content:
-        raise HTTPException(status_code=422, detail="Asset must contain valid UTF-8 text")
-    try:
-        content.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise HTTPException(
-            status_code=422, detail="Asset must contain valid UTF-8 text"
-        ) from error
-
+    upload = await read_text_asset_upload(file)
     asset = await run_in_threadpool(
         services.asset_repository.store,
         case_id,
-        AssetUpload(
-            filename=file.filename or "asset.txt",
-            content_type=ALLOWED_ASSET_CONTENT_TYPE,
-            content=content,
-        ),
+        upload,
     )
     try:
         await run_in_threadpool(services.case_repository.increment_asset_count, case_id)

@@ -5,13 +5,24 @@ Track. It helps production teams research possible rights-clearance concerns in 
 It is research assistance only: it does not provide legal advice or make final infringement
 determinations.
 
-The first walking skeleton accepts a script excerpt, identifies deterministic mock brand and
-quotation leads, gathers traceable mock evidence, stores the case, and lets a reviewer dismiss or
-escalate each finding.
+The production monitoring workspace groups named scripts and plain-text assets under a production.
+It identifies deterministic mock brand and quotation leads, gathers traceable mock evidence, and
+keeps reviewer decisions with each monitoring run. Assets are limited to 256 KiB and their browser
+view shows only filename, type, size, and timestamp; stored content, identifiers, fingerprints,
+and storage references are not rendered or exposed in the UI.
 
-It also accepts plain-text production notes. Assets are limited to 256 KiB and their browser view
-shows only filename, size, and upload timestamp; stored content and storage references are not
-rendered or exposed in the UI.
+## Production monitoring workflow
+
+Create or open a production, add named scripts and plain-text assets, then choose **Monitor
+changes** to research only new, changed, or newly retired sources. A normal monitoring request with
+no changed sources keeps the selected production open and offers **Recheck all sources**. That
+explicit action intentionally runs research again for the active source set.
+
+The workspace retains runs newest first, but any earlier run can be selected to restore its source
+snapshot and possible research leads. Reviewer status changes are recorded in the audit timeline;
+they are human review records, not legal conclusions. A retired source appears in its next run
+snapshot and is not analyzed again. RightsRadar remains research assistance only: it does not make
+clearance, infringement, legal, or release decisions.
 
 ## Requirements
 
@@ -111,9 +122,9 @@ exist, the reviewer must choose **More evidence** to disclose the alternatives. 
 still saveable and does not imply clearance or an infringement conclusion. Provider, invalid-agent-
 response, and persistence failures are retryable and do not return a partially created case.
 
-The desktop workspace keeps the script and review queue side by side, stacking them on narrow
-screens. **Past cases** opens an accessible drawer containing chronological case history only,
-newest first; reopening a case restores its findings, saved reviewer statuses, and asset metadata.
+The desktop production workspace keeps the source inventory/editor and monitoring summary side by
+side, stacking them on narrow screens. It shows chronological monitoring runs newest first,
+selected-run findings grouped by source, reviewer controls, and retained audit history.
 
 ### Opt-in cloud review smoke
 
@@ -194,8 +205,8 @@ contacting cloud services.
 
 - `pytest` covers case creation and persisted reviewer status updates.
 - `Vitest` checks the generated client request contract.
-- `Playwright` submits the original fictional sample, checks cited evidence, and dismisses a
-  finding through the API.
+- `Playwright` creates a production, monitors named sources, checks explicit recheck behavior, and
+  records a reviewer decision through the API.
 - GitHub Actions runs linting, unit tests, type checks, generated-client freshness, builds, and
   the mocked browser workflow for every pull request.
 

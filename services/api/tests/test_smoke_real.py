@@ -9,6 +9,8 @@ from pytest import CaptureFixture
 from app.config import EnvironmentMode, IntegrationMode, Settings
 from app.dependencies import ApplicationServices
 from app.models import AssetUpload, Case, StoredAsset
+from app.repositories import InMemoryProductionRepository
+from app.services import ProductionMonitoringService
 from app.smoke_real import main
 
 
@@ -140,10 +142,16 @@ def real_repository_settings() -> Settings:
 def fake_services(
     case_repository: FakeCaseRepository, asset_repository: FakeAssetRepository
 ) -> ApplicationServices:
+    production_repository = InMemoryProductionRepository()
+    agent_service = UnusedAgentService()
     return ApplicationServices(
         case_repository=case_repository,  # type: ignore[arg-type]
         asset_repository=asset_repository,  # type: ignore[arg-type]
-        agent_service=UnusedAgentService(),  # type: ignore[arg-type]
+        production_repository=production_repository,
+        agent_service=agent_service,  # type: ignore[arg-type]
+        production_monitoring_service=ProductionMonitoringService(
+            production_repository, asset_repository, agent_service  # type: ignore[arg-type]
+        ),
     )
 
 

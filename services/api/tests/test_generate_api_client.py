@@ -5,12 +5,35 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
 
 from scripts.generate_api_client import (
     extract_operation_spec,
+    generate,
     render_create_case,
     render_list_cases,
     render_update_finding_status,
     render_upload_asset,
     to_type,
 )
+
+
+def test_generate_emits_every_production_helper_from_the_openapi_contract() -> None:
+    output = generate()
+
+    for function_name in (
+        "createProduction",
+        "listProductions",
+        "getProduction",
+        "createProductionScript",
+        "replaceProductionScript",
+        "retireProductionSource",
+        "createProductionAsset",
+        "replaceProductionAsset",
+        "monitorProductionChanges",
+        "recheckProductionSources",
+        "listProductionRuns",
+        "getProductionRun",
+        "updateProductionFindingStatus",
+        "listProductionReviewEvents",
+    ):
+        assert f"export function {function_name}(" in output
 
 
 def test_openapi_binary_strings_generate_file_types() -> None:

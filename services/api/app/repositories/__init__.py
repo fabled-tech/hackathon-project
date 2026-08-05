@@ -11,6 +11,16 @@ from .cases import (
     FirestoreCaseRepository,
     InMemoryCaseRepository,
 )
+from .productions import (
+    FirestoreProductionRepository,
+    InMemoryProductionRepository,
+    ProductionFindingNotFound,
+    ProductionRepository,
+    ProductionRepositoryNotFound,
+    ProductionRevisionConflict,
+    ProductionRunNotFound,
+    ProductionSourceNotFound,
+)
 
 __all__ = [
     "AssetRepository",
@@ -19,7 +29,15 @@ __all__ = [
     "CloudStorageAssetRepository",
     "FindingNotFound",
     "FirestoreCaseRepository",
+    "FirestoreProductionRepository",
     "InMemoryAssetRepository",
     "InMemoryCaseRepository",
+    "InMemoryProductionRepository",
+    "ProductionFindingNotFound",
+    "ProductionRepository",
+    "ProductionRepositoryNotFound",
+    "ProductionRevisionConflict",
+    "ProductionRunNotFound",
+    "ProductionSourceNotFound",
     "ReconciliationResult",
 ]
