@@ -51,23 +51,3 @@ version-resolver:
 
 exclude-labels:
   - "skip-changelog"
-
-autolabeler:
-  - label: "area:web"
-    files:
-      - "apps/web/**"
-  - label: "area:api"
-    files:
-      - "services/api/**"
-  - label: "area:ci"
-    files:
-      - ".github/**"
-      - "Makefile"
-  - label: "area:infra"
-    files:
-      - "infra/**"
-      - "docker-compose.yml"
-  - label: "area:docs"
-    files:
-      - "docs/**"
-      - "README.md"
