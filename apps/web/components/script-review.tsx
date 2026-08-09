@@ -61,10 +61,10 @@ function formatDateTime(value: string): string {
 }
 
 const STATUS_STYLES: Record<ReviewerStatus, string> = {
-  pending: 'border-slate-200 bg-slate-100 text-slate-600',
-  dismissed: 'border-rose-200 bg-rose-50 text-rose-700',
-  escalated: 'border-amber-200 bg-amber-50 text-amber-700',
-  accepted: 'border-emerald-200 bg-emerald-50 text-emerald-700'
+  pending: 'border-slate-600/60 bg-slate-500/10 text-slate-300',
+  dismissed: 'border-rose-400/30 bg-rose-400/10 text-rose-300',
+  escalated: 'border-amber-400/30 bg-amber-400/10 text-amber-300',
+  accepted: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
 };
 
 const STATUS_ICONS: Record<ReviewerStatus, typeof Clock3> = {
@@ -142,7 +142,7 @@ function PrimaryButton({
       type={type}
       onClick={onClick}
       disabled={disabled}
-      className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-white shadow-card transition hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
+      className="inline-flex shrink-0 items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-canvas shadow-card transition hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
     >
       {children}
     </button>
@@ -302,7 +302,7 @@ export function ScriptReview() {
       <header className="sticky top-0 z-20 border-b border-line/80 bg-panel/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
           <div className="flex items-center gap-3">
-            <span className="flex size-9 items-center justify-center rounded-lg bg-brand text-white shadow-card">
+            <span className="flex size-9 items-center justify-center rounded-lg bg-brand text-canvas shadow-card">
               <Radar className="size-5" aria-hidden />
             </span>
             <span className="text-lg font-bold tracking-tight text-ink">RightsRadar</span>
@@ -365,7 +365,7 @@ export function ScriptReview() {
                     maxLength={20_000}
                     required
                     placeholder="Paste a script excerpt to scan for rights-clearance research leads…"
-                    className="block w-full resize-y rounded-xl border border-line-strong bg-white px-4 py-3 font-mono text-sm leading-relaxed text-ink shadow-inner transition placeholder:text-faint hover:border-faint focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15"
+                    className="block w-full resize-y rounded-xl border border-line-strong bg-canvas px-4 py-3 font-mono text-sm leading-relaxed text-ink shadow-inner transition placeholder:text-faint hover:border-faint focus:border-brand focus:outline-none focus:ring-4 focus:ring-brand/15"
                   />
                   <div className="flex flex-wrap items-center justify-between gap-3">
                     <span className="text-xs tabular-nums text-muted">
@@ -389,7 +389,7 @@ export function ScriptReview() {
 
             {error ? (
               <p
-                className="flex items-start gap-2.5 rounded-xl border border-red-200 bg-danger-bg px-4 py-3 text-sm font-semibold text-danger"
+                className="flex items-start gap-2.5 rounded-xl border border-danger/30 bg-danger-bg px-4 py-3 text-sm font-semibold text-danger"
                 role="alert"
               >
                 <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
@@ -420,7 +420,7 @@ export function ScriptReview() {
                       <div className="space-y-4">
                         {caseResult.findings.map((finding) => (
                           <article
-                            className="rounded-xl border border-line bg-white p-5 shadow-card transition hover:shadow-pop"
+                            className="rounded-xl border border-line bg-panel p-5 shadow-card transition hover:shadow-pop"
                             data-testid="finding-card"
                             key={finding.id}
                           >
@@ -493,7 +493,7 @@ export function ScriptReview() {
                                   type="button"
                                   disabled={updatingFindingId === finding.id}
                                   onClick={() => changeStatus(finding, 'dismissed')}
-                                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3.5 py-2 text-sm font-semibold text-ink-soft shadow-card transition hover:bg-canvas focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-3.5 py-2 text-sm font-semibold text-ink-soft shadow-card transition hover:bg-canvas focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   {updatingFindingId === finding.id ? (
                                     <Spinner className="size-3.5" />
@@ -506,7 +506,7 @@ export function ScriptReview() {
                                   type="button"
                                   disabled={updatingFindingId === finding.id}
                                   onClick={() => changeStatus(finding, 'escalated')}
-                                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-white shadow-card transition hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
+                                  className="inline-flex items-center gap-1.5 rounded-lg bg-brand px-3.5 py-2 text-sm font-semibold text-canvas shadow-card transition hover:bg-brand-strong focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
                                 >
                                   {updatingFindingId === finding.id ? (
                                     <Spinner className="size-3.5" />
@@ -584,7 +584,7 @@ export function ScriptReview() {
                           No plain-text production notes are attached yet.
                         </p>
                       ) : (
-                        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-white">
+                        <ul className="divide-y divide-line overflow-hidden rounded-xl border border-line bg-panel">
                           {assets.map((asset) => (
                             <li
                               key={asset.id}
@@ -618,7 +618,7 @@ export function ScriptReview() {
                   type="button"
                   onClick={refreshRecentCases}
                   disabled={isLoadingRecentCases}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-white px-3 py-2 text-xs font-semibold text-ink-soft shadow-card transition hover:bg-canvas focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
+                  className="inline-flex items-center gap-1.5 rounded-lg border border-line bg-panel px-3 py-2 text-xs font-semibold text-ink-soft shadow-card transition hover:bg-canvas focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
                 >
                   {isLoadingRecentCases ? (
                     <>
@@ -645,7 +645,7 @@ export function ScriptReview() {
                           type="button"
                           disabled={isLoadingCaseId === recentCase.id}
                           onClick={() => reopenCase(recentCase.id)}
-                          className="group w-full rounded-xl border border-line bg-white px-4 py-3 text-left shadow-card transition hover:border-brand/40 hover:bg-brand-soft/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
+                          className="group w-full rounded-xl border border-line bg-panel px-4 py-3 text-left shadow-card transition hover:border-brand/40 hover:bg-brand-soft/40 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
                         >
                           <span className="flex items-start justify-between gap-2 text-sm font-medium leading-snug text-ink">
                             <span className="line-clamp-2">{recentCase.script_excerpt}</span>
