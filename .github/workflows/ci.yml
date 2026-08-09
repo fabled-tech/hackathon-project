@@ -30,7 +30,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.14.0
       - uses: actions/setup-node@v4
@@ -59,7 +59,7 @@ jobs:
     needs: [api-checks, web-checks, client-freshness]
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.14.0
       - uses: actions/setup-node@v4
@@ -80,7 +80,7 @@ jobs:
     needs: [api-checks, web-checks, client-freshness, build]
     steps:
       - uses: actions/checkout@v5
-      - uses: pnpm/action-setup@v4
+      - uses: pnpm/action-setup@v6
         with:
           version: 10.14.0
       - uses: actions/setup-node@v4
