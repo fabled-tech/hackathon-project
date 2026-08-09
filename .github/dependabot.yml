@@ -1,0 +1,31 @@
+version: 2
+
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "area:ci"
+
+  - package-ecosystem: "npm"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "area:web"
+    groups:
+      all-npm:
+        patterns:
+          - "*"
+
+  - package-ecosystem: "pip"
+    directory: "/services/api"
+    schedule:
+      interval: "weekly"
+    labels:
+      - "area:api"
+    groups:
+      all-pip:
+        patterns:
+          - "*"

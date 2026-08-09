@@ -1,0 +1,36 @@
+name: Stale
+
+on:
+  schedule:
+    - cron: "0 6 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+  pull-requests: write
+
+jobs:
+  stale:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/stale@v9
+        with:
+          days-before-stale: 14
+          days-before-close: 7
+          stale-issue-label: "stale"
+          stale-pr-label: "stale"
+          stale-issue-message: >
+            This issue has been open for 14 days with no activity. It will be closed in 7 days
+            unless there is further activity. Remove the **stale** label or leave a comment to keep
+            it open.
+          stale-pr-message: >
+            This pull request has been open for 14 days with no activity. It will be closed in 7
+            days unless there is further activity. Remove the **stale** label or push a new commit
+            to keep it open.
+          close-issue-message: >
+            Closed automatically after 21 days of inactivity. Reopen if this is still relevant.
+          close-pr-message: >
+            Closed automatically after 21 days of inactivity. Reopen and push a new commit if this
+            is still needed.
+          exempt-issue-labels: "pinned,priority:P0,priority:P1"
+          exempt-pr-labels: "pinned,priority:P0,priority:P1"
