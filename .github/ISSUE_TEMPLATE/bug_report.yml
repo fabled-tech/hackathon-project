@@ -1,0 +1,73 @@
+name: Bug report
+description: Report something that is broken or behaving unexpectedly.
+title: "[Bug]: "
+labels: ["type:bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for filing a bug. Please include enough detail for a teammate to reproduce and validate a fix quickly.
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+      description: What should have happened?
+      placeholder: The app should...
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+      description: What happened instead?
+      placeholder: Instead, the app...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction steps
+      description: Share a minimal, deterministic repro path.
+      placeholder: |
+        1. Go to ...
+        2. Click ...
+        3. Observe ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - area:web
+        - area:api
+        - area:ci
+        - area:infra
+        - area:docs
+        - area:research
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - priority:P0
+        - priority:P1
+        - priority:P2
+    validations:
+      required: true
+  - type: checkboxes
+    id: demo_critical
+    attributes:
+      label: Demo impact
+      options:
+        - label: demo-critical (blocks or risks the demo)
+  - type: textarea
+    id: validation_plan
+    attributes:
+      label: Validation plan
+      description: How should we verify the fix?
+      placeholder: Tests to run, scenarios to validate, and expected result.
+    validations:
+      required: true

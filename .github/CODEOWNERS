@@ -1,0 +1,12 @@
+# Replace @REPLACE_WITH_OWNER_OR_TEAM placeholders with real GitHub users/teams
+# before relying on automatic review requests from CODEOWNERS.
+
+* @REPLACE_WITH_OWNER_OR_TEAM
+
+.github/** @REPLACE_WITH_OWNER_OR_TEAM
+apps/web/** @REPLACE_WITH_OWNER_OR_TEAM
+services/api/** @REPLACE_WITH_OWNER_OR_TEAM
+packages/api-client/** @REPLACE_WITH_OWNER_OR_TEAM
+tests/e2e/** @REPLACE_WITH_OWNER_OR_TEAM
+infra/** @REPLACE_WITH_OWNER_OR_TEAM
+docs/** @REPLACE_WITH_OWNER_OR_TEAM

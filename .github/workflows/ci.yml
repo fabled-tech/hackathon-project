@@ -5,26 +5,103 @@ on:
   push:
     branches: [main]
 
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
-  verify:
+  api-checks:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 10.14.0
       - uses: astral-sh/setup-uv@v6
         with:
           version: "0.7.22"
+          enable-cache: true
+      - run: uv sync --directory services/api --all-groups --frozen
+      - run: cd services/api && uv run ruff check app tests
+      - run: cd services/api && uv run mypy app
+      - run: cd services/api && uv run python -m pytest
+
+  web-checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
       - run: pnpm install --frozen-lockfile
+      - run: pnpm lint
+      - run: pnpm typecheck
+      - run: pnpm test:web
+
+  client-freshness:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.22"
+          enable-cache: true
       - run: uv sync --directory services/api --all-groups --frozen
       - run: make check-client
-      - run: make lint
-      - run: make typecheck
-      - run: make test
+
+  build:
+    runs-on: ubuntu-latest
+    needs: [api-checks, web-checks, client-freshness]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.22"
+          enable-cache: true
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --directory services/api --all-groups --frozen
       - run: make build
+
+  e2e:
+    runs-on: ubuntu-latest
+    needs: [api-checks, web-checks, client-freshness, build]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10.14.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "0.7.22"
+          enable-cache: true
+      - run: pnpm install --frozen-lockfile
+      - run: uv sync --directory services/api --all-groups --frozen
       - run: pnpm exec playwright install --with-deps chromium
       - run: make e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-failure-artifacts
+          path: |
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
