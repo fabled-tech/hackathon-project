@@ -1,0 +1,41 @@
+"area:web":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "apps/web/**"
+
+"area:api":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "services/api/**"
+
+"area:ci":
+  - changed-files:
+      - any-glob-to-any-file:
+          - ".github/**"
+          - "Makefile"
+
+"area:infra":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "infra/**"
+          - "docker-compose.yml"
+          - "services/api/Dockerfile"
+          - "apps/web/Dockerfile"
+
+"area:docs":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "docs/**"
+          - "README.md"
+          - "**/*.md"
+
+"area:client":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "packages/api-client/**"
+
+"area:e2e":
+  - changed-files:
+      - any-glob-to-any-file:
+          - "tests/e2e/**"
+          - "playwright.config.ts"

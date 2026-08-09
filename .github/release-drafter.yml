@@ -1,0 +1,53 @@
+name-template: "v$RESOLVED_VERSION"
+tag-template: "v$RESOLVED_VERSION"
+template: |
+  ## What's changed in $NEXT_TAG
+
+  $CHANGES
+
+  **Full changelog**: $PREVIOUS_TAG...v$NEXT_TAG
+
+categories:
+  - title: "🚀 Features"
+    labels:
+      - "type:feature"
+  - title: "🐛 Bug fixes"
+    labels:
+      - "type:bug"
+  - title: "🏗️ Infrastructure & CI"
+    labels:
+      - "area:ci"
+      - "area:infra"
+  - title: "🔒 Security"
+    labels:
+      - "type:security"
+  - title: "📦 Dependencies"
+    labels:
+      - "dependencies"
+  - title: "📝 Documentation"
+    labels:
+      - "area:docs"
+  - title: "♻️ Refactoring & maintenance"
+    labels:
+      - "type:chore"
+
+version-resolver:
+  major:
+    labels:
+      - "semver:major"
+  minor:
+    labels:
+      - "type:feature"
+  patch:
+    labels:
+      - "type:bug"
+      - "type:chore"
+      - "type:security"
+      - "dependencies"
+      - "area:ci"
+      - "area:infra"
+      - "area:docs"
+  default: patch
+
+exclude-labels:
+  - "skip-changelog"
