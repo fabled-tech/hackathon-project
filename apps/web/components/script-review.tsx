@@ -426,7 +426,7 @@ export function ScriptReview() {
                           >
                             <div className="flex flex-wrap items-start justify-between gap-3">
                               <span className="text-xs font-bold uppercase tracking-wider text-muted">
-                                {finding.category.replace('_', ' ')}
+                                {finding.category.replace(/_/g, ' ')}
                               </span>
                               <StatusBadge status={finding.reviewer_status} />
                             </div>
