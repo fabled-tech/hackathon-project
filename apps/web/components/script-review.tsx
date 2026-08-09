@@ -37,7 +37,7 @@ import {
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 
 const SAMPLE_SCRIPT =
-  'INT. EDIT SUITE — NIGHT\n\nMARA opens a can of Nimbus Soda. "Time keeps the reel turning," she says, and marks the take.';
+  'EXT. NEON SKYWALK — MIDNIGHT\n\nMARA skates through the rain, kicks a Nimbus Soda can into her palm, and smirks. "Time keeps the reel turning," she says as a drone camera dives past.';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
 function statusLabel(status: ReviewerStatus): string {
