@@ -1,5 +1,5 @@
 blank_issues_enabled: false
 contact_links:
-  - name: Use issue forms
-    url: https://github.com/fabled-tech/hackathon-project/issues/new/choose
-    about: Please use the Bug report or Feature request form so triage fields are captured.
+  - name: Issue form guidance
+    url: https://docs.github.com/issues/tracking-your-work-with-issues/using-issues/creating-an-issue
+    about: Use this repository's Bug report or Feature request form from the issue chooser.
