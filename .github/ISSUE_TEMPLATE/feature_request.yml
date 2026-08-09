@@ -1,0 +1,63 @@
+name: Feature request
+description: Propose a user-facing or engineering improvement.
+title: "[Feature]: "
+labels: ["type:feature"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Please focus on the user/team problem and a clear acceptance target.
+  - type: textarea
+    id: user_problem
+    attributes:
+      label: User problem / opportunity
+      description: What problem are we solving, for whom, and why now?
+      placeholder: As a ..., I need ... so that ...
+    validations:
+      required: true
+  - type: textarea
+    id: acceptance_criteria
+    attributes:
+      label: Acceptance criteria
+      description: Define testable success criteria.
+      placeholder: |
+        - [ ] Given ... when ... then ...
+        - [ ] ...
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Area
+      options:
+        - area:web
+        - area:api
+        - area:ci
+        - area:infra
+        - area:docs
+        - area:research
+    validations:
+      required: true
+  - type: dropdown
+    id: priority
+    attributes:
+      label: Priority
+      options:
+        - priority:P0
+        - priority:P1
+        - priority:P2
+    validations:
+      required: true
+  - type: checkboxes
+    id: demo_critical
+    attributes:
+      label: Demo impact
+      options:
+        - label: demo-critical (needed for demo readiness)
+  - type: textarea
+    id: validation_plan
+    attributes:
+      label: Validation plan
+      description: How will this be verified (tests, walkthrough, demo script)?
+    validations:
+      required: true
