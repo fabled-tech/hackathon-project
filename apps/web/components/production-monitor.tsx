@@ -534,7 +534,7 @@ export function ProductionMonitor({ embedded = false }: { embedded?: boolean } =
             <>
               <form onSubmit={submitScript} className="space-y-3">
                 <label htmlFor="script-name" className="text-sm font-semibold text-ink">Script name</label>
-                <input id="script-name" value={scriptName} onChange={(event) => setScriptName(event.target.value)} maxLength={120} required />
+                <input id="script-name" className="w-full rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink outline-none ring-brand focus:ring-2" value={scriptName} onChange={(event) => setScriptName(event.target.value)} maxLength={120} required />
                 <label htmlFor="script-text" className="text-sm font-semibold text-ink">Script text</label>
                 <textarea id="script-text" className="min-h-36 w-full rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink outline-none ring-brand focus:ring-2" value={scriptText} onChange={(event) => setScriptText(event.target.value)} rows={8} maxLength={20_000} required />
                 <div className="flex flex-wrap items-center justify-between gap-3">
@@ -573,8 +573,22 @@ export function ProductionMonitor({ embedded = false }: { embedded?: boolean } =
                     <div className="flex flex-wrap items-start justify-between gap-3"><div><span className="text-xs font-bold uppercase tracking-widest text-brand">Plain-text asset</span><h3>{source.name}</h3></div><span className="inline-flex rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-muted">{sentenceCase(source.change_state)}</span></div>
                     <dl className="grid grid-cols-3 gap-3 text-sm"><div><dt>Type</dt><dd>{source.content_type ?? 'text/plain'}</dd></div><div><dt>Size</dt><dd>{formatSize(source.byte_size)}</dd></div><div><dt>Updated</dt><dd>{formatDate(source.updated_at)}</dd></div></dl>
                     <p className="text-sm text-muted">{source.active ? 'Active source' : 'Retired source'}</p>
-                    <label htmlFor={`replace-${source.id}`}>Replace {source.name}</label>
-                    <input id={`replace-${source.id}`} type="file" accept="text/plain,.txt" disabled={!source.active} onChange={(event: ChangeEvent<HTMLInputElement>) => setAssetReplacement((current) => ({ ...current, [source.id]: event.currentTarget.files?.[0] ?? null }))} />
+                    <label htmlFor={`replace-${source.id}`} className="text-sm font-semibold text-ink">
+                      Replace {source.name}
+                    </label>
+                    <input
+                      id={`replace-${source.id}`}
+                      type="file"
+                      accept="text/plain,.txt"
+                      disabled={!source.active}
+                      className="block w-full text-sm text-muted file:mr-3 file:rounded-lg file:border-0 file:bg-brand file:px-3 file:py-2 file:text-sm file:font-semibold file:text-canvas disabled:opacity-60"
+                      onChange={(event: ChangeEvent<HTMLInputElement>) =>
+                        setAssetReplacement((current) => ({
+                          ...current,
+                          [source.id]: event.currentTarget.files?.[0] ?? null
+                        }))
+                      }
+                    />
                     <div className="flex flex-wrap gap-2">
                       <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 disabled:opacity-60" onClick={() => void replaceAsset(source.id)} disabled={!source.active || !assetReplacement[source.id] || isSavingAsset}>Replace asset</button>
                       <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 disabled:opacity-60" onClick={() => void retireSource(source.id)} disabled={!source.active || retiringSourceId === source.id}>{retiringSourceId === source.id ? 'Retiring…' : 'Retire source'}</button>
