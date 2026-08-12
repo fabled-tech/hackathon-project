@@ -71,26 +71,45 @@ function FindingEvidence({ finding }: { finding: ProductionFinding }) {
 
   if (primary && rationale) {
     return (
-      <div className="space-y-2 rounded-xl border border-line/70 bg-canvas/50 px-4 py-3">
-        <a href={primary.source.url} target="_blank" rel="noreferrer">
-          {primary.source.title}
-        </a>
-        <p>{rationale}</p>
+      <div className="space-y-3" data-testid="evidence-primary">
+        <blockquote className="rounded-xl border border-line/70 bg-canvas/50 px-4 py-3">
+          <p className="text-sm leading-relaxed text-ink">“{primary.excerpt}”</p>
+          <a
+            className="mt-2 inline-flex text-sm font-semibold text-brand hover:text-brand-strong"
+            href={primary.source.url}
+            target="_blank"
+            rel="noreferrer"
+          >
+            {primary.source.title}
+          </a>
+        </blockquote>
+        <p className="text-sm text-mute" data-testid="evidence-rationale">
+          <span className="font-semibold text-ink">Why this source: </span>
+          {rationale}
+        </p>
       </div>
     );
   }
 
   if (alternatives.length > 0) {
     return (
-      <div className="evidence-block alternative-evidence">
-        <p className="evidence-disclosure">
+      <div className="space-y-3" data-testid="evidence-alternatives">
+        <p className="text-sm text-mute">
           No primary source was selected. The alternative evidence below is additional research
           material for human review.
         </p>
         {alternatives.map((evidence) => (
-          <blockquote key={evidence.source.url}>
-            <p>“{evidence.excerpt}”</p>
-            <a href={evidence.source.url} target="_blank" rel="noreferrer">
+          <blockquote
+            key={evidence.source.url}
+            className="rounded-xl border border-line/70 bg-canvas/50 px-4 py-3"
+          >
+            <p className="text-sm leading-relaxed text-ink">“{evidence.excerpt}”</p>
+            <a
+              className="mt-2 inline-flex text-sm font-semibold text-brand hover:text-brand-strong"
+              href={evidence.source.url}
+              target="_blank"
+              rel="noreferrer"
+            >
               {evidence.source.title}
             </a>
           </blockquote>
@@ -106,6 +125,7 @@ function FindingEvidence({ finding }: { finding: ProductionFinding }) {
     </p>
   );
 }
+
 
 export function ProductionMonitor({ embedded = false }: { embedded?: boolean } = {}) {
   const [productions, setProductions] = useState<ProductionSummary[]>([]);
@@ -450,107 +470,112 @@ export function ProductionMonitor({ embedded = false }: { embedded?: boolean } =
   );
 
   return (
-    <main className="page-shell production-page">
-      <header className="mb-8 space-y-2">
+    <main className={embedded ? "mx-auto max-w-6xl space-y-6 px-4 py-8 sm:px-6" : "min-h-screen space-y-6 bg-canvas px-4 py-8 text-ink sm:px-6"}>
+      <header className="mb-2 space-y-2">
         <p className="text-xs font-bold uppercase tracking-widest text-brand">Production monitoring</p>
-        <h1>RightsRadar</h1>
-        <p className="hero-copy">
+        <h1 className="text-2xl font-semibold tracking-tight text-ink">
+          {embedded ? 'Whole-production clearance tracking' : 'RightsRadar'}
+        </h1>
+        <p className="max-w-3xl text-sm leading-relaxed text-mute">
           Organize possible research leads across a production&apos;s changing scripts and plain-text
           assets, then keep human review decisions with the monitoring history.
         </p>
       </header>
 
-      <aside className="disclaimer" aria-label="Research assistance notice">
+      <aside className="rounded-2xl border border-amber-400/20 bg-amber-400/10 px-4 py-3 text-sm text-amber-100" aria-label="Research assistance notice">
         <strong>Research assistance only.</strong> This workspace surfaces possible leads for human
         follow-up. It does not provide legal advice or make clearance, infringement, or release
         decisions.
       </aside>
 
-      <p className="progress-message" aria-live="polite">{isLoading ? 'Loading productions…' : notice}</p>
-      {error ? <p className="error-message" role="alert" aria-live="polite">{error}</p> : null}
+      <p className="text-sm text-mute" aria-live="polite">{isLoading ? 'Loading productions…' : notice}</p>
+      {error ? <p className="error-message rounded-xl border border-rose-400/30 bg-rose-400/10 px-4 py-3 text-sm text-rose-200" role="alert" aria-live="polite">{error}</p> : null}
 
-      <section className="production-picker" aria-labelledby="production-picker-heading">
+      <section className="rounded-2xl border border-line bg-panel p-6 shadow-card space-y-4" aria-labelledby="production-picker-heading">
         <div>
           <p className="text-xs font-bold uppercase tracking-widest text-brand">Production</p>
-          <h2 id="production-picker-heading">Open a monitoring workspace</h2>
+          <h2 id="production-picker-heading" className="text-lg font-semibold tracking-tight text-ink">Open a monitoring workspace</h2>
         </div>
-        <div className="picker-controls">
-          <label htmlFor="selected-production">Selected production</label>
+        <div className="flex flex-col gap-4 lg:flex-row lg:items-end">
+          <label htmlFor="selected-production" className="text-sm font-semibold text-ink">Selected production</label>
           <select
             id="selected-production"
+            className="w-full rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink outline-none ring-brand focus:ring-2"
             value={production?.id ?? ''}
             onChange={(event) => void openProduction(event.target.value)}
           >
             <option value="">Choose a production</option>
             {productions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
           </select>
-          <form onSubmit={submitProduction} className="inline-form">
-            <label htmlFor="production-name">Production name</label>
+          <form onSubmit={submitProduction} className="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-end">
+            <label htmlFor="production-name" className="text-sm font-semibold text-ink">Production name</label>
             <input
               id="production-name"
+              className="w-full rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink outline-none ring-brand focus:ring-2"
               value={productionName}
               onChange={(event) => setProductionName(event.target.value)}
               maxLength={120}
               required
             />
-            <button type="submit" disabled={isSavingProduction}>{isSavingProduction ? 'Creating…' : 'Create production'}</button>
+            <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-canvas shadow-card transition hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingProduction}>{isSavingProduction ? 'Creating…' : 'Create production'}</button>
           </form>
         </div>
       </section>
 
-      <div className="production-workspace">
-        <section className="workspace source-workspace" data-testid="source-workspace" aria-labelledby="sources-heading">
-          <div className="section-heading">
+      <div className="grid gap-6 lg:grid-cols-2">
+        <section className="rounded-2xl border border-line bg-panel p-6 shadow-card space-y-4" data-testid="source-workspace" aria-labelledby="sources-heading">
+          <div className="mb-2 space-y-1">
             <p className="text-xs font-bold uppercase tracking-widest text-brand">Source inventory</p>
-            <h2 id="sources-heading">Scripts and assets</h2>
+            <h2 id="sources-heading" className="text-lg font-semibold tracking-tight text-ink">Scripts and assets</h2>
           </div>
           {!production ? (
             <p className="text-sm text-mute">Create or open a production to inventory the sources to monitor.</p>
           ) : (
             <>
-              <form onSubmit={submitScript} className="script-form">
-                <label htmlFor="script-name">Script name</label>
+              <form onSubmit={submitScript} className="space-y-3">
+                <label htmlFor="script-name" className="text-sm font-semibold text-ink">Script name</label>
                 <input id="script-name" value={scriptName} onChange={(event) => setScriptName(event.target.value)} maxLength={120} required />
-                <label htmlFor="script-text">Script text</label>
-                <textarea id="script-text" value={scriptText} onChange={(event) => setScriptText(event.target.value)} rows={8} maxLength={20_000} required />
-                <div className="form-footer">
+                <label htmlFor="script-text" className="text-sm font-semibold text-ink">Script text</label>
+                <textarea id="script-text" className="min-h-36 w-full rounded-xl border border-line bg-canvas px-3 py-2.5 text-sm text-ink outline-none ring-brand focus:ring-2" value={scriptText} onChange={(event) => setScriptText(event.target.value)} rows={8} maxLength={20_000} required />
+                <div className="flex flex-wrap items-center justify-between gap-3">
                   <span>{editingScriptId ? 'Editing named script' : 'Add a named script'}</span>
-                  <button type="submit" disabled={isSavingScript}>{isSavingScript ? 'Saving…' : 'Save script'}</button>
+                  <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-canvas shadow-card transition hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-60" disabled={isSavingScript}>{isSavingScript ? 'Saving…' : 'Save script'}</button>
                 </div>
               </form>
 
-              <form onSubmit={submitAsset} className="asset-form">
-                <label htmlFor="plain-text-asset">Plain-text asset</label>
+              <form onSubmit={submitAsset} className="space-y-3 rounded-xl border border-line/70 bg-canvas/40 p-4">
+                <label htmlFor="plain-text-asset" className="text-sm font-semibold text-ink">Plain-text asset</label>
                 <input
                   ref={assetInputRef}
                   id="plain-text-asset"
                   type="file"
+                  className="block w-full text-sm text-mute file:mr-3 file:rounded-lg file:border-0 file:bg-brand file:px-3 file:py-2 file:text-sm file:font-semibold file:text-canvas"
                   accept="text/plain,.txt"
                   onChange={(event) => setAssetFile(event.currentTarget.files?.[0] ?? null)}
                 />
-                <button type="submit" disabled={!assetFile || isSavingAsset}>{isSavingAsset ? 'Uploading…' : 'Upload asset'}</button>
+                <button type="submit" className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-canvas shadow-card transition hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-60" disabled={!assetFile || isSavingAsset}>{isSavingAsset ? 'Uploading…' : 'Upload asset'}</button>
               </form>
 
-              <div className="source-inventory" data-testid="source-inventory">
+              <div className="space-y-3" data-testid="source-inventory">
                 {production.sources.length === 0 ? <p className="text-sm text-mute">No sources are attached yet.</p> : null}
                 {scripts.map((source) => (
-                  <article className="source-card" key={source.id}>
-                    <div className="source-card-heading"><div><span className="source-kind">Script</span><h3>{source.name}</h3></div><span className={`status status-${source.change_state}`}>{sentenceCase(source.change_state)}</span></div>
-                    <p className="source-state">{source.active ? 'Active source' : 'Retired source'}</p>
-                    <div className="source-actions">
+                  <article className="space-y-3 rounded-2xl border border-line bg-panel/80 p-5 shadow-card" key={source.id}>
+                    <div className="flex flex-wrap items-start justify-between gap-3"><div><span className="text-xs font-bold uppercase tracking-widest text-brand">Script</span><h3>{source.name}</h3></div><span className="inline-flex rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-mute">{sentenceCase(source.change_state)}</span></div>
+                    <p className="text-sm text-mute">{source.active ? 'Active source' : 'Retired source'}</p>
+                    <div className="flex flex-wrap gap-2">
                       <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 disabled:opacity-60" onClick={() => editScript(source)} disabled={!source.active}>Edit script</button>
                       <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 disabled:opacity-60" onClick={() => void retireSource(source.id)} disabled={!source.active || retiringSourceId === source.id}>{retiringSourceId === source.id ? 'Retiring…' : 'Retire source'}</button>
                     </div>
                   </article>
                 ))}
                 {assets.map((source) => (
-                  <article className="source-card" key={source.id}>
-                    <div className="source-card-heading"><div><span className="source-kind">Plain-text asset</span><h3>{source.name}</h3></div><span className={`status status-${source.change_state}`}>{sentenceCase(source.change_state)}</span></div>
-                    <dl className="asset-metadata"><div><dt>Type</dt><dd>{source.content_type ?? 'text/plain'}</dd></div><div><dt>Size</dt><dd>{formatSize(source.byte_size)}</dd></div><div><dt>Updated</dt><dd>{formatDate(source.updated_at)}</dd></div></dl>
-                    <p className="source-state">{source.active ? 'Active source' : 'Retired source'}</p>
+                  <article className="space-y-3 rounded-2xl border border-line bg-panel/80 p-5 shadow-card" key={source.id}>
+                    <div className="flex flex-wrap items-start justify-between gap-3"><div><span className="text-xs font-bold uppercase tracking-widest text-brand">Plain-text asset</span><h3>{source.name}</h3></div><span className="inline-flex rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-mute">{sentenceCase(source.change_state)}</span></div>
+                    <dl className="grid grid-cols-3 gap-3 text-sm"><div><dt>Type</dt><dd>{source.content_type ?? 'text/plain'}</dd></div><div><dt>Size</dt><dd>{formatSize(source.byte_size)}</dd></div><div><dt>Updated</dt><dd>{formatDate(source.updated_at)}</dd></div></dl>
+                    <p className="text-sm text-mute">{source.active ? 'Active source' : 'Retired source'}</p>
                     <label htmlFor={`replace-${source.id}`}>Replace {source.name}</label>
                     <input id={`replace-${source.id}`} type="file" accept="text/plain,.txt" disabled={!source.active} onChange={(event: ChangeEvent<HTMLInputElement>) => setAssetReplacement((current) => ({ ...current, [source.id]: event.currentTarget.files?.[0] ?? null }))} />
-                    <div className="source-actions">
+                    <div className="flex flex-wrap gap-2">
                       <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 disabled:opacity-60" onClick={() => void replaceAsset(source.id)} disabled={!source.active || !assetReplacement[source.id] || isSavingAsset}>Replace asset</button>
                       <button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 disabled:opacity-60" onClick={() => void retireSource(source.id)} disabled={!source.active || retiringSourceId === source.id}>{retiringSourceId === source.id ? 'Retiring…' : 'Retire source'}</button>
                     </div>
@@ -561,22 +586,26 @@ export function ProductionMonitor({ embedded = false }: { embedded?: boolean } =
           )}
         </section>
 
-        <section className="workspace monitoring-workspace" data-testid="monitoring-workspace" aria-labelledby="monitoring-heading">
-          <div className="section-heading"><p className="text-xs font-bold uppercase tracking-widest text-brand">Current view</p><h2 id="monitoring-heading">Monitoring summary</h2></div>
+        <section className="rounded-2xl border border-line bg-panel p-6 shadow-card space-y-4" data-testid="monitoring-workspace" aria-labelledby="monitoring-heading">
+          <div className="mb-2 space-y-1"><p className="text-xs font-bold uppercase tracking-widest text-brand">Current view</p><h2 id="monitoring-heading" className="text-lg font-semibold tracking-tight text-ink">Monitoring summary</h2></div>
           {!production ? <p className="text-sm text-mute">No production is selected for monitoring.</p> : <>
-            <div className="summary-counts">
-              <span>{sourceSummary(production.script_count, 'script')}</span><span>{sourceSummary(production.asset_count, 'asset')}</span><span>{sourceSummary(production.sources_needing_recheck, 'source needing recheck')}</span><span>Latest run: {formatDate(production.latest_run_at)}</span><span>{sourceSummary(latestRun?.findings.length ?? 0, 'latest possible research lead')}</span>
+            <div className="flex flex-wrap gap-2">
+              <span className="inline-flex rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-mute">{sourceSummary(production.script_count, 'script')}</span>
+              <span className="inline-flex rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-mute">{sourceSummary(production.asset_count, 'asset')}</span>
+              <span className="inline-flex rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-mute">{sourceSummary(production.sources_needing_recheck, 'source needing recheck')}</span>
+              <span className="inline-flex rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-mute">Latest run: {formatDate(production.latest_run_at)}</span>
+              <span className="inline-flex rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-mute">{sourceSummary(latestRun?.findings.length ?? 0, 'latest possible research lead')}</span>
             </div>
-            <dl className="reviewer-counts">{reviewerStatusCounts(production).map(([status, count]) => <div key={status}><dt>{sentenceCase(status)}</dt><dd>{count}</dd></div>)}</dl>
-            <div className="monitor-actions"><button type="button" onClick={() => void startMonitoring(false)} disabled={isMonitoring}>{isMonitoring ? 'Monitoring…' : 'Monitor changes'}</button><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 disabled:opacity-60" onClick={() => void startMonitoring(true)} disabled={isMonitoring}>{isMonitoring ? 'Monitoring…' : 'Recheck all sources'}</button></div>
-            <section className="run-section" aria-labelledby="runs-heading"><h3 id="runs-heading">Monitoring runs</h3><div className="run-list" data-testid="run-list">{runs.length === 0 ? <p className="text-sm text-mute">No monitoring runs yet.</p> : runs.map((run) => <button type="button" key={run.id} className={`run-card ${selectedRun?.id === run.id ? 'selected-run' : ''}`} onClick={() => void selectRun(run.id)}><strong>{runTriggerLabel(run.trigger)}</strong><span>{formatDate(run.created_at)}</span><small>{sourceSummary(run.source_count, 'source')} · {sourceSummary(run.changed_source_count, 'changed source')}</small></button>)}</div></section>
+            <dl className="grid grid-cols-2 gap-3 sm:grid-cols-4">{reviewerStatusCounts(production).map(([status, count]) => <div key={status} className="rounded-xl border border-line/70 bg-canvas/40 px-3 py-2"><dt className="text-xs text-mute">{sentenceCase(status)}</dt><dd className="text-lg font-semibold text-ink">{count}</dd></div>)}</dl>
+            <div className="flex flex-wrap gap-2"><button type="button" className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-canvas shadow-card transition hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void startMonitoring(false)} disabled={isMonitoring}>{isMonitoring ? 'Monitoring…' : 'Monitor changes'}</button><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 disabled:opacity-60" onClick={() => void startMonitoring(true)} disabled={isMonitoring}>{isMonitoring ? 'Monitoring…' : 'Recheck all sources'}</button></div>
+            <section className="space-y-3" aria-labelledby="runs-heading"><h3 id="runs-heading" className="text-base font-semibold text-ink">Monitoring runs</h3><div className="space-y-2" data-testid="run-list">{runs.length === 0 ? <p className="text-sm text-mute">No monitoring runs yet.</p> : runs.map((run) => <button type="button" key={run.id} className={`w-full rounded-xl border px-4 py-3 text-left transition ${selectedRun?.id === run.id ? 'border-brand/50 bg-brand-soft shadow-card' : 'border-line bg-canvas/40 hover:border-brand/30'}`} onClick={() => void selectRun(run.id)}><strong>{runTriggerLabel(run.trigger)}</strong><span>{formatDate(run.created_at)}</span><small>{sourceSummary(run.source_count, 'source')} · {sourceSummary(run.changed_source_count, 'changed source')}</small></button>)}</div></section>
           </>}
         </section>
       </div>
 
-      {production ? <section className="review-history" aria-label="Review history">
-        <section className="workspace findings-panel" aria-labelledby="research-leads-heading"><div className="section-heading"><p className="text-xs font-bold uppercase tracking-widest text-brand">Selected run</p><h2 id="research-leads-heading">Research leads</h2></div>{!selectedRun ? <p className="text-sm text-mute">Select a monitoring run to review its possible research leads.</p> : <><ul className="run-source-snapshots" aria-label="Selected run source snapshot">{selectedRun.source_snapshots.map((source) => <li key={source.source_id}><strong>{source.name}</strong><span>{sentenceCase(source.kind)} · {sentenceCase(source.change_state)}</span></li>)}</ul>{selectedRun.findings.length === 0 ? <p className="text-sm text-mute">No possible research leads were found in this run. That is not a clearance conclusion.</p> : Object.entries(groupedFindings ?? {}).map(([sourceId, findings]) => <section className="finding-source-group" key={sourceId}><h3>{selectedRun.source_snapshots.find((source) => source.source_id === sourceId)?.name ?? 'Source'}</h3>{findings.map((finding) => <article className="space-y-3 rounded-2xl border border-line bg-panel/80 p-5 shadow-card" data-testid="production-finding" key={finding.id}><div className="finding-topline"><div><span className="category">{sentenceCase(finding.category)}</span><h3>{finding.detected_item}</h3></div><span className={`status status-${finding.reviewer_status}`}>{sentenceCase(finding.reviewer_status)}</span></div><p>{finding.explanation}</p><p className="finding-meta-line">Possible research lead · {Math.round(finding.confidence * 100)}% confidence</p><FindingEvidence finding={finding} /><div className="review-actions"><span>Human review</span><div><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 disabled:opacity-60" onClick={() => void updateFinding(finding, 'dismissed')} disabled={updatingFindingId === finding.id}>Dismiss</button><button type="button" onClick={() => void updateFinding(finding, 'escalated')} disabled={updatingFindingId === finding.id}>Escalate</button></div></div></article>)}</section>)}</>}</section>
-        <section className="workspace audit-panel" aria-labelledby="audit-heading"><div className="section-heading"><p className="text-xs font-bold uppercase tracking-widest text-brand">Review record</p><h2 id="audit-heading">Audit timeline</h2></div>{reviewEvents.length === 0 ? <p className="text-sm text-mute">No review updates have been recorded yet.</p> : <ol className="audit-timeline">{reviewEvents.map((event) => <li key={event.id}><strong>{sentenceCase(event.reviewer_status)}</strong><span>{formatDate(event.created_at)}</span><small>Run {event.run_id} · finding {event.finding_id}</small><small>Changed from {sentenceCase(event.previous_status)}</small></li>)}</ol>}</section>
+      {production ? <section className="grid gap-6 lg:grid-cols-2" aria-label="Review history">
+        <section className="rounded-2xl border border-line bg-panel p-6 shadow-card space-y-4" aria-labelledby="research-leads-heading"><div className="mb-2 space-y-1"><p className="text-xs font-bold uppercase tracking-widest text-brand">Selected run</p><h2 id="research-leads-heading" className="text-lg font-semibold tracking-tight text-ink">Research leads</h2></div>{!selectedRun ? <p className="text-sm text-mute">Select a monitoring run to review its possible research leads.</p> : <><ul className="mb-4 space-y-2" aria-label="Selected run source snapshot">{selectedRun.source_snapshots.map((source) => <li key={source.source_id}><strong>{source.name}</strong><span>{sentenceCase(source.kind)} · {sentenceCase(source.change_state)}</span></li>)}</ul>{selectedRun.findings.length === 0 ? <p className="text-sm text-mute">No possible research leads were found in this run. That is not a clearance conclusion.</p> : Object.entries(groupedFindings ?? {}).map(([sourceId, findings]) => <section className="mb-6 space-y-3" key={sourceId}><h3>{selectedRun.source_snapshots.find((source) => source.source_id === sourceId)?.name ?? 'Source'}</h3>{findings.map((finding) => <article className="space-y-3 rounded-2xl border border-line bg-panel/80 p-5 shadow-card" data-testid="production-finding" key={finding.id}><div className="flex flex-wrap items-start justify-between gap-3"><div><span className="text-xs font-bold uppercase tracking-widest text-brand">{sentenceCase(finding.category)}</span><h3>{finding.detected_item}</h3></div><span className="inline-flex rounded-full border border-line px-2.5 py-1 text-xs font-semibold text-mute">{sentenceCase(finding.reviewer_status)}</span></div><p>{finding.explanation}</p><p className="text-xs text-mute">Possible research lead · {Math.round(finding.confidence * 100)}% confidence</p><FindingEvidence finding={finding} /><div className="flex flex-wrap items-center justify-between gap-3 border-t border-line/60 pt-3"><span className="text-sm font-semibold text-mute">Human review</span><div className="flex flex-wrap gap-2"><button type="button" className="inline-flex items-center gap-2 rounded-lg border border-line bg-panel px-4 py-2.5 text-sm font-semibold text-ink transition hover:border-brand/40 disabled:opacity-60" onClick={() => void updateFinding(finding, 'dismissed')} disabled={updatingFindingId === finding.id}>Dismiss</button><button type="button" className="inline-flex items-center gap-2 rounded-lg bg-brand px-4 py-2.5 text-sm font-semibold text-canvas shadow-card transition hover:bg-brand-strong disabled:cursor-not-allowed disabled:opacity-60" onClick={() => void updateFinding(finding, 'escalated')} disabled={updatingFindingId === finding.id}>Escalate</button></div></div></article>)}</section>)}</>}</section>
+        <section className="rounded-2xl border border-line bg-panel p-6 shadow-card space-y-4" aria-labelledby="audit-heading"><div className="mb-2 space-y-1"><p className="text-xs font-bold uppercase tracking-widest text-brand">Review record</p><h2 id="audit-heading" className="text-lg font-semibold tracking-tight text-ink">Audit timeline</h2></div>{reviewEvents.length === 0 ? <p className="text-sm text-mute">No review updates have been recorded yet.</p> : <ol className="space-y-3">{reviewEvents.map((event) => <li key={event.id} className="rounded-xl border border-line/70 bg-canvas/40 px-4 py-3 text-sm"><strong className="block text-ink">{sentenceCase(event.reviewer_status)}</strong><span className="block text-mute">{formatDate(event.created_at)}</span><small className="block text-mute">Run {event.run_id} · finding {event.finding_id}</small><small className="block text-mute">Changed from {sentenceCase(event.previous_status)}</small></li>)}</ol>}</section>
       </section> : null}
     </main>
   );

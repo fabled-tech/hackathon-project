@@ -1,9 +1,15 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function openProductionMonitor(page: Page) {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Production Monitor' }).click();
+  await expect(page.getByRole('heading', { name: 'Monitoring summary' })).toBeVisible();
+}
 
 test('production workspace shows source inventory, monitoring summary, and audit history', async ({
   page
 }) => {
-  await page.goto('/');
+  await openProductionMonitor(page);
   await page.getByLabel('Production name').fill('Summer feature');
   await page.getByRole('button', { name: 'Create production' }).click();
   await page.getByLabel('Script name').fill('Opening scene');
@@ -20,7 +26,7 @@ test('production workspace shows source inventory, monitoring summary, and audit
 test('keeps a production selected after unchanged monitoring, restores older runs, and records review activity', async ({
   page
 }) => {
-  await page.goto('/');
+  await openProductionMonitor(page);
   await page.getByLabel('Production name').fill('Run history feature');
   await page.getByRole('button', { name: 'Create production' }).click();
   await page.getByLabel('Script name').fill('Opening scene');
@@ -52,7 +58,7 @@ test('keeps a production selected after unchanged monitoring, restores older run
 test('distinguishes a stale production revision from an unchanged monitor request', async ({
   page
 }) => {
-  await page.goto('/');
+  await openProductionMonitor(page);
   await page.getByLabel('Production name').fill('Revision race feature');
   await page.getByRole('button', { name: 'Create production' }).click();
   await page.getByLabel('Script name').fill('Opening scene');
@@ -70,14 +76,14 @@ test('distinguishes a stale production revision from an unchanged monitor reques
 
   await page.getByRole('button', { name: 'Monitor changes' }).click();
 
-  await expect(page.locator('.error-message')).toContainText(
+  await expect(page.getByTestId('production-error')).toContainText(
     'The production changed while monitoring. Refresh the production and try again.'
   );
   await expect(page.getByText('No source changes need monitoring right now.')).toHaveCount(0);
 });
 
 test('discloses alternative evidence when no primary source was selected', async ({ page }) => {
-  await page.goto('/');
+  await openProductionMonitor(page);
   await page.getByLabel('Production name').fill('Alternative evidence feature');
   await page.getByRole('button', { name: 'Create production' }).click();
   await page.getByLabel('Script name').fill('Opening scene');
@@ -116,7 +122,7 @@ test('discloses alternative evidence when no primary source was selected', async
 });
 
 test('renders asset inventory metadata without private implementation fields', async ({ page }) => {
-  await page.goto('/');
+  await openProductionMonitor(page);
   await page.getByLabel('Production name').fill('Asset feature');
   await page.getByRole('button', { name: 'Create production' }).click();
   await page.getByLabel('Plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
@@ -135,7 +141,7 @@ test('renders asset inventory metadata without private implementation fields', a
 test('keeps the newer production selected when a delayed production response arrives late', async ({
   page
 }) => {
-  await page.goto('/');
+  await openProductionMonitor(page);
   await page.getByLabel('Production name').fill('Older production');
   await page.getByRole('button', { name: 'Create production' }).click();
   await page.getByLabel('Production name').fill('Newer production');
@@ -166,7 +172,7 @@ test('keeps the newer production selected when a delayed production response arr
 });
 
 test('shows changed sources and a retired source in its next run snapshot', async ({ page }) => {
-  await page.goto('/');
+  await openProductionMonitor(page);
   await page.getByLabel('Production name').fill('Source lifecycle feature');
   await page.getByRole('button', { name: 'Create production' }).click();
   await page.getByLabel('Script name').fill('Opening scene');
@@ -194,7 +200,7 @@ test('shows changed sources and a retired source in its next run snapshot', asyn
 });
 
 test('ignores a delayed older-run response after a newer run is selected', async ({ page }) => {
-  await page.goto('/');
+  await openProductionMonitor(page);
   await page.getByLabel('Production name').fill('Run race feature');
   await page.getByRole('button', { name: 'Create production' }).click();
   await page.getByLabel('Script name').fill('Opening scene');
@@ -224,7 +230,7 @@ test('ignores a delayed older-run response after a newer run is selected', async
 });
 
 test('ignores a delayed review response after a different run is selected', async ({ page }) => {
-  await page.goto('/');
+  await openProductionMonitor(page);
   await page.getByLabel('Production name').fill('Review race feature');
   await page.getByRole('button', { name: 'Create production' }).click();
   await page.getByLabel('Script name').fill('Opening scene');
@@ -254,7 +260,7 @@ test('ignores a delayed review response after a different run is selected', asyn
 
 test('uses horizontal panes on desktop and stacks the workspace below 760px', async ({ page }) => {
   await page.setViewportSize({ width: 1280, height: 900 });
-  await page.goto('/');
+  await openProductionMonitor(page);
   const sourcePane = page.getByTestId('source-workspace');
   const monitoringPane = page.getByTestId('monitoring-workspace');
   const desktopSourceBox = await sourcePane.boundingBox();
