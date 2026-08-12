@@ -6,7 +6,28 @@ from typing import Any
 
 import pytest
 
-from app.models import AssetLifecycle, AssetUpload, Case, Finding, ReviewerStatus, StoredAsset
+from app.models import (
+    AssetLifecycle,
+    AssetUpload,
+    Case,
+    Evidence,
+    Finding,
+    Production,
+    ProductionFinding,
+    ProductionMonitoringSnapshot,
+    ProductionRunTrigger,
+    ProductionSource,
+    ProductionSourceKind,
+    ProductionSourceVersion,
+    ReviewerStatus,
+    Source,
+    SourceChangeState,
+    StoredAsset,
+    StoredProductionRun,
+    StoredProductionRunSourceSnapshot,
+    fingerprint_utf8,
+)
+from app.repositories import FirestoreProductionRepository, ProductionRevisionConflict
 from app.repositories.assets import CloudStorageAssetRepository as CloudStorageAssetRepositoryImpl
 from app.repositories.cases import (
     CaseRepositoryNotFound,
@@ -218,6 +239,250 @@ def fake_case_repository(
         transactional_decorator=fake_transactional,
         transaction_runner=transaction_runner,
     )
+
+
+def utc(second: int) -> datetime:
+    return datetime(2026, 8, 3, 0, 0, second, tzinfo=UTC)
+
+
+def make_production(production_id: str, *, revision: int) -> Production:
+    return Production(
+        id=production_id,
+        name="Nimbus production",
+        revision=revision,
+        created_at=utc(0),
+        updated_at=utc(0),
+    )
+
+
+def make_script_source(source_id: str, production_id: str, version_id: str) -> ProductionSource:
+    return ProductionSource(
+        id=source_id,
+        production_id=production_id,
+        kind=ProductionSourceKind.SCRIPT,
+        name="Episode one",
+        active=True,
+        current_version_id=version_id,
+        last_monitored_version_id=None,
+        created_at=utc(0),
+        updated_at=utc(0),
+    )
+
+
+def make_script_version(
+    version_id: str, source_id: str, script_text: str
+) -> ProductionSourceVersion:
+    return ProductionSourceVersion(
+        id=version_id,
+        source_id=source_id,
+        fingerprint_sha256=fingerprint_utf8(script_text),
+        script_text=script_text,
+        created_at=utc(1),
+    )
+
+
+def make_asset_source(source_id: str, production_id: str, version_id: str) -> ProductionSource:
+    return ProductionSource(
+        id=source_id,
+        production_id=production_id,
+        kind=ProductionSourceKind.ASSET,
+        name="first.txt",
+        active=True,
+        current_version_id=version_id,
+        last_monitored_version_id=None,
+        content_type="text/plain",
+        byte_size=10,
+        created_at=utc(0),
+        updated_at=utc(0),
+    )
+
+
+def make_asset_version(
+    version_id: str, source_id: str, text: str, *, filename: str
+) -> ProductionSourceVersion:
+    return ProductionSourceVersion(
+        id=version_id,
+        source_id=source_id,
+        fingerprint_sha256=fingerprint_utf8(text),
+        asset_id=f"private-{version_id}",
+        asset_filename=filename,
+        asset_content_type="text/plain",
+        asset_byte_size=len(text.encode("utf-8")),
+        created_at=utc(1),
+    )
+
+
+def make_run(
+    snapshot: ProductionMonitoringSnapshot,
+    run_id: str,
+    *,
+    created_at: datetime | None = None,
+) -> StoredProductionRun:
+    source = snapshot.sources[0]
+    finding = ProductionFinding(
+        id=f"finding-{run_id}",
+        run_id=run_id,
+        source_id=source.source.id,
+        category="possible reference",
+        detected_item="Nimbus Soda",
+        explanation="This may be a useful research lead for a reviewer to investigate.",
+        confidence=0.5,
+        supporting_evidence=[
+            Evidence(
+                excerpt="Nimbus Soda appears in a reference listing.",
+                source=Source(title="Reference listing", url="https://example.test/nimbus"),
+            )
+        ],
+        source_urls=["https://example.test/nimbus"],
+        retrieved_at=utc(1),
+        reviewer_status=ReviewerStatus.PENDING,
+    )
+    return StoredProductionRun(
+        id=run_id,
+        production_id=snapshot.production.id,
+        production_revision=snapshot.production.revision,
+        trigger=ProductionRunTrigger.INITIAL,
+        created_at=created_at or utc(1),
+        source_snapshots=[
+            StoredProductionRunSourceSnapshot(
+                source_id=item.source.id,
+                source_version_id=item.version.id,
+                kind=item.source.kind,
+                name=item.source.name,
+                fingerprint_sha256=item.version.fingerprint_sha256,
+                change_state=item.change_state,
+            )
+            for item in snapshot.sources
+        ],
+        findings=[finding],
+    )
+
+
+def fake_production_repository(firestore: FakeFirestoreClient) -> FirestoreProductionRepository:
+    return FirestoreProductionRepository(
+        "test-project",
+        "cases",
+        client=firestore,
+        transactional_decorator=fake_transactional,
+        transaction_runner=lambda operation: operation(firestore.transaction()),
+    )
+
+
+def seeded_firestore_production_repository(
+    firestore: FakeFirestoreClient,
+) -> FirestoreProductionRepository:
+    repository = fake_production_repository(firestore)
+    production = repository.create(make_production("production-1", revision=0))
+    repository.create_source(
+        production.id,
+        make_script_source("source-1", production.id, "version-1"),
+        make_script_version("version-1", "source-1", "Nimbus Soda appears."),
+    )
+    snapshot = repository.get_monitoring_snapshot(production.id)
+    repository.append_complete_run(snapshot, make_run(snapshot, "run-1"))
+    return repository
+
+
+def test_firestore_production_repository_keeps_versions_and_runs_in_production_subcollections(
+) -> None:
+    firestore = FakeFirestoreClient()
+    repository = fake_production_repository(firestore)
+    production = repository.create(make_production("production-1", revision=0))
+    repository.create_source(
+        production.id,
+        make_script_source("source-1", production.id, "version-1"),
+        make_script_version("version-1", "source-1", "A scene."),
+    )
+    snapshot = repository.get_monitoring_snapshot(production.id)
+    repository.append_complete_run(snapshot, make_run(snapshot, "run-1"))
+
+    assert ("cases_productions", "production-1", "sources", "source-1") in firestore.documents
+    assert (
+        "cases_productions", "production-1", "sources", "source-1", "versions", "version-1"
+    ) in firestore.documents
+    assert ("cases_productions", "production-1", "runs", "run-1") in firestore.documents
+
+
+def test_firestore_review_status_update_writes_audit_event_in_the_same_transaction() -> None:
+    firestore = FakeFirestoreClient()
+    repository = seeded_firestore_production_repository(firestore)
+
+    result = repository.update_finding_status(
+        "production-1", "run-1", "finding-run-1", ReviewerStatus.DISMISSED, utc(4)
+    )
+
+    assert result.finding.reviewer_status is ReviewerStatus.DISMISSED
+    assert result.event.previous_status is ReviewerStatus.PENDING
+    transaction = firestore.transactions[-1]
+    assert any(path[-2:] == ("runs", "run-1") for path, _values in transaction.updates)
+    assert any(
+        path[:3] == ("cases_productions", "production-1", "review_events")
+        for path in firestore.documents
+    )
+
+
+def test_firestore_run_listing_is_newest_first_and_rejects_a_stale_revision() -> None:
+    firestore = FakeFirestoreClient()
+    repository = seeded_firestore_production_repository(firestore)
+    first = repository.get_monitoring_snapshot("production-1")
+    repository.append_complete_run(first, make_run(first, "run-2", created_at=utc(2)))
+    repository.append_source_version(
+        "production-1",
+        "source-1",
+        make_script_version("version-2", "source-1", "Changed."),
+        utc(3),
+    )
+
+    with pytest.raises(ProductionRevisionConflict):
+        repository.append_complete_run(first, make_run(first, "run-stale", created_at=utc(4)))
+
+    assert [run.id for run in repository.list_runs("production-1", 10)] == ["run-2", "run-1"]
+
+
+def test_firestore_identical_script_replacement_is_unchanged_by_fingerprint() -> None:
+    firestore = FakeFirestoreClient()
+    repository = seeded_firestore_production_repository(firestore)
+
+    repository.append_source_version(
+        "production-1",
+        "source-1",
+        make_script_version("version-2", "source-1", "Nimbus Soda appears."),
+        utc(3),
+    )
+
+    replacement = repository.get_monitoring_snapshot("production-1").sources[0]
+    assert replacement.source.current_version_id == "version-2"
+    assert replacement.change_state is SourceChangeState.UNCHANGED
+
+
+def test_firestore_identical_asset_replacement_updates_metadata_without_marking_changed() -> None:
+    firestore = FakeFirestoreClient()
+    repository = fake_production_repository(firestore)
+    production = repository.create(make_production("production-1", revision=0))
+    source = make_asset_source("asset-1", production.id, "asset-version-1")
+    repository.create_source(
+        production.id,
+        source,
+        make_asset_version(
+            "asset-version-1", source.id, "same bytes", filename="first.txt"
+        ),
+    )
+    first = repository.get_monitoring_snapshot(production.id)
+    repository.append_complete_run(first, make_run(first, "run-1"))
+
+    updated = repository.append_source_version(
+        production.id,
+        source.id,
+        make_asset_version(
+            "asset-version-2", source.id, "same bytes", filename="replacement-name.txt"
+        ),
+        utc(3),
+    )
+
+    replacement = repository.get_monitoring_snapshot(production.id).sources[0]
+    assert replacement.change_state is SourceChangeState.UNCHANGED
+    assert updated.name == "replacement-name.txt"
+    assert updated.byte_size == len(b"same bytes")
 
 
 class FakeStorageNotFound(Exception):

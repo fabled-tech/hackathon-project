@@ -9,6 +9,14 @@ export interface Asset {
   created_at: string;
 }
 
+export interface Body_create_asset_api_productions__production_id__assets_post {
+  file: File;
+}
+
+export interface Body_replace_asset_api_productions__production_id__assets__source_id__versions_post {
+  file: File;
+}
+
 export interface Body_upload_asset_api_cases__case_id__assets_post {
   file: File;
 }
@@ -30,6 +38,15 @@ export interface CaseSummary {
 }
 
 export interface CreateCaseRequest {
+  script_text: string;
+}
+
+export interface CreateProductionRequest {
+  name: string;
+}
+
+export interface CreateScriptRequest {
+  name: string;
   script_text: string;
 }
 
@@ -62,6 +79,103 @@ export interface HTTPValidationError {
   detail?: ValidationError[];
 }
 
+export interface ProductionDetail {
+  id: string;
+  name: string;
+  revision: number;
+  updated_at: string;
+  script_count: number;
+  asset_count: number;
+  sources_needing_recheck: number;
+  latest_run_at?: string | null;
+  created_at: string;
+  sources: ProductionSourceView[];
+  reviewer_status_counts?: Partial<Record<ReviewerStatus, number>>;
+}
+
+export interface ProductionFinding {
+  id: string;
+  run_id: string;
+  source_id: string;
+  category: string;
+  detected_item: string;
+  explanation: string;
+  confidence: number;
+  supporting_evidence: Evidence[];
+  source_urls: string[];
+  retrieved_at: string;
+  reviewer_status: ReviewerStatus;
+  evidence?: EvidenceSelection;
+}
+
+export interface ProductionRun {
+  id: string;
+  production_id: string;
+  production_revision: number;
+  trigger: ProductionRunTrigger;
+  created_at: string;
+  source_snapshots: ProductionRunSourceSnapshot[];
+  findings: ProductionFinding[];
+}
+
+export interface ProductionRunSourceSnapshot {
+  source_id: string;
+  kind: ProductionSourceKind;
+  name: string;
+  change_state: SourceChangeState;
+}
+
+export interface ProductionRunSummary {
+  id: string;
+  trigger: ProductionRunTrigger;
+  created_at: string;
+  source_count: number;
+  changed_source_count: number;
+  finding_count: number;
+}
+
+export type ProductionRunTrigger = "initial" | "changes_detected" | "explicit_recheck";
+
+export type ProductionSourceKind = "script" | "asset";
+
+export interface ProductionSourceView {
+  id: string;
+  kind: ProductionSourceKind;
+  name: string;
+  active: boolean;
+  change_state: SourceChangeState;
+  updated_at: string;
+  script_text?: string | null;
+  content_type?: string | null;
+  byte_size?: number | null;
+}
+
+export interface ProductionSummary {
+  id: string;
+  name: string;
+  revision: number;
+  updated_at: string;
+  script_count: number;
+  asset_count: number;
+  sources_needing_recheck: number;
+  latest_run_at?: string | null;
+}
+
+export interface ReviewEvent {
+  id: string;
+  production_id: string;
+  run_id: string;
+  finding_id: string;
+  previous_status: ReviewerStatus;
+  reviewer_status: ReviewerStatus;
+  created_at: string;
+}
+
+export interface ReviewUpdate {
+  finding: ProductionFinding;
+  event: ReviewEvent;
+}
+
 export type ReviewerStatus = "pending" | "accepted" | "dismissed" | "escalated";
 
 export interface Source {
@@ -69,8 +183,18 @@ export interface Source {
   url: string;
 }
 
+export type SourceChangeState = "new" | "changed" | "unchanged" | "retired";
+
 export interface UpdateFindingRequest {
   reviewer_status: ReviewerStatus;
+}
+
+export interface UpdateProductionFindingRequest {
+  reviewer_status: ReviewerStatus;
+}
+
+export interface UpdateScriptRequest {
+  script_text: string;
 }
 
 export interface ValidationError {
@@ -82,6 +206,18 @@ export interface ValidationError {
 }
 
 export type ApiFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
+
+export class ApiError extends Error {
+  readonly status: number;
+  readonly detail: string | null;
+
+  constructor(status: number, detail: string | null) {
+    super(`API request failed (${status})`);
+    this.name = 'ApiError';
+    this.status = status;
+    this.detail = detail;
+  }
+}
 
 function apiUrl(baseUrl: string, path: string): string {
   return `${baseUrl.replace(/\/$/, '')}${path}`;
@@ -95,7 +231,21 @@ async function request<T>(
 ): Promise<T> {
   const response = await fetcher(apiUrl(baseUrl, path), init);
   if (!response.ok) {
-    throw new Error(`API request failed (${response.status})`);
+    let detail: string | null = null;
+    try {
+      const payload = (await response.json()) as unknown;
+      if (
+        typeof payload === 'object' &&
+        payload !== null &&
+        'detail' in payload &&
+        typeof payload.detail === 'string'
+      ) {
+        detail = payload.detail;
+      }
+    } catch {
+      // Keep malformed or non-JSON response bodies private.
+    }
+    throw new ApiError(response.status, detail);
   }
   return (await response.json()) as T;
 }
@@ -174,4 +324,174 @@ export function updateFindingStatus(
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ reviewer_status: reviewerStatus })
   }, fetcher);
+}
+
+export function createProduction(
+  payload: CreateProductionRequest,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionDetail> {
+  return request<ProductionDetail>('/api/productions', baseUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, fetcher);
+}
+
+export function listProductions(
+  limit: number = 20,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionSummary[]> {
+  return request<ProductionSummary[]>(
+    '/api/productions' + '?limit=' + encodeURIComponent(limit),
+    baseUrl,
+    { method: 'GET' },
+    fetcher
+  );
+}
+
+export function getProduction(
+  productionId: string,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionDetail> {
+  return request<ProductionDetail>('/api/productions/' + encodeURIComponent(productionId), baseUrl, { method: 'GET' }, fetcher);
+}
+
+export function createProductionScript(
+  productionId: string,
+  payload: CreateScriptRequest,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionSourceView> {
+  return request<ProductionSourceView>('/api/productions/' + encodeURIComponent(productionId) + '/scripts', baseUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, fetcher);
+}
+
+export function replaceProductionScript(
+  productionId: string,
+  sourceId: string,
+  payload: UpdateScriptRequest,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionSourceView> {
+  return request<ProductionSourceView>('/api/productions/' + encodeURIComponent(productionId) + '/scripts/' + encodeURIComponent(sourceId), baseUrl, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, fetcher);
+}
+
+export function retireProductionSource(
+  productionId: string,
+  sourceId: string,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionSourceView> {
+  return request<ProductionSourceView>('/api/productions/' + encodeURIComponent(productionId) + '/sources/' + encodeURIComponent(sourceId), baseUrl, { method: 'DELETE' }, fetcher);
+}
+
+export function createProductionAsset(
+  productionId: string,
+  file: File,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionSourceView> {
+  const body = new FormData();
+  body.append('file', file);
+  return request<ProductionSourceView>(
+    '/api/productions/' + encodeURIComponent(productionId) + '/assets',
+    baseUrl,
+    { method: 'POST', body },
+    fetcher
+  );
+}
+
+export function replaceProductionAsset(
+  productionId: string,
+  sourceId: string,
+  file: File,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionSourceView> {
+  const body = new FormData();
+  body.append('file', file);
+  return request<ProductionSourceView>(
+    '/api/productions/' + encodeURIComponent(productionId) + '/assets/' + encodeURIComponent(sourceId) + '/versions',
+    baseUrl,
+    { method: 'POST', body },
+    fetcher
+  );
+}
+
+export function monitorProductionChanges(
+  productionId: string,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionRun> {
+  return request<ProductionRun>('/api/productions/' + encodeURIComponent(productionId) + '/runs', baseUrl, { method: 'POST' }, fetcher);
+}
+
+export function recheckProductionSources(
+  productionId: string,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionRun> {
+  return request<ProductionRun>('/api/productions/' + encodeURIComponent(productionId) + '/rechecks', baseUrl, { method: 'POST' }, fetcher);
+}
+
+export function listProductionRuns(
+  productionId: string,
+  limit: number = 25,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionRunSummary[]> {
+  return request<ProductionRunSummary[]>(
+    '/api/productions/' + encodeURIComponent(productionId) + '/runs' + '?limit=' + encodeURIComponent(limit),
+    baseUrl,
+    { method: 'GET' },
+    fetcher
+  );
+}
+
+export function getProductionRun(
+  productionId: string,
+  runId: string,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ProductionRun> {
+  return request<ProductionRun>('/api/productions/' + encodeURIComponent(productionId) + '/runs/' + encodeURIComponent(runId), baseUrl, { method: 'GET' }, fetcher);
+}
+
+export function updateProductionFindingStatus(
+  productionId: string,
+  runId: string,
+  findingId: string,
+  payload: UpdateProductionFindingRequest,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ReviewUpdate> {
+  return request<ReviewUpdate>('/api/productions/' + encodeURIComponent(productionId) + '/runs/' + encodeURIComponent(runId) + '/findings/' + encodeURIComponent(findingId), baseUrl, {
+    method: 'PATCH',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  }, fetcher);
+}
+
+export function listProductionReviewEvents(
+  productionId: string,
+  limit: number = 50,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<ReviewEvent[]> {
+  return request<ReviewEvent[]>(
+    '/api/productions/' + encodeURIComponent(productionId) + '/review-events' + '?limit=' + encodeURIComponent(limit),
+    baseUrl,
+    { method: 'GET' },
+    fetcher
+  );
 }

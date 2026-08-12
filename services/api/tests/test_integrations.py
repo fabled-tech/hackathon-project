@@ -1,252 +1,193 @@
-import asyncio
-import json
-
 import httpx
 import pytest
 
-from app.errors import AnalysisProviderError, EvidenceCurationError
-from app.integrations.gemini import VertexGeminiClient
+from app.agents import RightsClearanceAgentService
+from app.errors import AnalysisProviderError
+from app.integrations.gemini import MockGeminiClient
 from app.integrations.parallel import ParallelSearchHttpClient
-from app.models import EvidenceCurationDecision, Source
-from app.models.analysis import GeminiSignal, SearchResult
+from app.models.analysis import EvidenceCurationDecision, GeminiSignal, SearchResult
+from app.models.cases import Source
 
 
-class FakeGenerateContentResponse:
-    def __init__(self, text: str) -> None:
-        self.text = text
-
-
-class FakeGenAIModels:
-    def __init__(self, response_text: str) -> None:
-        self._response_text = response_text
-        self.calls: list[dict[str, object]] = []
-
-    async def generate_content(self, **kwargs: object) -> FakeGenerateContentResponse:
-        self.calls.append(kwargs)
-        return FakeGenerateContentResponse(self._response_text)
-
-
-class FakeGenAio:
-    def __init__(self, response_text: str) -> None:
-        self.models = FakeGenAIModels(response_text)
-        self.closed = False
-
-    async def aclose(self) -> None:
-        self.closed = True
-
-
-class FakeGenAIClient:
-    def __init__(self, response_text: str) -> None:
-        self.aio = FakeGenAio(response_text)
-
-
-def test_search_then_extract_reuses_session_and_restricts_urls() -> None:
-    requests: list[dict[str, object]] = []
-
-    async def scenario() -> tuple[list[SearchResult], list[SearchResult]]:
-        async def handler(request: httpx.Request) -> httpx.Response:
-            payload = json.loads(request.content)
-            requests.append(payload)
-            if request.url.path.endswith("/search"):
-                return httpx.Response(
-                    200,
-                    json={
-                        "results": [
-                            {
-                                "url": "https://source.test/a",
-                                "title": "A",
-                                "publish_date": "2026-07-01",
-                                "excerpts": ["A"],
-                            },
-                            {
-                                "url": "https://source.test/a",
-                                "title": "A duplicate",
-                                "excerpts": ["A2"],
-                            },
-                            {
-                                "url": "https://source.test/b",
-                                "title": "B",
-                                "excerpts": ["B"],
-                            },
-                        ]
-                    },
-                )
-            return httpx.Response(
-                200,
-                json={
-                    "results": [
-                        {
-                            "url": "https://source.test/a",
-                            "title": "A",
-                            "publish_date": "2026-07-01",
-                            "excerpts": ["Verified A", "More A"],
-                        },
-                        {
-                            "url": "https://unknown.test",
-                            "title": "Unknown",
-                            "excerpts": ["Must be ignored"],
-                        },
-                    ],
-                    "errors": [
-                        {"url": "https://source.test/b", "error_type": "fetch_error"}
-                    ],
-                },
-            )
-
-        http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        client = ParallelSearchHttpClient(
-            "secret-test-key", "gemini-2.5-flash", http_client=http
-        )
-        signal = GeminiSignal(
-            category="brand_reference",
-            detected_item="Example Brand",
-            explanation="A named brand.",
-            confidence=0.8,
-            context_excerpt="An Example Brand can is visible in the scene.",
-        )
-        searched = await client.search(signal, "rightsrader:case-1:0")
-        extracted = await client.extract(signal, searched, "rightsrader:case-1:0")
-        await http.aclose()
-        return searched, extracted
-
-    searched, extracted = asyncio.run(scenario())
-
-    assert [item.source.url for item in searched] == [
-        "https://source.test/a",
-        "https://source.test/b",
-    ]
-    assert searched[0].publish_date == "2026-07-01"
-    assert [item.source.url for item in extracted] == ["https://source.test/a"]
-    assert extracted[0].excerpt == "Verified A\n\nMore A"
-    assert requests[0]["session_id"] == requests[1]["session_id"]
-    assert requests[0]["client_model"] == "gemini-2.5-flash"
-    assert requests[0]["mode"] == "advanced"
-    assert len(requests[0]["search_queries"]) == 3  # type: ignore[arg-type]
-    assert "Example Brand can is visible" in str(requests[0]["objective"])
-    assert requests[1]["urls"] == ["https://source.test/a", "https://source.test/b"]
-
-
-def test_extract_fails_safely_when_no_shortlisted_page_can_be_verified() -> None:
-    async def scenario() -> None:
-        async def handler(request: httpx.Request) -> httpx.Response:
-            del request
-            return httpx.Response(
-                200,
-                json={
-                    "results": [],
-                    "errors": [
-                        {
-                            "url": "https://source.test/a",
-                            "error_type": "fetch_error",
-                            "content": "secret-test-key must not escape",
-                        }
-                    ],
-                },
-            )
-
-        http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        client = ParallelSearchHttpClient(
-            "secret-test-key", "gemini-2.5-flash", http_client=http
-        )
-        signal = GeminiSignal(
-            category="brand_reference",
-            detected_item="Example Brand",
-            explanation="A named brand.",
-            confidence=0.8,
-        )
-        candidates = [
-            SearchResult(
-                source=Source(title="A", url="https://source.test/a"),
-                excerpt="Search excerpt.",
-            )
-        ]
-        try:
-            with pytest.raises(AnalysisProviderError) as error:
-                await client.extract(signal, candidates, "rightsrader:case-1:0")
-            assert "secret-test-key" not in str(error.value)
-            assert "https://source.test/a" not in str(error.value)
-        finally:
-            await http.aclose()
-
-    asyncio.run(scenario())
-
-
-def test_vertex_curation_uses_schema_and_rejects_unknown_url() -> None:
-    fake = FakeGenAIClient(
-        '{"primary_url":"https://unknown.test","rationale":"Not grounded."}'
-    )
-    client = VertexGeminiClient(
-        "project", "global", "gemini-2.5-flash", client=fake
-    )
-    signal = GeminiSignal(
-        category="quotation",
-        detected_item="Example quote",
-        explanation="A quotation.",
-        confidence=0.7,
-    )
+def test_mock_curator_selects_only_a_retrieved_candidate() -> None:
     candidate = SearchResult(
-        source=Source(title="Known", url="https://source.test/known"),
-        excerpt="Known excerpt.",
+        source=Source(title="Official source", url="https://source.test/item"),
+        excerpt="A relevant excerpt.",
     )
 
-    with pytest.raises(EvidenceCurationError):
-        asyncio.run(client.curate_evidence(signal, [candidate]))
-
-    config = fake.aio.models.calls[0]["config"]
-    assert config.response_mime_type == "application/json"
-    assert config.response_schema is EvidenceCurationDecision
-
-
-def test_vertex_detection_uses_schema_and_returns_contextual_signals() -> None:
-    fake = FakeGenAIClient(
-        "["
-        '{"category":"brand_reference","detected_item":"Example Brand",'
-        '"explanation":"A named brand.","confidence":0.8,'
-        '"context_excerpt":"An Example Brand can appears."}'
-        "]"
-    )
-    client = VertexGeminiClient(
-        "project", "global", "gemini-2.5-flash", client=fake
+    decision = MockGeminiClient().curate_evidence(
+        GeminiSignal(
+            category="brand_reference",
+            detected_item="Example Brand",
+            explanation="A named brand.",
+            confidence=0.8,
+            context_excerpt="She holds an Example Brand can.",
+        ),
+        [candidate],
     )
 
-    signals = asyncio.run(client.identify_material("An Example Brand can appears."))
-
-    assert signals[0].context_excerpt == "An Example Brand can appears."
-    config = fake.aio.models.calls[0]["config"]
-    assert config.response_mime_type == "application/json"
-    assert config.response_schema == list[GeminiSignal]
+    assert decision.primary_url == "https://source.test/item"
+    assert decision.rationale
 
 
-def test_vertex_curation_wraps_malformed_json_without_exposing_it() -> None:
-    fake = FakeGenAIClient("secret malformed provider output")
-    client = VertexGeminiClient(
-        "project", "global", "gemini-2.5-flash", client=fake
+def test_mock_curator_returns_a_neutral_decision_without_candidates() -> None:
+    decision = MockGeminiClient().curate_evidence(_signal(), [])
+
+    assert decision.primary_url is None
+    assert decision.rationale is None
+
+
+def test_parallel_search_includes_context_and_returns_unique_bounded_results(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    captured: dict[str, object] = {}
+
+    def fake_post(
+        url: str, *, headers: dict[str, str], json: dict[str, object], timeout: int
+    ) -> httpx.Response:
+        del url, headers, timeout
+        captured.update(json)
+        return httpx.Response(
+            200,
+            json={
+                "results": [
+                    {"url": "https://source.test/1", "title": "One", "excerpts": ["A"]},
+                    {
+                        "url": "https://source.test/1",
+                        "title": "One duplicate",
+                        "excerpts": ["A2"],
+                    },
+                    {"url": "https://source.test/2", "title": "Two", "excerpts": ["B"]},
+                    {"url": "https://source.test/3", "title": "Three", "excerpts": ["C"]},
+                    {"url": "https://source.test/4", "title": "Four", "excerpts": ["D"]},
+                    {"url": "https://source.test/5", "title": "Five", "excerpts": ["E"]},
+                    {"url": "https://source.test/6", "title": "Six", "excerpts": ["F"]},
+                    {"title": "Missing URL", "excerpts": ["ignored"]},
+                ]
+            },
+        )
+
+    monkeypatch.setattr("app.integrations.parallel.httpx.post", fake_post)
+
+    results = ParallelSearchHttpClient("secret-test-key").search(
+        "Example Brand", "brand_reference", "She holds the product in the scene."
     )
-    signal = GeminiSignal(
+
+    assert [result.source.url for result in results] == [
+        "https://source.test/1",
+        "https://source.test/2",
+        "https://source.test/3",
+        "https://source.test/4",
+        "https://source.test/5",
+    ]
+    assert results[0].source.title == "One"
+    assert results[0].excerpt == "A"
+    objective = captured["objective"]
+    search_queries = captured["search_queries"]
+    assert isinstance(objective, str)
+    assert isinstance(search_queries, list)
+    assert "She holds the product" in objective
+    assert len(search_queries) == 3
+    assert all(3 <= len(query.split()) <= 6 for query in search_queries)
+
+
+def test_parallel_search_queries_stay_within_word_limit_for_long_inputs() -> None:
+    queries = ParallelSearchHttpClient("secret-test-key")._build_search_queries(
+        "The Very Long Example Product Name", "extremely_specific_brand_reference_category"
+    )
+
+    assert len(queries) == 3
+    assert all(3 <= len(query.split()) <= 6 for query in queries)
+
+
+def test_agent_passes_signal_context_to_parallel_search() -> None:
+    signal = _signal()
+    parallel = ContextCapturingParallelClient()
+
+    RightsClearanceAgentService(ContextGeminiClient(signal), parallel).analyze("case-1", "Script")
+
+    assert parallel.context_excerpts == [signal.context_excerpt]
+
+
+@pytest.mark.parametrize(
+    "post_error",
+    [httpx.TimeoutException("connection timed out"), httpx.HTTPError("request failed")],
+)
+def test_parallel_search_converts_http_client_errors_without_exposing_credentials(
+    monkeypatch: pytest.MonkeyPatch, post_error: httpx.HTTPError
+) -> None:
+    def fake_post(url: str, **kwargs: object) -> httpx.Response:
+        del url, kwargs
+        raise post_error
+
+    monkeypatch.setattr("app.integrations.parallel.httpx.post", fake_post)
+
+    with pytest.raises(AnalysisProviderError) as error:
+        ParallelSearchHttpClient("secret-test-key").search("Example Brand", "brand_reference")
+
+    assert "secret-test-key" not in str(error.value)
+
+
+def test_parallel_search_converts_non_success_responses(monkeypatch: pytest.MonkeyPatch) -> None:
+    def fake_post(url: str, **kwargs: object) -> httpx.Response:
+        del url, kwargs
+        return httpx.Response(503, json={"error": "provider details"})
+
+    monkeypatch.setattr("app.integrations.parallel.httpx.post", fake_post)
+
+    with pytest.raises(AnalysisProviderError) as error:
+        ParallelSearchHttpClient("secret-test-key").search("Example Brand", "brand_reference")
+
+    assert "malformed" not in str(error.value)
+    assert "provider details" not in str(error.value)
+    assert "secret-test-key" not in str(error.value)
+
+
+def test_parallel_search_rejects_malformed_provider_response(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    def fake_post(url: str, **kwargs: object) -> httpx.Response:
+        del url, kwargs
+        return httpx.Response(200, json={"results": "not a list"})
+
+    monkeypatch.setattr("app.integrations.parallel.httpx.post", fake_post)
+
+    with pytest.raises(AnalysisProviderError, match="malformed"):
+        ParallelSearchHttpClient("secret-test-key").search("Example Brand", "brand_reference")
+
+
+def _signal() -> GeminiSignal:
+    return GeminiSignal(
         category="brand_reference",
         detected_item="Example Brand",
         explanation="A named brand.",
         confidence=0.8,
-    )
-    candidates = [
-        SearchResult(
-            source=Source(title="Known", url="https://source.test/known"),
-            excerpt="Known excerpt.",
-        )
-    ]
-
-    with pytest.raises(EvidenceCurationError) as error:
-        asyncio.run(client.curate_evidence(signal, candidates))
-
-    assert "secret malformed provider output" not in str(error.value)
-
-
-def test_vertex_client_closes_its_async_transport() -> None:
-    fake = FakeGenAIClient("[]")
-    client = VertexGeminiClient(
-        "project", "global", "gemini-2.5-flash", client=fake
+        context_excerpt="She holds an Example Brand can.",
     )
 
-    asyncio.run(client.aclose())
 
-    assert fake.aio.closed is True
+class ContextGeminiClient:
+    def __init__(self, signal: GeminiSignal) -> None:
+        self._signal = signal
+
+    def identify_material(self, script_text: str) -> list[GeminiSignal]:
+        del script_text
+        return [self._signal]
+
+    def curate_evidence(
+        self, signal: GeminiSignal, candidates: list[SearchResult]
+    ) -> EvidenceCurationDecision:
+        del signal, candidates
+        return EvidenceCurationDecision()
+
+
+class ContextCapturingParallelClient:
+    def __init__(self) -> None:
+        self.context_excerpts: list[str] = []
+
+    def search(
+        self, detected_item: str, category: str, context_excerpt: str = ""
+    ) -> list[SearchResult]:
+        del detected_item, category
+        self.context_excerpts.append(context_excerpt)
+        return []

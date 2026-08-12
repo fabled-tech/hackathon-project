@@ -1,4 +1,4 @@
-from .gemini import GeminiClient, MockGeminiClient, VertexGeminiClient
+from .gemini import GeminiClient, MockGeminiClient
 from .parallel import MockParallelSearchClient, ParallelSearchClient, ParallelSearchHttpClient
 
 __all__ = [
@@ -7,5 +7,4 @@ __all__ = [
     "MockParallelSearchClient",
     "ParallelSearchClient",
     "ParallelSearchHttpClient",
-    "VertexGeminiClient",
 ]

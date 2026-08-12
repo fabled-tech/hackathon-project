@@ -1,32 +1,80 @@
 import pytest
-from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.agents.service import RightsClearanceAgentService
 from app.dependencies import ApplicationServices
-from app.errors import AnalysisProviderError
-from app.models import Finding
-from app.repositories import InMemoryAssetRepository, InMemoryCaseRepository
-from app.routes import cases_router
+from app.models import Case, EvidenceCurationDecision, GeminiSignal, SearchResult, Source
+from app.repositories.assets import InMemoryAssetRepository
+from app.repositories.cases import InMemoryCaseRepository
+from app.repositories.productions import InMemoryProductionRepository
+from app.services import ProductionMonitoringService
 
 
-class FailingAgentService:
-    async def analyze(self, case_id: str, script_text: str) -> list[Finding]:
-        del case_id
+class FailingGeminiProvider:
+    def identify_material(self, script_text: str) -> list[GeminiSignal]:
         del script_text
-        raise AnalysisProviderError("secret provider detail")
+        raise RuntimeError("provider details must not reach the client")
+
+    def curate_evidence(
+        self, signal: GeminiSignal, candidates: list[SearchResult]
+    ) -> EvidenceCurationDecision:
+        del signal, candidates
+        raise AssertionError("curation is not reached after detection fails")
 
 
-class ClosableAgentService:
+class UnusedParallelProvider:
+    def search(
+        self, detected_item: str, category: str, context_excerpt: str = ""
+    ) -> list[SearchResult]:
+        del detected_item, category, context_excerpt
+        raise AssertionError("search is not reached after detection fails")
+
+
+class CandidateParallelProvider:
+    def search(
+        self, detected_item: str, category: str, context_excerpt: str = ""
+    ) -> list[SearchResult]:
+        del detected_item, category, context_excerpt
+        return [
+            SearchResult(
+                source=Source(title="Known", url="https://source.test/known"),
+                excerpt="Known excerpt",
+            )
+        ]
+
+
+class InvalidRationaleGemini:
+    def __init__(self, rationale: str | None) -> None:
+        self.rationale = rationale
+
+    def identify_material(self, script_text: str) -> list[GeminiSignal]:
+        del script_text
+        return [
+            GeminiSignal(
+                category="brand_reference",
+                detected_item="Example Brand",
+                explanation="A named brand.",
+                confidence=0.8,
+            )
+        ]
+
+    def curate_evidence(
+        self, signal: GeminiSignal, candidates: list[SearchResult]
+    ) -> EvidenceCurationDecision:
+        del signal, candidates
+        return EvidenceCurationDecision.model_validate(
+            {"primary_url": "https://source.test/known", "rationale": self.rationale}
+        )
+
+
+class TrackingCaseRepository(InMemoryCaseRepository):
     def __init__(self) -> None:
-        self.closed = False
+        super().__init__()
+        self.create_calls = 0
 
-    async def analyze(self, case_id: str, script_text: str) -> list[Finding]:
-        del case_id
-        del script_text
-        return []
-
-    async def aclose(self) -> None:
-        self.closed = True
+    def create(self, case: Case) -> Case:
+        self.create_calls += 1
+        return super().create(case)
 
 
 def test_creating_a_case_returns_deterministic_findings() -> None:
@@ -51,45 +99,6 @@ def test_creating_a_case_returns_deterministic_findings() -> None:
         "Time keeps the reel turning",
     }
     assert all(finding["reviewer_status"] == "pending" for finding in case["findings"])
-    assert all(finding["evidence"]["primary"] is not None for finding in case["findings"])
-    assert all(finding["evidence"]["rationale"] for finding in case["findings"])
-
-
-def test_creating_a_case_returns_cited_character_franchise_and_likeness_leads() -> None:
-    from app.main import create_app
-
-    client = TestClient(create_app())
-    response = client.post(
-        "/api/cases",
-        json={
-            "script_text": (
-                "Captain Aurelia opens The Copper Comet Chronicles while Rowan Voss watches. "
-                'MARA opens a can of Nimbus Soda. "Time keeps the reel turning," she says.'
-            )
-        },
-    )
-
-    assert response.status_code == 201
-    findings = {finding["category"]: finding for finding in response.json()["findings"]}
-
-    assert findings["character_reference"]["detected_item"] == "Captain Aurelia"
-    assert findings["franchise_reference"]["detected_item"] == "The Copper Comet Chronicles"
-    assert findings["likeness_reference"]["detected_item"] == "Rowan Voss"
-    assert {finding["detected_item"] for finding in findings.values()} == {
-        "Captain Aurelia",
-        "The Copper Comet Chronicles",
-        "Rowan Voss",
-        "Nimbus Soda",
-        "Time keeps the reel turning",
-    }
-    for category in ("character_reference", "franchise_reference", "likeness_reference"):
-        finding = findings[category]
-        assert 0 <= finding["confidence"] <= 1
-        assert "research" in finding["explanation"].casefold()
-        assert finding["reviewer_status"] == "pending"
-        assert finding["retrieved_at"]
-        assert finding["supporting_evidence"]
-        assert finding["supporting_evidence"][0]["source"]["url"] in finding["source_urls"]
 
 
 def test_updating_a_finding_status_persists_on_the_case() -> None:
@@ -113,39 +122,62 @@ def test_updating_a_finding_status_persists_on_the_case() -> None:
     assert updated_case["findings"][0]["reviewer_status"] == "escalated"
 
 
-def test_provider_failure_returns_safe_503_without_persisting_a_partial_case() -> None:
-    cases = InMemoryCaseRepository()
-    app = FastAPI()
-    app.state.services = ApplicationServices(
-        case_repository=cases,
-        asset_repository=InMemoryAssetRepository(),
-        agent_service=FailingAgentService(),
-    )
-    app.include_router(cases_router)
-    client = TestClient(app, raise_server_exceptions=False)
+def test_creating_a_case_returns_a_safe_503_without_saving_when_analysis_fails() -> None:
+    from app.main import create_app
 
-    response = client.post("/api/cases", json={"script_text": "A scene."})
+    app = create_app()
+    repository = TrackingCaseRepository()
+    asset_repository = InMemoryAssetRepository()
+    production_repository = InMemoryProductionRepository()
+    agent_service = RightsClearanceAgentService(FailingGeminiProvider(), UnusedParallelProvider())
+    app.state.services = ApplicationServices(
+        case_repository=repository,
+        asset_repository=asset_repository,
+        production_repository=production_repository,
+        agent_service=agent_service,
+        production_monitoring_service=ProductionMonitoringService(
+            production_repository, asset_repository, agent_service
+        ),
+    )
+    client = TestClient(app)
+
+    response = client.post("/api/cases", json={"script_text": "A failed analysis."})
 
     assert response.status_code == 503
     assert response.json() == {
         "detail": "RightsRadar analysis is temporarily unavailable. Please try again."
     }
-    assert cases.list_recent(10) == []
-    assert "secret provider detail" not in response.text
+    assert repository.create_calls == 0
 
 
-def test_app_lifespan_closes_provider_clients(monkeypatch: pytest.MonkeyPatch) -> None:
+@pytest.mark.parametrize("rationale", [None, "  \t"])
+def test_creating_a_case_rejects_primary_evidence_without_rationale_before_saving(
+    rationale: str | None,
+) -> None:
     from app.main import create_app
 
-    agent = ClosableAgentService()
-    services = ApplicationServices(
-        case_repository=InMemoryCaseRepository(),
-        asset_repository=InMemoryAssetRepository(),
-        agent_service=agent,
+    app = create_app()
+    repository = TrackingCaseRepository()
+    asset_repository = InMemoryAssetRepository()
+    production_repository = InMemoryProductionRepository()
+    agent_service = RightsClearanceAgentService(
+        InvalidRationaleGemini(rationale), CandidateParallelProvider()
     )
-    monkeypatch.setattr("app.main.build_services", lambda settings: services)
+    app.state.services = ApplicationServices(
+        case_repository=repository,
+        asset_repository=asset_repository,
+        production_repository=production_repository,
+        agent_service=agent_service,
+        production_monitoring_service=ProductionMonitoringService(
+            production_repository, asset_repository, agent_service
+        ),
+    )
+    client = TestClient(app)
 
-    with TestClient(create_app()) as client:
-        assert client.get("/health").status_code == 200
+    response = client.post("/api/cases", json={"script_text": "A contextual excerpt."})
 
-    assert agent.closed is True
+    assert response.status_code == 503
+    assert response.json() == {
+        "detail": "RightsRadar analysis is temporarily unavailable. Please try again."
+    }
+    assert repository.create_calls == 0

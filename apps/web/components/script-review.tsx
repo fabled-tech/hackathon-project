@@ -149,7 +149,7 @@ function PrimaryButton({
   );
 }
 
-export function ScriptReview() {
+export function ScriptReview({ embedded = false }: { embedded?: boolean } = {}) {
   const [scriptText, setScriptText] = useState(SAMPLE_SCRIPT);
   const [caseResult, setCaseResult] = useState<Case | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -299,7 +299,7 @@ export function ScriptReview() {
 
   return (
     <div className="min-h-screen">
-      <header className="sticky top-0 z-20 border-b border-line/80 bg-panel/85 backdrop-blur-md">
+      {!embedded ? <header className="sticky top-0 z-20 border-b border-line/80 bg-panel/85 backdrop-blur-md">
         <div className="mx-auto flex h-16 max-w-6xl items-center justify-between gap-4 px-5 sm:px-8">
           <div className="flex items-center gap-3">
             <span className="flex size-9 items-center justify-center rounded-lg bg-brand text-canvas shadow-card">
@@ -312,7 +312,7 @@ export function ScriptReview() {
             Research assistance only
           </span>
         </div>
-      </header>
+      </header> : null}
 
       <main className="mx-auto max-w-6xl px-5 pb-20 sm:px-8">
         <div className="max-w-2xl pb-10 pt-12 sm:pt-16">
@@ -458,31 +458,95 @@ export function ScriptReview() {
                               <h4 className="text-xs font-bold uppercase tracking-wider text-muted">
                                 Evidence and citations
                               </h4>
-                              {finding.supporting_evidence.map((evidence) => (
-                                <blockquote
-                                  key={evidence.source.url}
-                                  className="flex gap-3 rounded-lg bg-canvas p-3.5"
-                                >
-                                  <Quote
-                                    className="mt-0.5 size-4 shrink-0 text-brand"
-                                    aria-hidden
-                                  />
-                                  <div>
-                                    <p className="text-sm italic leading-relaxed text-ink-soft">
-                                      “{evidence.excerpt}”
+                              {(() => {
+                                const primaryEvidence = finding.evidence?.primary ?? null;
+                                const alternatives = finding.evidence?.alternatives ?? [];
+                                const rationale = finding.evidence?.rationale?.trim() ?? '';
+                                const hasValidatedPrimary = primaryEvidence !== null && rationale !== '';
+                                if (hasValidatedPrimary && primaryEvidence) {
+                                  return (
+                                    <div className="space-y-3" data-testid="evidence-primary">
+                                      <blockquote className="rounded-xl border border-line/70 bg-canvas/50 px-4 py-3">
+                                        <p className="text-sm leading-relaxed text-ink">“{primaryEvidence.excerpt}”</p>
+                                        <a
+                                          className="mt-2 inline-flex text-sm font-semibold text-brand hover:text-brand-strong"
+                                          href={primaryEvidence.source.url}
+                                          target="_blank"
+                                          rel="noreferrer"
+                                        >
+                                          {primaryEvidence.source.title}
+                                        </a>
+                                      </blockquote>
+                                      <p className="text-sm text-mute" data-testid="evidence-rationale">
+                                        <span className="font-semibold text-ink">Why this source: </span>
+                                        {rationale}
+                                      </p>
+                                      {alternatives.length > 0 ? (
+                                        <details className="rounded-xl border border-line/60 bg-panel/40 px-4 py-3">
+                                          <summary className="cursor-pointer text-sm font-semibold text-brand">
+                                            More evidence ({alternatives.length})
+                                          </summary>
+                                          <div className="mt-3 space-y-3" data-testid="evidence-alternatives">
+                                            {alternatives.map((evidence) => (
+                                              <blockquote
+                                                key={evidence.source.url}
+                                                className="rounded-xl border border-line/70 bg-canvas/50 px-4 py-3"
+                                              >
+                                                <p className="text-sm leading-relaxed text-ink">“{evidence.excerpt}”</p>
+                                                <a
+                                                  className="mt-2 inline-flex text-sm font-semibold text-brand hover:text-brand-strong"
+                                                  href={evidence.source.url}
+                                                  target="_blank"
+                                                  rel="noreferrer"
+                                                >
+                                                  {evidence.source.title}
+                                                </a>
+                                              </blockquote>
+                                            ))}
+                                          </div>
+                                        </details>
+                                      ) : null}
+                                    </div>
+                                  );
+                                }
+                                if (primaryEvidence) {
+                                  return (
+                                    <p className="text-sm text-mute" data-testid="evidence-validation-state">
+                                      This source cannot be presented as validated because its relevance rationale is missing.
                                     </p>
-                                    <a
-                                      href={evidence.source.url}
-                                      target="_blank"
-                                      rel="noreferrer"
-                                      className="mt-1.5 inline-flex items-center gap-1 text-sm font-semibold text-brand underline-offset-2 transition hover:text-brand-strong hover:underline"
-                                    >
-                                      {evidence.source.title}
-                                      <ArrowUpRight className="size-3.5" aria-hidden />
-                                    </a>
-                                  </div>
-                                </blockquote>
-                              ))}
+                                  );
+                                }
+                                if (alternatives.length > 0) {
+                                  return (
+                                    <div className="space-y-3">
+                                      <p className="text-sm text-mute">
+                                        No primary source was selected. Alternative research context:
+                                      </p>
+                                      {alternatives.map((evidence) => (
+                                        <blockquote
+                                          key={evidence.source.url}
+                                          className="rounded-xl border border-line/70 bg-canvas/50 px-4 py-3"
+                                        >
+                                          <p className="text-sm leading-relaxed text-ink">“{evidence.excerpt}”</p>
+                                          <a
+                                            className="mt-2 inline-flex text-sm font-semibold text-brand hover:text-brand-strong"
+                                            href={evidence.source.url}
+                                            target="_blank"
+                                            rel="noreferrer"
+                                          >
+                                            {evidence.source.title}
+                                          </a>
+                                        </blockquote>
+                                      ))}
+                                    </div>
+                                  );
+                                }
+                                return (
+                                  <p className="text-sm text-mute">
+                                    No supporting source is available for this possible lead.
+                                  </p>
+                                );
+                              })()}
                             </div>
                             <div className="mt-4 flex flex-wrap items-center justify-between gap-3 border-t border-line pt-4">
                               <span className="text-xs font-bold uppercase tracking-wider text-muted">

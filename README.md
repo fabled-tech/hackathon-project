@@ -50,6 +50,19 @@ make reconcile-assets # explicit cleanup of incomplete private asset records; sk
 For containers, run `docker compose up --build`. The compose setup remains in mock mode unless
 you explicitly set other environment values.
 
+
+## Production monitoring
+
+RightsRadar can track a whole production: named productions, script/asset source versions,
+monitoring runs, and reviewer audit events. Use the **Production Monitor** workspace in the web
+app (mock mode supported). See `docs/superpowers/specs/2026-08-03-production-monitoring-design.md`.
+
+## ADK research agent
+
+In cloud/hybrid Gemini modes, analysis can route through a single Google ADK rights-research
+agent that uses Parallel Search as a tool. Mock mode stays deterministic with fixtures. Research
+assistance only — not legal advice.
+
 ## Architecture
 
 ```text

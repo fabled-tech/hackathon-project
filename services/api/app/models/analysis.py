@@ -1,14 +1,8 @@
+from typing import Self
+
 from pydantic import BaseModel, Field, model_validator
 
-
-class Source(BaseModel):
-    title: str
-    url: str
-
-
-class Evidence(BaseModel):
-    excerpt: str
-    source: Source
+from .cases import Evidence, Finding, Source
 
 
 class EvidenceSelection(BaseModel):
@@ -16,10 +10,17 @@ class EvidenceSelection(BaseModel):
     rationale: str | None = None
     alternatives: list[Evidence] = Field(default_factory=list)
 
+
+class EvidenceCurationDecision(BaseModel):
+    primary_url: str | None = None
+    rationale: str | None = None
+
     @model_validator(mode="after")
-    def require_complete_primary_rationale_pair(self) -> "EvidenceSelection":
-        if (self.primary is None) != (self.rationale is None):
-            raise ValueError("primary evidence and rationale must be provided together")
+    def require_rationale_for_primary(self) -> Self:
+        if self.primary_url is not None and (
+            self.rationale is None or not self.rationale.strip()
+        ):
+            raise ValueError("rationale is required when primary_url is selected")
         return self
 
 
@@ -31,12 +32,9 @@ class GeminiSignal(BaseModel):
     context_excerpt: str = ""
 
 
-class EvidenceCurationDecision(BaseModel):
-    primary_url: str | None
-    rationale: str | None
-
-
 class SearchResult(BaseModel):
     source: Source
     excerpt: str
-    publish_date: str | None = None
+
+
+Finding.model_rebuild(_types_namespace={"EvidenceSelection": EvidenceSelection})

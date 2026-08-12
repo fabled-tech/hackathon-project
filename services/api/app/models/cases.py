@@ -1,10 +1,11 @@
 from datetime import datetime
 from enum import StrEnum
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from .analysis import Evidence, EvidenceSelection
+if TYPE_CHECKING:
+    from .analysis import EvidenceSelection
 
 
 class ReviewerStatus(StrEnum):
@@ -12,6 +13,22 @@ class ReviewerStatus(StrEnum):
     ACCEPTED = "accepted"
     DISMISSED = "dismissed"
     ESCALATED = "escalated"
+
+
+class Source(BaseModel):
+    title: str
+    url: str
+
+
+class Evidence(BaseModel):
+    excerpt: str
+    source: Source
+
+
+def _empty_evidence_selection() -> "EvidenceSelection":
+    from .analysis import EvidenceSelection
+
+    return EvidenceSelection()
 
 
 class Finding(BaseModel):
@@ -25,18 +42,17 @@ class Finding(BaseModel):
     source_urls: list[str]
     retrieved_at: datetime
     reviewer_status: ReviewerStatus
-    evidence: EvidenceSelection = Field(default_factory=EvidenceSelection)
+    evidence: "EvidenceSelection" = Field(default_factory=_empty_evidence_selection)
 
     @model_validator(mode="before")
     @classmethod
-    def preserve_legacy_evidence(cls, value: Any) -> Any:
-        if not isinstance(value, dict) or "evidence" in value:
-            return value
-        normalized = dict(value)
-        normalized["evidence"] = {
-            "alternatives": list(normalized.get("supporting_evidence") or [])
-        }
-        return normalized
+    def map_legacy_supporting_evidence(cls, values: Any) -> Any:
+        if not isinstance(values, dict) or values.get("evidence") is not None:
+            return values
+
+        data = dict(values)
+        data["evidence"] = {"alternatives": data.get("supporting_evidence", [])}
+        return data
 
 
 class Case(BaseModel):

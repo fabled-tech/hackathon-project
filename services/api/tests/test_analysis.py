@@ -1,116 +1,146 @@
-import asyncio
-
 import pytest
-from pydantic import ValidationError
 
 from app.agents.service import RightsClearanceAgentService
-from app.config import Settings
-from app.errors import EvidenceCurationError
-from app.models import EvidenceCurationDecision, Source
-from app.models.analysis import GeminiSignal, SearchResult
+from app.errors import AnalysisUnavailableError
+from app.models import (
+    Evidence,
+    EvidenceCurationDecision,
+    EvidenceSelection,
+    Finding,
+    GeminiSignal,
+    Source,
+)
+from app.models.analysis import SearchResult
 
 
-class ThreeLeadGemini:
-    async def identify_material(self, script_text: str) -> list[GeminiSignal]:
+class StubGemini:
+    def __init__(self, decision: EvidenceCurationDecision) -> None:
+        self.decision = decision
+
+    def identify_material(self, script_text: str) -> list[GeminiSignal]:
         return [
             GeminiSignal(
                 category="brand_reference",
-                detected_item=f"Lead {index}",
-                explanation=f"Detected lead {index}.",
+                detected_item="Example Brand",
+                explanation="A named brand.",
                 confidence=0.8,
                 context_excerpt=script_text,
             )
-            for index in range(1, 4)
         ]
 
-    async def curate_evidence(
+    def curate_evidence(
         self, signal: GeminiSignal, candidates: list[SearchResult]
     ) -> EvidenceCurationDecision:
-        return EvidenceCurationDecision(
-            primary_url=candidates[0].source.url,
-            rationale=f"Verified evidence for {signal.detected_item}.",
-        )
+        return self.decision
 
 
-class YieldingParallel:
-    def __init__(self) -> None:
-        self.active = 0
-        self.max_active = 0
-        self.sessions: set[str] = set()
+class StubParallel:
+    def __init__(self, candidates: list[SearchResult]) -> None:
+        self.candidates = candidates
 
-    async def search(self, signal: GeminiSignal, session_id: str) -> list[SearchResult]:
-        self.sessions.add(session_id)
-        self.active += 1
-        self.max_active = max(self.max_active, self.active)
-        released = asyncio.Event()
-        asyncio.get_running_loop().call_soon(released.set)
-        await released.wait()
-        self.active -= 1
+    def search(
+        self, detected_item: str, category: str, context_excerpt: str = ""
+    ) -> list[SearchResult]:
+        return self.candidates
+
+
+class InvalidRationaleGemini:
+    def __init__(self, rationale: str | None) -> None:
+        self.rationale = rationale
+
+    def identify_material(self, script_text: str) -> list[GeminiSignal]:
+        del script_text
         return [
-            SearchResult(
-                source=Source(
-                    title=f"Source for {signal.detected_item}",
-                    url=f"https://source.test/{signal.detected_item[-1]}",
-                ),
-                excerpt=f"Extracted evidence for {signal.detected_item}.",
+            GeminiSignal(
+                category="brand_reference",
+                detected_item="Example Brand",
+                explanation="A named brand.",
+                confidence=0.8,
             )
         ]
 
-    async def extract(
-        self, signal: GeminiSignal, candidates: list[SearchResult], session_id: str
-    ) -> list[SearchResult]:
-        del signal
-        self.sessions.add(session_id)
-        return candidates
-
-
-class UnknownUrlGemini(ThreeLeadGemini):
-    async def curate_evidence(
+    def curate_evidence(
         self, signal: GeminiSignal, candidates: list[SearchResult]
     ) -> EvidenceCurationDecision:
-        del signal
-        del candidates
-        return EvidenceCurationDecision(
-            primary_url="https://source.test/not-extracted",
-            rationale="This URL was not supplied by Parallel Extract.",
+        del signal, candidates
+        return EvidenceCurationDecision.model_validate(
+            {"primary_url": "https://source.test/known", "rationale": self.rationale}
         )
 
 
-class EmptyParallel:
-    async def search(self, signal: GeminiSignal, session_id: str) -> list[SearchResult]:
-        del signal
-        del session_id
-        return []
+def test_agent_puts_selected_source_in_primary_and_rest_in_alternatives() -> None:
+    candidates = [
+        SearchResult(
+            source=Source(title="Best", url="https://source.test/best"), excerpt="Best excerpt"
+        ),
+        SearchResult(
+            source=Source(title="Other", url="https://source.test/other"), excerpt="Other excerpt"
+        ),
+    ]
+    service = RightsClearanceAgentService(
+        StubGemini(
+            EvidenceCurationDecision(
+                primary_url="https://source.test/best", rationale="Best match."
+            )
+        ),
+        StubParallel(candidates),
+    )
 
-    async def extract(
-        self, signal: GeminiSignal, candidates: list[SearchResult], session_id: str
-    ) -> list[SearchResult]:
-        del signal
-        del candidates
-        del session_id
-        raise AssertionError("Extract must not run without Search candidates")
+    findings = service.analyze("case-1", "A contextual excerpt.")
+
+    assert findings[0].evidence.primary is not None
+    assert findings[0].evidence.primary.source.url == "https://source.test/best"
+    assert [item.source.url for item in findings[0].evidence.alternatives] == [
+        "https://source.test/other"
+    ]
+    assert findings[0].supporting_evidence
 
 
-class ClosableGemini(ThreeLeadGemini):
-    def __init__(self) -> None:
-        self.closed = False
+def test_agent_saves_a_neutral_evidence_selection_when_search_finds_no_sources() -> None:
+    service = RightsClearanceAgentService(
+        StubGemini(EvidenceCurationDecision()), StubParallel([])
+    )
 
-    async def aclose(self) -> None:
-        self.closed = True
+    findings = service.analyze("case-1", "A contextual excerpt.")
+
+    assert findings[0].evidence.primary is None
+    assert findings[0].evidence.alternatives == []
+    assert findings[0].supporting_evidence == []
 
 
-class ClosableParallel(YieldingParallel):
-    def __init__(self) -> None:
-        super().__init__()
-        self.closed = False
+def test_unknown_curated_url_fails_before_repository_create() -> None:
+    candidate = SearchResult(
+        source=Source(title="Known", url="https://source.test/known"), excerpt="Known excerpt"
+    )
+    service = RightsClearanceAgentService(
+        StubGemini(
+            EvidenceCurationDecision(
+                primary_url="https://source.test/not-retrieved", rationale="Ungrounded."
+            )
+        ),
+        StubParallel([candidate]),
+    )
 
-    async def aclose(self) -> None:
-        self.closed = True
+    with pytest.raises(AnalysisUnavailableError):
+        service.analyze("case-1", "A contextual excerpt.")
+
+
+@pytest.mark.parametrize("rationale", [None, "", "  \t"])
+def test_agent_rejects_a_primary_source_without_a_nonblank_rationale(
+    rationale: str | None,
+) -> None:
+    candidate = SearchResult(
+        source=Source(title="Known", url="https://source.test/known"), excerpt="Known excerpt"
+    )
+    service = RightsClearanceAgentService(
+        InvalidRationaleGemini(rationale), StubParallel([candidate])
+    )
+
+    with pytest.raises(AnalysisUnavailableError):
+        service.analyze("case-1", "A contextual excerpt.")
 
 
 def test_evidence_selection_defaults_to_neutral_no_source() -> None:
-    from app.models import EvidenceSelection
-
     selection = EvidenceSelection()
 
     assert selection.primary is None
@@ -118,117 +148,70 @@ def test_evidence_selection_defaults_to_neutral_no_source() -> None:
     assert selection.alternatives == []
 
 
-def test_legacy_finding_maps_old_evidence_to_neutral_alternatives() -> None:
-    from app.models import Finding
-
+def test_legacy_finding_without_evidence_is_safe_to_read() -> None:
     finding = Finding.model_validate(
         {
             "id": "finding-1",
             "case_id": "case-1",
             "category": "brand_reference",
-            "detected_item": "Example Brand",
-            "explanation": "A legacy finding.",
+            "detected_item": "Old Brand",
+            "explanation": "A legacy stored lead.",
             "confidence": 0.5,
             "supporting_evidence": [
                 {
-                    "excerpt": "Archived evidence.",
-                    "source": {
-                        "title": "Archive",
-                        "url": "https://source.test/archive",
-                    },
+                    "excerpt": "old source",
+                    "source": {"title": "Old", "url": "https://old.test"},
                 }
             ],
-            "source_urls": ["https://source.test/archive"],
+            "source_urls": ["https://old.test"],
             "retrieved_at": "2026-08-02T00:00:00Z",
             "reviewer_status": "pending",
         }
     )
 
     assert finding.evidence.primary is None
-    assert finding.evidence.rationale is None
-    assert finding.evidence.alternatives == finding.supporting_evidence
+    assert finding.evidence.alternatives[0].source.url == "https://old.test"
 
 
-@pytest.mark.parametrize(
-    ("primary", "rationale"),
-    [
-        (
-            {
-                "excerpt": "Evidence.",
-                "source": {"title": "Source", "url": "https://source.test"},
-            },
-            None,
-        ),
-        (None, "A rationale without selected evidence."),
-    ],
-)
-def test_evidence_selection_rejects_incomplete_primary_rationale_pairs(
-    primary: dict[str, object] | None, rationale: str | None
-) -> None:
-    from app.models import EvidenceSelection
-
-    with pytest.raises(ValidationError):
-        EvidenceSelection(primary=primary, rationale=rationale)
-
-
-def test_lead_research_is_bounded_and_preserves_detector_order() -> None:
-    parallel = YieldingParallel()
-    service = RightsClearanceAgentService(
-        ThreeLeadGemini(), parallel, max_concurrency=2
+def test_explicit_evidence_selection_is_not_replaced_by_legacy_sources() -> None:
+    primary = Evidence(
+        excerpt="curated source",
+        source=Source(title="Curated", url="https://curated.test"),
+    )
+    finding = Finding.model_validate(
+        {
+            "id": "finding-1",
+            "case_id": "case-1",
+            "category": "brand_reference",
+            "detected_item": "New Brand",
+            "explanation": "A curated lead.",
+            "confidence": 0.5,
+            "evidence": {"primary": primary, "rationale": "Direct match"},
+            "supporting_evidence": [
+                {
+                    "excerpt": "legacy source",
+                    "source": {"title": "Old", "url": "https://old.test"},
+                }
+            ],
+            "source_urls": ["https://old.test"],
+            "retrieved_at": "2026-08-02T00:00:00Z",
+            "reviewer_status": "pending",
+        }
     )
 
-    findings = asyncio.run(service.analyze("case-1", "A scene with three leads."))
-
-    assert parallel.max_active == 2
-    assert parallel.sessions == {
-        "rightsrader:case-1:0",
-        "rightsrader:case-1:1",
-        "rightsrader:case-1:2",
-    }
-    assert [finding.detected_item for finding in findings] == [
-        "Lead 1",
-        "Lead 2",
-        "Lead 3",
-    ]
+    assert finding.evidence.primary == primary
+    assert finding.evidence.alternatives == []
 
 
-def test_agent_rejects_a_curated_url_not_returned_by_extract() -> None:
-    service = RightsClearanceAgentService(
-        UnknownUrlGemini(), YieldingParallel(), max_concurrency=1
+def test_curation_models_expose_optional_provider_decision_and_context() -> None:
+    decision = EvidenceCurationDecision()
+    signal = GeminiSignal(
+        category="brand_reference",
+        detected_item="Nimbus Soda",
+        explanation="Product placement.",
+        confidence=0.8,
     )
 
-    with pytest.raises(EvidenceCurationError):
-        asyncio.run(service.analyze("case-1", "A scene."))
-
-
-def test_parallel_concurrency_setting_is_configurable_and_bounded() -> None:
-    assert Settings(parallel_max_concurrency=3).parallel_max_concurrency == 3
-
-    with pytest.raises(ValidationError):
-        Settings(parallel_max_concurrency=0)
-    with pytest.raises(ValidationError):
-        Settings(parallel_max_concurrency=17)
-
-
-def test_empty_search_results_create_neutral_findings_without_extract() -> None:
-    service = RightsClearanceAgentService(
-        ThreeLeadGemini(), EmptyParallel(), max_concurrency=2
-    )
-
-    findings = asyncio.run(service.analyze("case-1", "A scene."))
-
-    assert len(findings) == 3
-    assert all(finding.evidence.primary is None for finding in findings)
-    assert all(finding.evidence.rationale is None for finding in findings)
-    assert all(finding.supporting_evidence == [] for finding in findings)
-
-
-def test_agent_service_closes_owned_provider_clients() -> None:
-    gemini = ClosableGemini()
-    parallel = ClosableParallel()
-    service = RightsClearanceAgentService(gemini, parallel)
-
-    asyncio.run(service.aclose())
-
-    assert gemini.closed is True
-    assert parallel.closed is True
+    assert decision.primary_url is None
+    assert decision.rationale is None
+    assert signal.context_excerpt == ""
