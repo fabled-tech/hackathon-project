@@ -477,7 +477,7 @@ export function ScriptReview({ embedded = false }: { embedded?: boolean } = {}) 
                                           {primaryEvidence.source.title}
                                         </a>
                                       </blockquote>
-                                      <p className="text-sm text-mute" data-testid="evidence-rationale">
+                                      <p className="text-sm text-muted" data-testid="evidence-rationale">
                                         <span className="font-semibold text-ink">Why this source: </span>
                                         {rationale}
                                       </p>
@@ -511,7 +511,7 @@ export function ScriptReview({ embedded = false }: { embedded?: boolean } = {}) 
                                 }
                                 if (primaryEvidence) {
                                   return (
-                                    <p className="text-sm text-mute" data-testid="evidence-validation-state">
+                                    <p className="text-sm text-muted" data-testid="evidence-validation-state">
                                       This source cannot be presented as validated because its relevance rationale is missing.
                                     </p>
                                   );
@@ -519,7 +519,7 @@ export function ScriptReview({ embedded = false }: { embedded?: boolean } = {}) 
                                 if (alternatives.length > 0) {
                                   return (
                                     <div className="space-y-3">
-                                      <p className="text-sm text-mute">
+                                      <p className="text-sm text-muted">
                                         No primary source was selected. Alternative research context:
                                       </p>
                                       {alternatives.map((evidence) => (
@@ -542,7 +542,7 @@ export function ScriptReview({ embedded = false }: { embedded?: boolean } = {}) 
                                   );
                                 }
                                 return (
-                                  <p className="text-sm text-mute">
+                                  <p className="text-sm text-muted">
                                     No supporting source is available for this possible lead.
                                   </p>
                                 );

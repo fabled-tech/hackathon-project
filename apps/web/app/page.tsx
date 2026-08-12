@@ -20,7 +20,7 @@ export default function HomePage() {
             </span>
             <div>
               <p className="text-sm font-semibold tracking-tight">RightsRadar</p>
-              <p className="text-xs text-mute">Research assistance only — not legal advice</p>
+              <p className="text-xs text-muted">Research assistance only — not legal advice</p>
             </div>
           </div>
           <nav className="flex rounded-xl border border-line bg-panel p-1" aria-label="Workspace">
@@ -30,7 +30,7 @@ export default function HomePage() {
               className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
                 workspace === 'review'
                   ? 'bg-brand text-canvas shadow-card'
-                  : 'text-mute hover:text-ink'
+                  : 'text-muted hover:text-ink'
               }`}
             >
               <Radar className="size-4" aria-hidden />
@@ -42,7 +42,7 @@ export default function HomePage() {
               className={`inline-flex items-center gap-2 rounded-lg px-3 py-2 text-sm font-semibold transition ${
                 workspace === 'production'
                   ? 'bg-brand text-canvas shadow-card'
-                  : 'text-mute hover:text-ink'
+                  : 'text-muted hover:text-ink'
               }`}
             >
               <Clapperboard className="size-4" aria-hidden />
