@@ -14,28 +14,32 @@ request. GitHub renders Figma links as rich embeds, so reviewers can see the wir
 - If the file is private, make sure reviewers have Figma access, or set the file to
   "anyone with the link can view".
 
-## 2. Implement a frame in the web app with shadcn (recommended)
+## 2. Turn a frame into code (design-to-code)
 
-The web app (`apps/web`) is Next.js 16 + React 19 + Tailwind CSS v4. The fastest way to turn a
-Figma frame into code here is the [shadcn Figma integration](https://ui.shadcn.com/docs/figma),
-which generates a React + Tailwind component from a frame URL:
+The web app (`apps/web`) is Next.js 16 + React 19 + Tailwind CSS v4. There is no one-command
+converter built into this repository, so use one of these approaches:
 
-1. In Figma, right-click the frame → **Copy link to selection** (Dev Mode required for the MCP path).
-2. From the repository root:
+**A. Copilot with the Figma Dev Mode MCP server (recommended).** Follow section 3 to connect
+Copilot to Figma, select a frame, and ask Copilot to implement it as a React + Tailwind component.
+Because the MCP server exposes the frame's exact layout, spacing, and colors, this produces code
+that is much closer to the design than a screenshot-based prompt.
 
-   ```bash
-   pnpm dlx shadcn add <figma-frame-url>
-   ```
+**B. A Figma-to-code plugin.** Plugins such as
+[Figma to shadcn/ui](https://www.figma.com/community/plugin/1427238109341529865/figma-to-shadcn-ui)
+or [Shadcn Studio](https://shadcnstudio.com/figma-plugin) run inside Figma: you select a frame and
+copy out generated React/Tailwind markup (and, in some cases, a ready-made `pnpm dlx shadcn add`
+command for matching UI primitives). Paste the markup into a component in this repo and adjust it
+by hand.
 
-3. Review the generated component and adapt it to the app's design tokens. The app's theme colors
-   are defined as CSS custom properties in `apps/web/app/globals.css` under `@theme` (for example
-   `brand`, `ink`, `panel`, `line`). Replace any hard-coded colors from Figma with these tokens so
-   the new UI matches the existing dark interface.
-4. Add components under `apps/web/components/` and pages under `apps/web/app/`, following the
+Whichever path you take, finish with the same integration steps:
+
+1. Adapt the generated markup to the app's design tokens. The app's theme colors are defined as
+   CSS custom properties in `apps/web/app/globals.css` under `@theme` (for example `brand`, `ink`,
+   `panel`, `line`). Replace any hard-coded colors from Figma with these tokens so the new UI
+   matches the existing dark interface.
+2. Add components under `apps/web/components/` and pages under `apps/web/app/`, following the
    existing structure (see `components/script-review.tsx` and `app/page.tsx`).
-
-This requires a Figma access token (Dev Mode). See section 4 for how to configure it locally
-without committing it.
+3. Run `make lint`, `make typecheck`, and `make test` before opening a PR.
 
 ## 3. Use the Figma Dev Mode MCP server with Copilot
 
@@ -58,7 +62,7 @@ The MCP server runs locally on your machine; nothing is installed into this repo
   server-side configuration; Figma tokens are personal and belong only in your local `.env` or
   your editor's MCP configuration, both of which are git-ignored.
 - The web app has no build-time need for Figma credentials — tokens are only used by local
-  tooling (shadcn CLI, MCP server) that you run yourself.
+  tooling (Figma desktop app, MCP server) that you run yourself.
 
 ## 5. Exporting assets
 
@@ -73,7 +77,7 @@ For static assets (icons, images) from the wireframe:
 | Goal | Recommended path |
 | --- | --- |
 | Share a wireframe for discussion/review | Paste the Figma link in an issue or PR (section 1) |
-| Turn a frame into working UI code | `pnpm dlx shadcn add <frame-url>` (section 2) |
+| Turn a frame into working UI code | Copilot with the Dev Mode MCP server, or a Figma-to-code plugin (section 2) |
 | Have Copilot read designs as context | Enable the Dev Mode MCP server (section 3) |
 | Add icons/images from the design | Export to `apps/web/public/` (section 5) |
 
