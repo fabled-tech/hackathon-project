@@ -27,9 +27,9 @@ that is much closer to the design than a screenshot-based prompt.
 **B. A Figma-to-code plugin.** Plugins such as
 [Figma to shadcn/ui](https://www.figma.com/community/plugin/1427238109341529865/figma-to-shadcn-ui)
 or [Shadcn Studio](https://shadcnstudio.com/figma-plugin) run inside Figma: you select a frame and
-copy out generated React/Tailwind markup (and, in some cases, a ready-made `pnpm dlx shadcn add`
-command for matching UI primitives). Paste the markup into a component in this repo and adjust it
-by hand.
+copy out generated React/Tailwind markup (and, in some cases, `pnpm dlx shadcn add` commands for
+the closest matching standard shadcn/ui primitives). Paste the markup into a component in this
+repo and adjust it by hand.
 
 Whichever path you take, finish with the same integration steps:
 
