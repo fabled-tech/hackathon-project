@@ -50,6 +50,12 @@ make reconcile-assets # explicit cleanup of incomplete private asset records; sk
 For containers, run `docker compose up --build`. The compose setup remains in mock mode unless
 you explicitly set other environment values.
 
+## Working with Figma designs
+
+To connect a Figma wireframe project to this repository — linking designs to issues, generating
+React + Tailwind components from frames, or letting Copilot read frames through the Figma Dev Mode
+MCP server — see [docs/FIGMA.md](docs/FIGMA.md).
+
 ## Architecture
 
 ```text
