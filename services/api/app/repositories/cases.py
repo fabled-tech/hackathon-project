@@ -1,7 +1,7 @@
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
-from app.models import Case, CaseSummary, Finding, ReviewerStatus
+from app.models import Case, CaseSummary, Finding, FindingComment, ReviewerStatus
 
 
 class CaseRepositoryNotFound(Exception):
@@ -21,7 +21,24 @@ class CaseRepository(Protocol):
         self, case_id: str, finding_id: str, reviewer_status: ReviewerStatus
     ) -> Finding: ...
 
+    def update_finding_meta(
+        self,
+        case_id: str,
+        finding_id: str,
+        *,
+        assignee: str | None = None,
+        due_date: str | None = None,
+    ) -> Finding: ...
+
+    def add_finding_comment(
+        self, case_id: str, finding_id: str, comment: FindingComment
+    ) -> Finding: ...
+
     def list_recent(self, limit: int) -> list[CaseSummary]: ...
+
+    def list_all(self) -> list[Case]: ...
+
+    def list_for_production(self, production_id: str) -> list[Case]: ...
 
     def increment_asset_count(self, case_id: str) -> None: ...
 
@@ -54,6 +71,38 @@ class InMemoryCaseRepository:
                 return finding.model_copy(deep=True)
         raise FindingNotFound(finding_id)
 
+    def update_finding_meta(
+        self,
+        case_id: str,
+        finding_id: str,
+        *,
+        assignee: str | None = None,
+        due_date: str | None = None,
+    ) -> Finding:
+        case = self._cases.get(case_id)
+        if case is None:
+            raise CaseRepositoryNotFound(case_id)
+        for finding in case.findings:
+            if finding.id == finding_id:
+                if assignee is not None:
+                    finding.assignee = assignee
+                if due_date is not None:
+                    finding.due_date = due_date
+                return finding.model_copy(deep=True)
+        raise FindingNotFound(finding_id)
+
+    def add_finding_comment(
+        self, case_id: str, finding_id: str, comment: FindingComment
+    ) -> Finding:
+        case = self._cases.get(case_id)
+        if case is None:
+            raise CaseRepositoryNotFound(case_id)
+        for finding in case.findings:
+            if finding.id == finding_id:
+                finding.comments.append(comment)
+                return finding.model_copy(deep=True)
+        raise FindingNotFound(finding_id)
+
     def list_recent(self, limit: int) -> list[CaseSummary]:
         cases = sorted(self._cases.values(), key=lambda case: case.created_at, reverse=True)
         return [
@@ -65,6 +114,16 @@ class InMemoryCaseRepository:
                 asset_count=case.asset_count,
             )
             for case in cases[:limit]
+        ]
+
+    def list_all(self) -> list[Case]:
+        return [case.model_copy(deep=True) for case in self._cases.values()]
+
+    def list_for_production(self, production_id: str) -> list[Case]:
+        return [
+            case.model_copy(deep=True)
+            for case in self._cases.values()
+            if case.production_id == production_id
         ]
 
     def increment_asset_count(self, case_id: str) -> None:
@@ -155,6 +214,72 @@ class FirestoreCaseRepository:
         transaction = self._client.transaction()
         return self._transactional_decorator(update)(transaction)
 
+    def update_finding_meta(
+        self,
+        case_id: str,
+        finding_id: str,
+        *,
+        assignee: str | None = None,
+        due_date: str | None = None,
+    ) -> Finding:
+        def update(transaction: Any) -> Finding:
+            document = self._collection.document(case_id)
+            snapshot = document.get(transaction=transaction)
+            if not snapshot.exists:
+                raise CaseRepositoryNotFound(case_id)
+            stored_case = snapshot.to_dict()
+            if not isinstance(stored_case, Mapping):
+                raise CaseRepositoryNotFound(case_id)
+            case = Case.model_validate(stored_case)
+            for finding in case.findings:
+                if finding.id == finding_id:
+                    if assignee is not None:
+                        finding.assignee = assignee
+                    if due_date is not None:
+                        finding.due_date = due_date
+                    transaction.update(
+                        document,
+                        case.model_dump(include={"findings"}, mode="json"),
+                    )
+                    return finding
+            raise FindingNotFound(finding_id)
+
+        if self._transaction_runner is not None:
+            return self._transaction_runner(update)
+
+        assert self._transactional_decorator is not None
+        transaction = self._client.transaction()
+        return self._transactional_decorator(update)(transaction)
+
+    def add_finding_comment(
+        self, case_id: str, finding_id: str, comment: FindingComment
+    ) -> Finding:
+        def update(transaction: Any) -> Finding:
+            document = self._collection.document(case_id)
+            snapshot = document.get(transaction=transaction)
+            if not snapshot.exists:
+                raise CaseRepositoryNotFound(case_id)
+            stored_case = snapshot.to_dict()
+            if not isinstance(stored_case, Mapping):
+                raise CaseRepositoryNotFound(case_id)
+            case = Case.model_validate(stored_case)
+            for finding in case.findings:
+                if finding.id == finding_id:
+                    finding.comments.append(comment)
+                    transaction.update(
+                        document,
+                        case.model_dump(include={"findings"}, mode="json"),
+                    )
+                    return finding
+            raise FindingNotFound(finding_id)
+
+        if self._transaction_runner is not None:
+            return self._transaction_runner(update)
+
+        assert self._transactional_decorator is not None
+        transaction = self._client.transaction()
+        return self._transactional_decorator(update)(transaction)
+
     def list_recent(self, limit: int) -> list[CaseSummary]:
         snapshots = (
             self._collection.order_by("created_at", direction="DESCENDING").limit(limit).stream()
@@ -167,6 +292,22 @@ class FirestoreCaseRepository:
                 finding_count=len(document["findings"]),
                 asset_count=document.get("asset_count", 0),
             )
+            for snapshot in snapshots
+            if isinstance((document := snapshot.to_dict()), Mapping)
+        ]
+
+    def list_all(self) -> list[Case]:
+        snapshots = self._collection.stream()
+        return [
+            Case.model_validate(document)
+            for snapshot in snapshots
+            if isinstance((document := snapshot.to_dict()), Mapping)
+        ]
+
+    def list_for_production(self, production_id: str) -> list[Case]:
+        snapshots = self._collection.where("production_id", "==", production_id).stream()
+        return [
+            Case.model_validate(document)
             for snapshot in snapshots
             if isinstance((document := snapshot.to_dict()), Mapping)
         ]

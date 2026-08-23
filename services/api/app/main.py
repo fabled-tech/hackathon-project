@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import Settings
 from app.dependencies import build_services
-from app.routes import cases_router
+from app.routes import cases_router, productions_router, workspace_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -26,10 +26,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.add_middleware(
         CORSMiddleware,
         allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
-        allow_methods=["GET", "POST", "PATCH"],
+        allow_methods=["GET", "POST", "PATCH", "DELETE"],
         allow_headers=["Content-Type"],
     )
     app.include_router(cases_router)
+    app.include_router(productions_router)
+    app.include_router(workspace_router)
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:

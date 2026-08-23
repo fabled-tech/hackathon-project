@@ -50,6 +50,8 @@ async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
         script_text=payload.script_text,
         created_at=datetime.now(UTC),
         findings=findings,
+        production_id=payload.production_id,
+        title=payload.title,
     )
     return await run_in_threadpool(services.case_repository.create, case)
 

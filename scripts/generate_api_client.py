@@ -169,6 +169,7 @@ def _success_response_type(operation: dict[str, Any], document: dict[str, Any]) 
         content = _resolve_reference(response, document).get("content", {})
         if "application/json" in content:
             return to_type(content["application/json"].get("schema", {}))
+        return "void"
     raise RuntimeError("Operation is missing a JSON success response")
 
 
@@ -337,6 +338,104 @@ def render_update_finding_status(operation: OperationSpec) -> str:
 }}"""
 
 
+def render_json_payload(name: str, operation: OperationSpec) -> str:
+    body_type = _require_json_body(operation)
+    return f"""export function {name}(
+  payload: {body_type},
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{
+    method: '{operation.method}',
+    headers: {{ 'Content-Type': 'application/json' }},
+    body: JSON.stringify(payload)
+  }}, fetcher);
+}}"""
+
+
+def render_get(name: str, operation: OperationSpec) -> str:
+    return f"""export function {name}(
+{_render_parameters(operation.path_parameters)}
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{ method: '{operation.method}' }}, fetcher);
+}}"""
+
+
+def render_get_with_query(name: str, operation: OperationSpec) -> str:
+    if len(operation.query_parameters) != 1:
+        raise RuntimeError(f"Expected exactly one query parameter for {name}")
+    query = operation.query_parameters[0]
+    return f"""export function {name}(
+{_render_parameters((*operation.path_parameters, query))}
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  return request<{operation.response_type}>(
+    {_render_path(operation)} + '?{query.name}=' + encodeURIComponent({query.argument_name}),
+    baseUrl,
+    {{ method: '{operation.method}' }},
+    fetcher
+  );
+}}"""
+
+
+def render_post_action(name: str, operation: OperationSpec) -> str:
+    return f"""export function {name}(
+{_render_parameters(operation.path_parameters)}
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{
+    method: '{operation.method}',
+    headers: {{ 'Content-Type': 'application/json' }}
+  }}, fetcher);
+}}"""
+
+
+def render_patch_payload(name: str, operation: OperationSpec) -> str:
+    body_type = _require_json_body(operation)
+    return f"""export function {name}(
+{_render_parameters(operation.path_parameters)}
+  payload: {body_type},
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{
+    method: '{operation.method}',
+    headers: {{ 'Content-Type': 'application/json' }},
+    body: JSON.stringify(payload)
+  }}, fetcher);
+}}"""
+
+
+def render_delete(name: str, operation: OperationSpec) -> str:
+    return f"""export function {name}(
+{_render_parameters(operation.path_parameters)}
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<void> {{
+  return request<void>({_render_path(operation)}, baseUrl, {{ method: '{operation.method}' }}, fetcher);
+}}"""
+
+
+def render_post_payload_with_path(name: str, operation: OperationSpec) -> str:
+    body_type = _require_json_body(operation)
+    return f"""export function {name}(
+{_render_parameters(operation.path_parameters)}
+  payload: {body_type},
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{
+    method: '{operation.method}',
+    headers: {{ 'Content-Type': 'application/json' }},
+    body: JSON.stringify(payload)
+  }}, fetcher);
+}}"""
+
+
 def generate() -> str:
     schema = create_app().openapi()
     operations = {
@@ -351,6 +450,55 @@ def generate() -> str:
         ),
         "update_finding": _operation_by_id(
             schema, "update_finding_api_cases__case_id__findings__finding_id__patch"
+        ),
+        "create_production": _operation_by_id(
+            schema, "create_production_api_productions_post"
+        ),
+        "list_productions": _operation_by_id(schema, "list_productions_api_productions_get"),
+        "get_production": _operation_by_id(
+            schema, "get_production_api_productions__production_id__get"
+        ),
+        "update_production": _operation_by_id(
+            schema, "update_production_api_productions__production_id__patch"
+        ),
+        "delete_production": _operation_by_id(
+            schema, "delete_production_api_productions__production_id__delete"
+        ),
+        "list_production_cases": _operation_by_id(
+            schema, "list_production_cases_api_productions__production_id__cases_get"
+        ),
+        "run_digest": _operation_by_id(
+            schema, "run_digest_api_productions__production_id__brief_post"
+        ),
+        "run_watch": _operation_by_id(
+            schema, "run_watch_api_productions__production_id__watch_post"
+        ),
+        "list_agent_runs": _operation_by_id(
+            schema, "list_agent_runs_api_productions__production_id__runs_get"
+        ),
+        "update_finding_meta": _operation_by_id(
+            schema,
+            "update_finding_meta_api_productions__production_id__cases__case_id__findings__finding_id__meta_patch",
+        ),
+        "add_finding_comment": _operation_by_id(
+            schema,
+            "add_finding_comment_api_productions__production_id__cases__case_id__findings__finding_id__comments_post",
+        ),
+        "escalate_finding": _operation_by_id(
+            schema,
+            "escalate_finding_api_productions__production_id__cases__case_id__findings__finding_id__escalate_post",
+        ),
+        "list_workspace_members": _operation_by_id(
+            schema, "list_workspace_members_api_workspace_members_get"
+        ),
+        "create_workspace_member": _operation_by_id(
+            schema, "create_workspace_member_api_workspace_members_post"
+        ),
+        "delete_workspace_member": _operation_by_id(
+            schema, "delete_workspace_member_api_workspace_members__member_id__delete"
+        ),
+        "list_organization_issues": _operation_by_id(
+            schema, "list_organization_issues_api_workspace_issues_get"
         ),
     }
     components = schema["components"]["schemas"]
@@ -392,6 +540,38 @@ async function request<T>(
 {render_list_assets(operations["list_assets"])}
 
 {render_update_finding_status(operations["update_finding"])}
+
+{render_json_payload("createProduction", operations["create_production"])}
+
+{render_get("listProductions", operations["list_productions"])}
+
+{render_get("getProduction", operations["get_production"])}
+
+{render_patch_payload("updateProduction", operations["update_production"])}
+
+{render_delete("deleteProduction", operations["delete_production"])}
+
+{render_get("listProductionCases", operations["list_production_cases"])}
+
+{render_post_action("runDigest", operations["run_digest"])}
+
+{render_post_action("runWatch", operations["run_watch"])}
+
+{render_get_with_query("listAgentRuns", operations["list_agent_runs"])}
+
+{render_patch_payload("updateFindingMeta", operations["update_finding_meta"])}
+
+{render_post_payload_with_path("addFindingComment", operations["add_finding_comment"])}
+
+{render_post_payload_with_path("escalateFinding", operations["escalate_finding"])}
+
+{render_get("listWorkspaceMembers", operations["list_workspace_members"])}
+
+{render_json_payload("createWorkspaceMember", operations["create_workspace_member"])}
+
+{render_delete("deleteWorkspaceMember", operations["delete_workspace_member"])}
+
+{render_get("listOrganizationIssues", operations["list_organization_issues"])}
 """
 
 
