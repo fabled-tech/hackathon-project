@@ -1,31 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Bungee&family=Press+Start+2P&family=Space+Grotesk:wght@400;700&display=swap');
 @import 'tailwindcss';
 
 @theme {
-  --font-sans: 'Inter', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Space Grotesk', ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Bungee', 'Arial Black', sans-serif;
+  --font-pixel: 'Press Start 2P', 'Courier New', monospace;
 
-  --color-ink: #e2e8f0;
-  --color-ink-soft: #cbd5e1;
-  --color-muted: #94a3b8;
-  --color-faint: #64748b;
-  --color-canvas: #020617;
-  --color-panel: #0f172a;
-  --color-line: #1e293b;
-  --color-line-strong: #334155;
+  --color-ink: #150a30;
+  --color-ink-soft: #4a4460;
+  --color-muted: #6a6480;
+  --color-faint: #8a84a0;
+  --color-canvas: #150a30;
+  --color-panel: #2a0f4a;
+  --color-exhibit: #f4f2fb;
+  --color-line: #4a2f7a;
+  --color-line-strong: #6a4bb8;
 
-  --color-brand: #2dd4bf;
-  --color-brand-strong: #14b8a6;
-  --color-brand-soft: rgb(45 212 191 / 0.1);
-  --color-brand-ring: #0d9488;
+  --color-brand: #c6ff3d;
+  --color-brand-strong: #8fd400;
+  --color-brand-soft: #e8ffb0;
+  --color-brand-ring: #c6ff3d;
 
-  --color-warn: #fbbf24;
-  --color-warn-bg: rgb(251 191 36 / 0.08);
-  --color-warn-line: rgb(251 191 36 / 0.35);
+  --color-accent: #ff2e9a;
+  --color-accent-strong: #b3005c;
+  --color-accent-soft: #ffd0e6;
 
-  --color-danger: #f87171;
-  --color-danger-bg: rgb(248 113 113 / 0.1);
+  --color-cyan-pop: #00e5ff;
 
-  --shadow-card: 0 1px 2px rgb(0 0 0 / 0.3), 0 1px 3px rgb(0 0 0 / 0.4);
-  --shadow-pop: 0 4px 6px -1px rgb(0 0 0 / 0.4), 0 10px 24px -6px rgb(0 0 0 / 0.5);
+  --color-lavender: #a99be0;
+  --color-lavender-soft: #c9c2e0;
+  --color-lavender-pale: #d8d2ea;
+
+  --color-paper: #f4f7fb;
+  --color-silver: #aab5c4;
+
+  --color-warn: #c6ff3d;
+  --color-warn-bg: rgb(198 255 61 / 0.08);
+  --color-warn-line: rgb(198 255 61 / 0.35);
+
+  --color-danger: #ff2e9a;
+  --color-danger-bg: rgb(255 46 154 / 0.12);
+
+  --shadow-card: 4px 4px 0 #00e5ff;
+  --shadow-pop: 5px 5px 0 #ff2e9a;
+  --shadow-press: 0 2px 0 #150a30;
 
   --animate-fade-up: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
 
@@ -42,18 +60,14 @@
 }
 
 body {
-  color: var(--color-ink);
+  color: var(--color-paper);
   background-color: var(--color-canvas);
-  background-image:
-    radial-gradient(60rem 30rem at 80% -10%, rgb(45 212 191 / 0.08), transparent),
-    radial-gradient(48rem 26rem at -10% 0%, rgb(148 163 184 / 0.06), transparent);
-  background-attachment: fixed;
   font-family: var(--font-sans);
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
 }
 
 ::selection {
-  background: rgb(45 212 191 / 0.3);
-  color: #f8fafc;
+  background: rgb(255 46 154 / 0.4);
+  color: #f4f7fb;
 }
