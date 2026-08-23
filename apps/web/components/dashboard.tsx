@@ -350,9 +350,9 @@ export function Dashboard() {
   const latestBrief = agentRuns.find((r) => r.kind === 'digest' && r.status === 'completed');
 
   return (
-    <div className="mx-auto flex min-h-screen w-full max-w-[796px] overflow-hidden border-x-2 border-line bg-ink lg:my-6 lg:min-h-[calc(100vh-3rem)] lg:border-2">
+    <div className="mx-auto flex min-h-screen w-full max-w-[1440px] overflow-hidden border-x-2 border-line bg-ink lg:my-6 lg:min-h-[calc(100vh-3rem)] lg:border-2">
       <aside
-        className="flex w-[214px] shrink-0 flex-col border-r-2 border-line bg-panel"
+        className="flex w-[248px] shrink-0 flex-col border-r-2 border-line bg-panel"
         style={{
           backgroundImage:
             'radial-gradient(110px 110px at 42px 0, rgb(0 229 255 / 0.18), transparent 55%), linear-gradient(90deg, #2a0f4a, #2a0f4a)'
@@ -512,7 +512,7 @@ export function Dashboard() {
       </aside>
 
       <main
-        className="min-w-0 flex-1 overflow-y-auto p-[22px_26px]"
+        className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8 lg:p-10"
         style={{
           backgroundImage:
             'radial-gradient(135px 135px at calc(100% - 28px) 54px, rgb(255 46 154 / 0.16), transparent 50%), linear-gradient(90deg, #150a30, #150a30)'
@@ -586,7 +586,7 @@ export function Dashboard() {
             onError={setError}
           />
         ) : (
-          <div className="max-w-[492px] space-y-[14px]">
+          <div className="max-w-[960px] space-y-5">
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex items-start gap-3">
                 {(() => {
@@ -666,7 +666,7 @@ export function Dashboard() {
               <div className="flex flex-wrap items-start justify-between gap-4">
                 <div>
                   <p className="font-pixel text-[7px] text-line-strong">CASES</p>
-                  <p className="mt-2 max-w-[330px] text-[11px] leading-[17px] text-ink-soft">
+                  <p className="mt-2 max-w-[640px] text-[11px] leading-[17px] text-ink-soft">
                     {canRunAgents
                       ? `${activeProduction.case_count ?? 0} case(s) in this production. Open the new case workspace to run another script excerpt.`
                       : 'Paste a script excerpt to create the first research case. RightsRadar will identify potential clearance leads and preserve them in this project.'}
@@ -1238,7 +1238,7 @@ function NewProductionDialog({
 
 function AgentRunsView({ runs }: { runs: AgentRun[] }) {
   return (
-    <div className="max-w-[492px] space-y-4">
+    <div className="max-w-[960px] space-y-4">
       <PixelLabel>AGENT RUNS</PixelLabel>
       <BungeeHeading className="text-xl">Agent activity</BungeeHeading>
       {runs.length === 0 ? (
@@ -1313,7 +1313,7 @@ function ProductionSettings({
   }
 
   return (
-    <div className="max-w-[492px] space-y-4">
+    <div className="max-w-[960px] space-y-4">
       <div>
         <PixelLabel>SETTINGS</PixelLabel>
         <BungeeHeading className="mt-1 text-xl">Production settings</BungeeHeading>

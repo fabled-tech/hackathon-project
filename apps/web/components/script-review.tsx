@@ -364,7 +364,7 @@ export function ScriptReview({
   }
 
   return (
-    <div className="max-w-[492px]">
+    <div className="max-w-[960px]">
       <div className="pb-5">
         <div className="flex items-start gap-3">
           <span className="flex size-9 shrink-0 items-center justify-center border-2 border-ink bg-white text-ink">
@@ -378,7 +378,7 @@ export function ScriptReview({
             <p className="mt-1 text-[9.5px] text-lavender-soft">{productionTitle}</p>
           </div>
         </div>
-        <p className="mt-5 max-w-[380px] text-[11px] leading-[17px] text-lavender-soft">
+        <p className="mt-5 max-w-[680px] text-[11px] leading-[17px] text-lavender-soft">
           Surface potential research leads for brands, quotations, characters, franchises, and
           likenesses, then let a human reviewer decide what needs follow-up.
         </p>
