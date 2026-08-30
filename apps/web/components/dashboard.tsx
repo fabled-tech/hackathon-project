@@ -9,25 +9,35 @@ import {
   updateProduction,
   type Case,
   type ProductionStatus,
-  type ProductionSummary
+  type ProductionSummary,
+  type ProjectIndustry
 } from '@rightsrader/api-client';
 import {
+  BookOpen,
   Briefcase,
   ChevronRight,
   Clapperboard,
   FileSearch,
   Film,
   FolderPlus,
+  Gamepad2,
   Home,
   ImagePlus,
   LayoutDashboard,
+  ListChecks,
   Loader2,
+  Megaphone,
+  Mic2,
   Music,
+  Newspaper,
   Radar,
+  Scale,
   Settings,
+  ShieldCheck,
   Star,
   Trash2,
   Tv,
+  Users,
   Video,
   Wand2
 } from 'lucide-react';
@@ -45,13 +55,118 @@ import { ScriptReview } from './script-review';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
-const STATUS_LABELS: Record<ProductionStatus, string> = {
-  development: 'Development',
-  pre_production: 'Pre-pro',
-  shooting: 'Shooting',
-  post: 'Post',
-  released: 'Released'
+const PROJECT_INDUSTRIES: Record<
+  ProjectIndustry,
+  {
+    label: string;
+    organizationPlaceholder: string;
+    materialSummary: string;
+    defaultIcon: string;
+  }
+> = {
+  film_tv: {
+    label: 'Film & television',
+    organizationPlaceholder: 'Studio or production company',
+    materialSummary: 'scripts, treatments, storyboards, cuts, and production art',
+    defaultIcon: 'clapperboard'
+  },
+  advertising: {
+    label: 'Advertising & branded content',
+    organizationPlaceholder: 'Agency, brand, or client',
+    materialSummary: 'campaign copy, boards, spots, social creative, and brand assets',
+    defaultIcon: 'megaphone'
+  },
+  gaming: {
+    label: 'Games & interactive',
+    organizationPlaceholder: 'Game studio or publisher',
+    materialSummary: 'narrative scripts, concept art, environments, characters, and marketing assets',
+    defaultIcon: 'gamepad'
+  },
+  music: {
+    label: 'Music & live entertainment',
+    organizationPlaceholder: 'Label, artist, promoter, or venue',
+    materialSummary: 'lyrics, samples, recordings, artwork, visuals, and promotional materials',
+    defaultIcon: 'music'
+  },
+  podcast_audio: {
+    label: 'Podcasts & audio',
+    organizationPlaceholder: 'Network, show, or production company',
+    materialSummary: 'episode scripts, transcripts, clips, music cues, artwork, and ad reads',
+    defaultIcon: 'mic'
+  },
+  publishing: {
+    label: 'Publishing',
+    organizationPlaceholder: 'Publisher, imprint, or author organization',
+    materialSummary: 'manuscripts, excerpts, cover art, illustrations, quotes, and publicity copy',
+    defaultIcon: 'book'
+  },
+  digital_media: {
+    label: 'Digital media & creators',
+    organizationPlaceholder: 'Publisher, channel, creator, or network',
+    materialSummary: 'video scripts, posts, newsletters, thumbnails, clips, and sponsored content',
+    defaultIcon: 'newspaper'
+  }
 };
+
+const STATUS_LABELS: Record<ProjectIndustry, Record<ProductionStatus, string>> = {
+  film_tv: {
+    development: 'Development',
+    pre_production: 'Pre-production',
+    shooting: 'Production',
+    post: 'Post',
+    released: 'Released'
+  },
+  advertising: {
+    development: 'Concept',
+    pre_production: 'Pre-production',
+    shooting: 'Production',
+    post: 'Client review',
+    released: 'Launched'
+  },
+  gaming: {
+    development: 'Concept',
+    pre_production: 'Pre-production',
+    shooting: 'Development',
+    post: 'QA & launch',
+    released: 'Released'
+  },
+  music: {
+    development: 'Development',
+    pre_production: 'Pre-production',
+    shooting: 'Recording',
+    post: 'Mix & master',
+    released: 'Released'
+  },
+  podcast_audio: {
+    development: 'Concept',
+    pre_production: 'Pre-production',
+    shooting: 'Recording',
+    post: 'Post',
+    released: 'Published'
+  },
+  publishing: {
+    development: 'Development',
+    pre_production: 'Editorial',
+    shooting: 'Production',
+    post: 'Final review',
+    released: 'Published'
+  },
+  digital_media: {
+    development: 'Planning',
+    pre_production: 'Pre-production',
+    shooting: 'Production',
+    post: 'Post',
+    released: 'Published'
+  }
+};
+
+function projectIndustry(project: ProductionSummary): ProjectIndustry {
+  return project.industry ?? 'film_tv';
+}
+
+function projectStatusLabel(project: ProductionSummary): string {
+  return STATUS_LABELS[projectIndustry(project)][project.status ?? 'development'];
+}
 
 const STATUS_COLORS: Record<ProductionStatus, string> = {
   development: 'border-lavender text-lavender',
@@ -60,6 +175,43 @@ const STATUS_COLORS: Record<ProductionStatus, string> = {
   post: 'border-brand text-brand',
   released: 'border-paper text-paper'
 };
+
+const CLEARANCE_TEAMS = [
+  {
+    title: 'Rights & clearance',
+    description: 'Triage names, brands, quotes, likenesses, artwork, music, and other research leads.',
+    icon: ListChecks
+  },
+  {
+    title: 'Creative & delivery',
+    description: 'Resolve material and asset changes before production or launch costs compound.',
+    icon: Users
+  },
+  {
+    title: 'Legal & business affairs',
+    description: 'Review evidence, direct permissions, and prepare the record for counsel and E&O.',
+    icon: Scale
+  }
+] as const;
+
+const PRODUCT_DIFFERENTIATORS = [
+  {
+    label: 'EARLIER',
+    title: 'Start with the material',
+    description: 'Scan script text, PDFs, DOCX files, and imagery while creative choices can still move.'
+  },
+  {
+    label: 'GROUNDED',
+    title: 'Keep the evidence attached',
+    description: 'Pair each detected lead with verified public-web sources and a curation rationale.'
+  },
+  {
+    label: 'REVIEWABLE',
+    title: 'Make the handoff explicit',
+    description:
+      'Let people assign, discuss, clear, dismiss, or escalate findings without pretending AI is counsel.'
+  }
+] as const;
 
 function Spinner({ className = 'size-4' }: { className?: string }) {
   return <Loader2 className={`${className} animate-spin`} aria-hidden />;
@@ -127,11 +279,16 @@ function PrimaryButton({
 }
 
 const PRODUCTION_ICONS = {
+  book: BookOpen,
   clapperboard: Clapperboard,
   film: Film,
+  gamepad: Gamepad2,
+  megaphone: Megaphone,
+  mic: Mic2,
   video: Video,
   tv: Tv,
   music: Music,
+  newspaper: Newspaper,
   star: Star,
   wand: Wand2,
   briefcase: Briefcase
@@ -148,14 +305,24 @@ function BuiltInProductionIcon({
 }) {
   const props = { className, 'aria-hidden': true } as const;
   switch (icon) {
+    case 'book':
+      return <BookOpen {...props} />;
     case 'film':
       return <Film {...props} />;
+    case 'gamepad':
+      return <Gamepad2 {...props} />;
+    case 'megaphone':
+      return <Megaphone {...props} />;
+    case 'mic':
+      return <Mic2 {...props} />;
     case 'video':
       return <Video {...props} />;
     case 'tv':
       return <Tv {...props} />;
     case 'music':
       return <Music {...props} />;
+    case 'newspaper':
+      return <Newspaper {...props} />;
     case 'star':
       return <Star {...props} />;
     case 'wand':
@@ -251,6 +418,7 @@ export function Dashboard() {
   const [showNewProduction, setShowNewProduction] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newStudio, setNewStudio] = useState('');
+  const [newIndustry, setNewIndustry] = useState<ProjectIndustry>('film_tv');
   const [error, setError] = useState<string | null>(null);
   const [selectedProductionCaseId, setSelectedProductionCaseId] = useState<string | null>(
     null
@@ -266,7 +434,7 @@ export function Dashboard() {
       setProductions(list);
       setActiveProductionId((current) => current ?? (list[0]?.id ?? null));
     } catch {
-      setError('Could not load productions.');
+      setError('Could not load projects.');
     }
   }, []);
 
@@ -275,7 +443,7 @@ export function Dashboard() {
     try {
       setProductionCases(await listProductionCases(productionId, API_BASE_URL));
     } catch {
-      setError('Could not load this production’s cases and findings.');
+      setError('Could not load this project’s cases and findings.');
     } finally {
       setIsLoadingProductionCases(false);
     }
@@ -293,7 +461,7 @@ export function Dashboard() {
           setActiveProductionId((current) => current ?? list[0].id);
         }
       } catch {
-        if (!cancelled) setError('Could not load productions.');
+        if (!cancelled) setError('Could not load projects.');
       } finally {
         if (!cancelled) setIsLoadingProductions(false);
       }
@@ -328,7 +496,7 @@ export function Dashboard() {
         setProductionCases(cases);
         setSelectedProductionCaseId(null);
       } catch {
-        if (!cancelled) setError('Could not load this production’s cases and findings.');
+        if (!cancelled) setError('Could not load this project’s cases and findings.');
       }
     })();
     return () => {
@@ -342,17 +510,23 @@ export function Dashboard() {
     setError(null);
     try {
       const created = await createProduction(
-        { title: newTitle.trim(), studio: newStudio.trim() },
+        {
+          title: newTitle.trim(),
+          studio: newStudio.trim(),
+          industry: newIndustry,
+          icon: PROJECT_INDUSTRIES[newIndustry].defaultIcon
+        },
         API_BASE_URL
       );
       setNewTitle('');
       setNewStudio('');
+      setNewIndustry('film_tv');
       setShowNewProduction(false);
       await refreshProductions();
       setActiveProductionId(created.id);
       setView({ kind: 'overview' });
     } catch {
-      setError('Could not create the production.');
+      setError('Could not create the project.');
     }
   }
 
@@ -365,7 +539,7 @@ export function Dashboard() {
             type="button"
             onClick={() => setView({ kind: 'home' })}
             className="flex items-center gap-2 text-left focus-visible:outline-2 focus-visible:outline-cyan-pop"
-            aria-label="All productions"
+            aria-label="All projects"
           >
             <span className="flex size-8 items-center justify-center border-2 border-ink bg-brand shadow-press">
               <Radar className="size-4 text-ink" aria-hidden />
@@ -378,12 +552,12 @@ export function Dashboard() {
 
         <div className="flex-1 overflow-y-auto p-3">
           <div className="mb-2 flex items-center justify-between">
-            <PixelLabel>PRODUCTIONS</PixelLabel>
+            <PixelLabel>RIGHTS PROJECTS</PixelLabel>
             <button
               type="button"
               onClick={() => setShowNewProduction((v) => !v)}
               className="text-lavender transition hover:text-brand focus-visible:outline-2 focus-visible:outline-brand"
-              aria-label="New production"
+              aria-label="New project"
             >
               <FolderPlus className="size-4" aria-hidden />
             </button>
@@ -397,14 +571,26 @@ export function Dashboard() {
               <input
                 value={newTitle}
                 onChange={(e) => setNewTitle(e.target.value)}
-                placeholder="Production title"
+                placeholder="Project title"
                 required
                 className="block w-full border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
               />
+              <select
+                value={newIndustry}
+                onChange={(event) => setNewIndustry(event.target.value as ProjectIndustry)}
+                aria-label="Project industry"
+                className="block w-full border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
+              >
+                {(Object.keys(PROJECT_INDUSTRIES) as ProjectIndustry[]).map((industry) => (
+                  <option key={industry} value={industry}>
+                    {PROJECT_INDUSTRIES[industry].label}
+                  </option>
+                ))}
+              </select>
               <input
                 value={newStudio}
                 onChange={(e) => setNewStudio(e.target.value)}
-                placeholder="Studio (optional)"
+                placeholder={`${PROJECT_INDUSTRIES[newIndustry].organizationPlaceholder} (optional)`}
                 className="block w-full border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
               />
               <PrimaryButton disabled={!newTitle.trim()}>▶ Create</PrimaryButton>
@@ -417,7 +603,7 @@ export function Dashboard() {
             </p>
           ) : productions.length === 0 ? (
             <p className="text-[11px] italic leading-[17.83px] text-lavender-soft">
-              No productions yet. Create one to begin tracking clearance.
+              No projects yet. Create one to begin tracking clearance.
             </p>
           ) : (
             <ul className="space-y-1.5">
@@ -449,7 +635,7 @@ export function Dashboard() {
                       <span
                         className={`shrink-0 border px-1 py-0.5 font-pixel text-[7px] ${STATUS_COLORS[production.status ?? 'development']}`}
                       >
-                        {STATUS_LABELS[production.status ?? 'development']}
+                        {projectStatusLabel(production)}
                       </span>
                     </span>
                     <span className="mt-1 block text-[9.5px] text-muted">
@@ -478,7 +664,7 @@ export function Dashboard() {
                   }`}
                 >
                   <Home className="size-3.5" aria-hidden />
-                  All productions
+                  All projects
                 </button>
               </li>
               {(
@@ -532,7 +718,12 @@ export function Dashboard() {
         ) : view.kind === 'case' || !activeProduction ? (
           <ScriptReview
             productionId={activeProduction?.id}
+            industry={activeProduction ? projectIndustry(activeProduction) : 'film_tv'}
             onCaseCreated={() => {
+              void refreshProductions();
+              if (activeProductionId) void refreshProductionCases(activeProductionId);
+            }}
+            onCaseUpdated={() => {
               void refreshProductions();
               if (activeProductionId) void refreshProductionCases(activeProductionId);
             }}
@@ -555,11 +746,11 @@ export function Dashboard() {
                   iconClassName="size-6"
                 />
                 <div>
-                  <PixelLabel>PRODUCTION</PixelLabel>
+                  <PixelLabel>{PROJECT_INDUSTRIES[projectIndustry(activeProduction)].label}</PixelLabel>
                   <BungeeHeading className="mt-1 text-2xl">{activeProduction.title}</BungeeHeading>
                   <p className="mt-1 text-[11.5px] text-lavender-soft">
-                    {activeProduction.studio || 'No studio'} ·{' '}
-                    {STATUS_LABELS[activeProduction.status ?? 'development']}
+                    {activeProduction.studio || 'No organization'} ·{' '}
+                    {projectStatusLabel(activeProduction)}
                   </p>
                 </div>
               </div>
@@ -597,7 +788,7 @@ export function Dashboard() {
                 <div>
                   <PixelLabel>CASES &amp; FINDINGS</PixelLabel>
                   <BungeeHeading id="production-cases-heading" className="mt-1 text-xl">
-                    Production inventory
+                    Project inventory
                   </BungeeHeading>
                 </div>
                 <button
@@ -618,8 +809,7 @@ export function Dashboard() {
               ) : productionCases.length === 0 ? (
                 <Panel glow={false}>
                   <p className="text-[11.5px] leading-[17.83px] text-lavender-soft">
-                    This production has no cases yet. Create one from script text, a PDF, DOCX, or
-                    image.
+                    This project has no cases yet. Create one from text, a PDF, DOCX, or image.
                   </p>
                 </Panel>
               ) : (
@@ -650,7 +840,7 @@ export function Dashboard() {
                               CASE {String(productionCases.length - caseIndex).padStart(2, '0')}
                             </p>
                             <h3 className="mt-2 font-display text-sm text-paper">
-                              {productionCase.title || 'Untitled script review'}
+                              {productionCase.title || 'Untitled material review'}
                             </h3>
                             <p className="mt-1 font-pixel text-[7px] text-lavender">
                               {new Date(productionCase.created_at).toLocaleString()} ·{' '}
@@ -739,6 +929,26 @@ export function Dashboard() {
                                         ? 'WEB SOURCE'
                                         : 'WEB SOURCES'}
                                     </p>
+                                    {finding.assignee || finding.due_date || finding.comments?.length ? (
+                                      <div className="mt-3 flex flex-wrap gap-1.5">
+                                        {finding.assignee ? (
+                                          <span className="border border-cyan-pop px-2 py-1 text-[9px] font-bold text-cyan-pop">
+                                            OWNER: {finding.assignee}
+                                          </span>
+                                        ) : null}
+                                        {finding.due_date ? (
+                                          <span className="border border-brand px-2 py-1 text-[9px] font-bold text-brand">
+                                            DUE: {finding.due_date}
+                                          </span>
+                                        ) : null}
+                                        {finding.comments?.length ? (
+                                          <span className="border border-lavender px-2 py-1 text-[9px] font-bold text-lavender">
+                                            {finding.comments.length}{' '}
+                                            {finding.comments.length === 1 ? 'NOTE' : 'NOTES'}
+                                          </span>
+                                        ) : null}
+                                      </div>
+                                    ) : null}
 
                                     {finding.evidence?.rationale ? (
                                       <p className="mt-3 border-l-2 border-brand pl-3 text-[10.5px] leading-[17px] text-paper">
@@ -846,8 +1056,11 @@ function ProductionsHome({
   const [sortBy, setSortBy] = useState<
     'newest' | 'title' | 'cases' | 'open' | 'escalated'
   >('newest');
+  const [industryFilter, setIndustryFilter] = useState<'all' | ProjectIndustry>('all');
   const sortedProductions = useMemo(() => {
-    const sorted = [...productions];
+    const sorted = productions.filter(
+      (project) => industryFilter === 'all' || projectIndustry(project) === industryFilter
+    );
     sorted.sort((left, right) => {
       if (sortBy === 'title') return left.title.localeCompare(right.title);
       if (sortBy === 'cases') return (right.case_count ?? 0) - (left.case_count ?? 0);
@@ -860,7 +1073,7 @@ function ProductionsHome({
       return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
     });
     return sorted;
-  }, [productions, sortBy]);
+  }, [industryFilter, productions, sortBy]);
 
   return (
     <div className="space-y-7">
@@ -869,33 +1082,120 @@ function ProductionsHome({
         <div className="absolute -bottom-20 left-1/3 size-44 rounded-full bg-cyan-pop/15 blur-3xl" />
         <div className="relative flex flex-wrap items-end justify-between gap-5">
           <div className="max-w-2xl">
-            <PixelLabel>PRODUCTION RIGHTS WORKSPACE</PixelLabel>
+            <PixelLabel>EVIDENCE-FIRST CREATIVE RIGHTS CLEARANCE</PixelLabel>
             <h1 className="mt-2 font-display text-3xl text-paper [text-shadow:3px_3px_0_#aab5c4] sm:text-4xl">
-              Production control room
+              Find the lead. Route the decision.
             </h1>
             <p className="mt-3 max-w-xl text-[12px] leading-5 text-lavender-soft">
-              Open a production to review scripts, track findings, attach clearance materials, and
-              tune production-specific nuisance filters.
+              Turn creative materials into source-backed research leads, then keep clearance,
+              creative, delivery, and legal teams aligned through human review.
             </p>
           </div>
           <PrimaryButton type="button" onClick={onCreate}>
-            <FolderPlus className="size-4" aria-hidden /> New production
+            <FolderPlus className="size-4" aria-hidden /> New project
           </PrimaryButton>
         </div>
       </header>
 
-      <section aria-labelledby="production-portfolio-title">
+      <section aria-labelledby="industries-title">
+        <div>
+          <PixelLabel>ACROSS THE MEDIA VALUE CHAIN</PixelLabel>
+          <BungeeHeading className="mt-1 text-xl" id="industries-title">
+            Rights research for every creative format
+          </BungeeHeading>
+        </div>
+        <ul className="mt-3 flex flex-wrap gap-2">
+          {(Object.keys(PROJECT_INDUSTRIES) as ProjectIndustry[]).map((industry) => (
+            <li
+              key={industry}
+              className="border border-line bg-panel px-2.5 py-1.5 font-pixel text-[7px] text-lavender-soft"
+            >
+              {PROJECT_INDUSTRIES[industry].label.toUpperCase()}
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section aria-labelledby="clearance-teams-title">
+        <div>
+          <PixelLabel>BUILT FOR THE HANDOFF</PixelLabel>
+          <BungeeHeading className="mt-1 text-xl" id="clearance-teams-title">
+            One record across the clearance chain
+          </BungeeHeading>
+        </div>
+        <ul className="mt-3 grid gap-3 md:grid-cols-3">
+          {CLEARANCE_TEAMS.map((team) => (
+            <li key={team.title} className="border-2 border-line bg-panel p-4">
+              <span className="flex size-9 items-center justify-center border-2 border-ink bg-cyan-pop text-ink shadow-press">
+                <team.icon className="size-4" aria-hidden />
+              </span>
+              <h2 className="mt-3 font-display text-[12px] text-paper">{team.title}</h2>
+              <p className="mt-2 text-[10.5px] leading-4 text-lavender-soft">
+                {team.description}
+              </p>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section
+        className="border-2 border-line bg-panel p-5"
+        aria-labelledby="rights-radar-difference-title"
+      >
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div>
+            <PixelLabel>WHY RIGHTSRADAR</PixelLabel>
+            <BungeeHeading className="mt-1 text-xl" id="rights-radar-difference-title">
+              Research layer, not another rights database
+            </BungeeHeading>
+          </div>
+          <ShieldCheck className="size-6 text-brand" aria-hidden />
+        </div>
+        <ol className="mt-4 grid gap-4 md:grid-cols-3">
+          {PRODUCT_DIFFERENTIATORS.map((item, index) => (
+            <li key={item.label} className="border-l-2 border-brand pl-3">
+              <p className="font-pixel text-[7px] text-cyan-pop">
+                {String(index + 1).padStart(2, '0')} / {item.label}
+              </p>
+              <h2 className="mt-2 font-display text-[11px] text-paper">{item.title}</h2>
+              <p className="mt-1.5 text-[10.5px] leading-4 text-lavender-soft">
+                {item.description}
+              </p>
+            </li>
+          ))}
+        </ol>
+      </section>
+
+      <section aria-labelledby="project-portfolio-title">
         <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
           <div>
             <PixelLabel>PORTFOLIO</PixelLabel>
-            <BungeeHeading className="mt-1 text-xl" id="production-portfolio-title">
-              All productions
+            <BungeeHeading className="mt-1 text-xl" id="project-portfolio-title">
+              All projects
             </BungeeHeading>
           </div>
           <div className="flex items-center gap-3">
             <span className="font-pixel text-[8px] text-lavender">
-              {productions.length} TRACKED
+              {sortedProductions.length} SHOWN / {productions.length} TRACKED
             </span>
+            <label className="flex items-center gap-2 font-pixel text-[8px] text-lavender">
+              INDUSTRY
+              <select
+                value={industryFilter}
+                onChange={(event) =>
+                  setIndustryFilter(event.target.value as 'all' | ProjectIndustry)
+                }
+                className="border-2 border-ink bg-white px-2 py-1.5 font-sans text-[11px] font-bold text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
+                aria-label="Filter projects by industry"
+              >
+                <option value="all">All industries</option>
+                {(Object.keys(PROJECT_INDUSTRIES) as ProjectIndustry[]).map((industry) => (
+                  <option key={industry} value={industry}>
+                    {PROJECT_INDUSTRIES[industry].label}
+                  </option>
+                ))}
+              </select>
+            </label>
             <label className="flex items-center gap-2 font-pixel text-[8px] text-lavender">
               SORT
               <select
@@ -906,7 +1206,7 @@ function ProductionsHome({
                   )
                 }
                 className="border-2 border-ink bg-white px-2 py-1.5 font-sans text-[11px] font-bold text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
-                aria-label="Sort productions"
+                aria-label="Sort projects"
               >
                 <option value="newest">Newest</option>
                 <option value="title">Title A–Z</option>
@@ -921,16 +1221,20 @@ function ProductionsHome({
         {isLoading ? (
           <Panel>
             <p className="flex items-center gap-2 text-[11px] text-lavender-soft">
-              <Spinner className="size-3.5" /> Loading productions…
+              <Spinner className="size-3.5" /> Loading projects…
             </p>
           </Panel>
-        ) : productions.length === 0 ? (
+        ) : sortedProductions.length === 0 ? (
           <Panel>
             <div className="py-8 text-center">
               <Clapperboard className="mx-auto size-9 text-brand" aria-hidden />
-              <p className="mt-4 font-display text-sm text-paper">No productions yet</p>
+              <p className="mt-4 font-display text-sm text-paper">
+                {industryFilter === 'all' ? 'No projects yet' : 'No projects in this industry'}
+              </p>
               <p className="mt-2 text-[11px] text-lavender-soft">
-                Create the first production to begin tracking clearance.
+                {industryFilter === 'all'
+                  ? 'Create the first project to begin tracking clearance.'
+                  : 'Choose another industry or create a matching project.'}
               </p>
             </div>
           </Panel>
@@ -954,14 +1258,17 @@ function ProductionsHome({
                         STATUS_COLORS[production.status ?? 'development']
                       }`}
                     >
-                      {STATUS_LABELS[production.status ?? 'development']}
+                      {projectStatusLabel(production)}
                     </span>
                   </div>
                   <h2 className="mt-4 font-display text-base text-paper transition group-hover:text-cyan-pop">
                     {production.title}
                   </h2>
                   <p className="mt-1 min-h-4 text-[10.5px] text-lavender-soft">
-                    {production.studio || 'Independent production'}
+                    {production.studio || 'Independent project'}
+                  </p>
+                  <p className="mt-2 font-pixel text-[6.5px] text-cyan-pop">
+                    {PROJECT_INDUSTRIES[projectIndustry(production)].label.toUpperCase()}
                   </p>
                   <dl className="mt-5 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
                     {[
@@ -998,6 +1305,7 @@ function ProductionSettings({
 }) {
   const [title, setTitle] = useState(production.title);
   const [studio, setStudio] = useState(production.studio ?? '');
+  const [industry, setIndustry] = useState<ProjectIndustry>(projectIndustry(production));
   const [status, setStatus] = useState<ProductionStatus>(production.status ?? 'development');
   const [icon, setIcon] = useState<string>(production.icon ?? 'clapperboard');
   const [ignoreKeywords, setIgnoreKeywords] = useState(
@@ -1028,7 +1336,7 @@ function ProductionSettings({
       setUseBuiltInIcon(false);
       await onSaved();
     } catch {
-      onError('The custom production icon could not be uploaded.');
+      onError('The custom project icon could not be uploaded.');
     } finally {
       setIsUploadingIcon(false);
       event.target.value = '';
@@ -1043,7 +1351,7 @@ function ProductionSettings({
       setUseBuiltInIcon(false);
       await onSaved();
     } catch {
-      onError('The custom production icon could not be removed.');
+      onError('The custom project icon could not be removed.');
     } finally {
       setIsRemovingIcon(false);
     }
@@ -1059,6 +1367,7 @@ function ProductionSettings({
         {
           title: title.trim(),
           studio: studio.trim(),
+          industry,
           status,
           icon: useBuiltInIcon || !production.icon_version ? icon : undefined,
           ignore_keywords: ignoreKeywords
@@ -1071,7 +1380,7 @@ function ProductionSettings({
       setUseBuiltInIcon(false);
       await onSaved();
     } catch {
-      onError('Could not save production settings.');
+      onError('Could not save project settings.');
     } finally {
       setIsSaving(false);
     }
@@ -1081,7 +1390,7 @@ function ProductionSettings({
     <div className="space-y-6">
       <div>
         <PixelLabel>SETTINGS</PixelLabel>
-        <BungeeHeading className="mt-1 text-xl">Production settings</BungeeHeading>
+        <BungeeHeading className="mt-1 text-xl">Project settings</BungeeHeading>
       </div>
 
       <Panel glow={false}>
@@ -1171,7 +1480,7 @@ function ProductionSettings({
             </div>
           </div>
 
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 sm:grid-cols-3">
             <div>
               <label
                 htmlFor="settings-title"
@@ -1192,7 +1501,7 @@ function ProductionSettings({
                 htmlFor="settings-studio"
                 className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
               >
-                STUDIO
+                ORGANIZATION / CLIENT
               </label>
               <input
                 id="settings-studio"
@@ -1200,6 +1509,26 @@ function ProductionSettings({
                 onChange={(e) => setStudio(e.target.value)}
                 className="mt-1.5 block w-full border-2 border-ink bg-white px-2.5 py-2 text-[11px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
               />
+            </div>
+            <div>
+              <label
+                htmlFor="settings-industry"
+                className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
+              >
+                INDUSTRY
+              </label>
+              <select
+                id="settings-industry"
+                value={industry}
+                onChange={(event) => setIndustry(event.target.value as ProjectIndustry)}
+                className="mt-1.5 block w-full border-2 border-ink bg-white px-2.5 py-2 text-[11px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
+              >
+                {(Object.keys(PROJECT_INDUSTRIES) as ProjectIndustry[]).map((value) => (
+                  <option key={value} value={value}>
+                    {PROJECT_INDUSTRIES[value].label}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
 
@@ -1216,9 +1545,9 @@ function ProductionSettings({
               onChange={(e) => setStatus(e.target.value as ProductionStatus)}
               className="mt-1.5 block w-full border-2 border-ink bg-white px-2.5 py-2 text-[11px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
             >
-              {(Object.keys(STATUS_LABELS) as ProductionStatus[]).map((value) => (
+              {(Object.keys(STATUS_COLORS) as ProductionStatus[]).map((value) => (
                 <option key={value} value={value}>
-                  {STATUS_LABELS[value]}
+                  {STATUS_LABELS[industry][value]}
                 </option>
               ))}
             </select>
@@ -1247,7 +1576,7 @@ function ProductionSettings({
             >
               One phrase per line, up to 50. Matching is case-insensitive and requires the whole
               phrase in a detected item. Matches are removed before web research, reducing nuisance
-              results and provider usage for this production. Existing findings are unchanged.
+              results and provider usage for this project. Existing findings are unchanged.
             </p>
           </div>
 

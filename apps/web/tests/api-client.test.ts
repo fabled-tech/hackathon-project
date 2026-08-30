@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  addFindingComment,
   createCase,
   createCaseFromFile,
   deleteProductionIcon,
@@ -7,6 +8,7 @@ import {
   listAssets,
   listCases,
   updateProduction,
+  updateFindingMeta,
   updateFindingStatus,
   uploadAsset,
   uploadProductionIcon
@@ -235,6 +237,35 @@ describe('updateProduction', () => {
     expect(production.ignore_keywords).toEqual(['Universal Studios']);
   });
 
+  it('sends the selected project industry', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'production-1',
+          title: 'Launch campaign',
+          industry: 'advertising'
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    const project = await updateProduction(
+      'production-1',
+      { industry: 'advertising' },
+      'http://api.test',
+      fetcher
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://api.test/api/productions/production-1',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ industry: 'advertising' })
+      })
+    );
+    expect(project.industry).toBe('advertising');
+  });
+
   describe('production icons', () => {
     it('uploads and removes a custom image', async () => {
       const fetcher = vi
@@ -274,6 +305,56 @@ describe('updateProduction', () => {
         'http://api.test/api/productions/production-1/icon',
         { method: 'DELETE' }
       ]);
+    });
+
+    describe('finding handoff helpers', () => {
+      it('updates ownership metadata and adds a review note', async () => {
+        const fetcher = vi
+          .fn()
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                id: 'finding-1',
+                assignee: 'Brand clearance',
+                due_date: '2026-09-02'
+              }),
+              { status: 200, headers: { 'Content-Type': 'application/json' } }
+            )
+          )
+          .mockResolvedValueOnce(
+            new Response(
+              JSON.stringify({
+                id: 'finding-1',
+                comments: [{ id: 'note-1', author: 'Producer', body: 'Please verify.' }]
+              }),
+              { status: 201, headers: { 'Content-Type': 'application/json' } }
+            )
+          );
+
+        await updateFindingMeta(
+          'project-1',
+          'case-1',
+          'finding-1',
+          { assignee: 'Brand clearance', due_date: '2026-09-02' },
+          'http://api.test',
+          fetcher
+        );
+        await addFindingComment(
+          'project-1',
+          'case-1',
+          'finding-1',
+          { author: 'Producer', body: 'Please verify.' },
+          'http://api.test',
+          fetcher
+        );
+
+        expect(fetcher.mock.calls[0][0]).toBe(
+          'http://api.test/api/productions/project-1/cases/case-1/findings/finding-1/meta'
+        );
+        expect(fetcher.mock.calls[1][0]).toBe(
+          'http://api.test/api/productions/project-1/cases/case-1/findings/finding-1/comments'
+        );
+      });
     });
   });
 });

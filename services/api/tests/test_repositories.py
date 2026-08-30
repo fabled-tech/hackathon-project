@@ -12,6 +12,7 @@ from app.models import (
     Case,
     Finding,
     Production,
+    ProjectIndustry,
     ReviewerStatus,
     StoredAsset,
 )
@@ -1319,7 +1320,7 @@ def test_case_repository_delete_raises_for_a_missing_case(
         repository.delete("missing")
 
 
-def test_in_memory_production_repository_updates_ignore_keywords() -> None:
+def test_in_memory_production_repository_updates_project_metadata() -> None:
     repository = InMemoryProductionRepository()
     production = Production(
         id="production-1",
@@ -1330,14 +1331,18 @@ def test_in_memory_production_repository_updates_ignore_keywords() -> None:
 
     updated = repository.update(
         production.id,
+        industry=ProjectIndustry.GAMING,
         ignore_keywords=["Universal Studios", "NBC peacock"],
     )
 
+    assert updated.industry is ProjectIndustry.GAMING
     assert updated.ignore_keywords == ["Universal Studios", "NBC peacock"]
-    assert repository.get(production.id).ignore_keywords == updated.ignore_keywords
+    stored = repository.get(production.id)
+    assert stored.industry is ProjectIndustry.GAMING
+    assert stored.ignore_keywords == updated.ignore_keywords
 
 
-def test_firestore_production_repository_persists_ignore_keywords() -> None:
+def test_firestore_production_repository_persists_project_metadata() -> None:
     firestore = FakeFirestoreClient()
     repository = FirestoreProductionRepository(
         "test-project",
@@ -1353,9 +1358,12 @@ def test_firestore_production_repository_persists_ignore_keywords() -> None:
 
     updated = repository.update(
         production.id,
+        industry=ProjectIndustry.PUBLISHING,
         ignore_keywords=["Universal Studios"],
     )
 
+    assert updated.industry is ProjectIndustry.PUBLISHING
+    assert firestore.documents[("productions", production.id)]["industry"] == "publishing"
     assert updated.ignore_keywords == ["Universal Studios"]
     assert firestore.documents[("productions", production.id)]["ignore_keywords"] == [
         "Universal Studios"

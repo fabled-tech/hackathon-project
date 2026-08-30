@@ -1,7 +1,12 @@
 from pydantic import BaseModel, Field, field_validator
 
 from .cases import ReviewerStatus
-from .productions import IgnoredKeyword, ProductionStatus, normalize_ignore_keywords
+from .productions import (
+    IgnoredKeyword,
+    ProductionStatus,
+    ProjectIndustry,
+    normalize_ignore_keywords,
+)
 
 ALLOWED_ASSET_CONTENT_TYPE = "text/plain"
 MAX_ASSET_BYTES = 256 * 1024
@@ -46,6 +51,7 @@ class CreateFindingCommentRequest(BaseModel):
 class CreateProductionRequest(BaseModel):
     title: str = Field(min_length=1, max_length=200)
     studio: str = ""
+    industry: ProjectIndustry = ProjectIndustry.FILM_TV
     status: ProductionStatus = ProductionStatus.DEVELOPMENT
     icon: str = "clapperboard"
 
@@ -53,6 +59,7 @@ class CreateProductionRequest(BaseModel):
 class UpdateProductionRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=200)
     studio: str | None = None
+    industry: ProjectIndustry | None = None
     status: ProductionStatus | None = None
     icon: str | None = None
     ignore_keywords: list[IgnoredKeyword] | None = Field(default=None, max_length=50)
