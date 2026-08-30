@@ -526,3 +526,30 @@ test('uploads a custom production icon and has no agent-run controls', async ({ 
   await expect(page.getByText('Clearance brief')).toHaveCount(0);
   await expect(page.getByText('Run watch agent')).toHaveCount(0);
 });
+
+test('opens full case and finding details from the production overview', async ({ page }) => {
+  await openCaseWorkspace(page);
+  await page
+    .getByLabel('Script text')
+    .fill('Nimbus Soda appears beside the hero prop.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'Overview' }).click();
+
+  const inventory = page.getByTestId('production-case-inventory');
+  await expect(inventory).toContainText('Nimbus Soda');
+  await inventory.getByRole('button', { name: /Untitled script review/ }).click();
+
+  const details = page.getByTestId('production-case-details');
+  await expect(details).toBeVisible();
+  await expect(details).toContainText('SOURCE MATERIAL');
+  await expect(details).toContainText('RESEARCH FINDINGS');
+  await expect(details).toContainText(
+    'The script names a fictional beverage brand'
+  );
+  await expect(details).toContainText('HUMAN-READABLE SUMMARY');
+  await expect(details).toContainText('VIEW RAW PARALLEL EXTRACT');
+  await details.getByText('VIEW RAW PARALLEL EXTRACT').click();
+  await expect(details).toContainText('RAW PROVIDER RETURN');
+  await expect(details).toContainText('Mock search fixture');
+  await expect(details.getByRole('link')).toHaveAttribute('href', /nimbus-soda/);
+});

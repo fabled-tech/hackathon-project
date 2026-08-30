@@ -3,9 +3,11 @@
 import {
   createProduction,
   deleteProductionIcon,
+  listProductionCases,
   listProductions,
   uploadProductionIcon,
   updateProduction,
+  type Case,
   type ProductionStatus,
   type ProductionSummary
 } from '@rightsrader/api-client';
@@ -241,13 +243,18 @@ type View =
 
 export function Dashboard() {
   const [productions, setProductions] = useState<ProductionSummary[]>([]);
+  const [productionCases, setProductionCases] = useState<Case[]>([]);
   const [activeProductionId, setActiveProductionId] = useState<string | null>(null);
   const [view, setView] = useState<View>({ kind: 'home' });
   const [isLoadingProductions, setIsLoadingProductions] = useState(false);
+  const [isLoadingProductionCases, setIsLoadingProductionCases] = useState(false);
   const [showNewProduction, setShowNewProduction] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newStudio, setNewStudio] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [selectedProductionCaseId, setSelectedProductionCaseId] = useState<string | null>(
+    null
+  );
   const workspaceRef = useRef<HTMLElement>(null);
 
   const activeProduction = productions.find((p) => p.id === activeProductionId) ?? null;
@@ -260,6 +267,17 @@ export function Dashboard() {
       setActiveProductionId((current) => current ?? (list[0]?.id ?? null));
     } catch {
       setError('Could not load productions.');
+    }
+  }, []);
+
+  const refreshProductionCases = useCallback(async (productionId: string) => {
+    setIsLoadingProductionCases(true);
+    try {
+      setProductionCases(await listProductionCases(productionId, API_BASE_URL));
+    } catch {
+      setError('Could not load this production’s cases and findings.');
+    } finally {
+      setIsLoadingProductionCases(false);
     }
   }, []);
 
@@ -299,6 +317,24 @@ export function Dashboard() {
     );
     return () => animation.cancel();
   }, [activeProductionId, view.kind]);
+
+  useEffect(() => {
+    if (!activeProductionId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const cases = await listProductionCases(activeProductionId, API_BASE_URL);
+        if (cancelled) return;
+        setProductionCases(cases);
+        setSelectedProductionCaseId(null);
+      } catch {
+        if (!cancelled) setError('Could not load this production’s cases and findings.');
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [activeProductionId]);
 
   async function submitProduction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -494,7 +530,13 @@ export function Dashboard() {
             }}
           />
         ) : view.kind === 'case' || !activeProduction ? (
-          <ScriptReview productionId={activeProduction?.id} onCaseCreated={refreshProductions} />
+          <ScriptReview
+            productionId={activeProduction?.id}
+            onCaseCreated={() => {
+              void refreshProductions();
+              if (activeProductionId) void refreshProductionCases(activeProductionId);
+            }}
+          />
         ) : view.kind === 'settings' ? (
           <ProductionSettings
             key={activeProduction.id}
@@ -550,23 +592,239 @@ export function Dashboard() {
               ))}
             </div>
 
-            {/* Cases quick link */}
-            <Panel glow={false}>
-              <div className="flex items-center justify-between">
-                <PixelLabel>CASES</PixelLabel>
+            <section aria-labelledby="production-cases-heading">
+              <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+                <div>
+                  <PixelLabel>CASES &amp; FINDINGS</PixelLabel>
+                  <BungeeHeading id="production-cases-heading" className="mt-1 text-xl">
+                    Production inventory
+                  </BungeeHeading>
+                </div>
                 <button
                   type="button"
                   onClick={() => setView({ kind: 'case' })}
-                  className="inline-flex items-center gap-1 font-display text-[9px] text-brand transition hover:text-brand-strong focus-visible:outline-2 focus-visible:outline-brand"
+                  className="inline-flex items-center gap-1 border-2 border-ink bg-brand px-3 py-2 font-display text-[9px] text-ink shadow-press transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-cyan-pop"
                 >
                   New case <ChevronRight className="size-3.5" aria-hidden />
                 </button>
               </div>
-              <p className="mt-2 text-[11.5px] leading-[17.83px] text-lavender-soft">
-                {activeProduction.case_count ?? 0} case(s) in this production. Open the New case
-                workspace to analyze a script excerpt against this production.
-              </p>
-            </Panel>
+
+              {isLoadingProductionCases ? (
+                <Panel glow={false}>
+                  <p className="flex items-center gap-2 text-[11px] text-lavender-soft">
+                    <Spinner className="size-3.5" /> Loading cases and findings…
+                  </p>
+                </Panel>
+              ) : productionCases.length === 0 ? (
+                <Panel glow={false}>
+                  <p className="text-[11.5px] leading-[17.83px] text-lavender-soft">
+                    This production has no cases yet. Create one from script text, a PDF, DOCX, or
+                    image.
+                  </p>
+                </Panel>
+              ) : (
+                <ul className="space-y-4" data-testid="production-case-inventory">
+                  {productionCases.map((productionCase, caseIndex) => (
+                    <li
+                      key={productionCase.id}
+                      className={`border-2 bg-panel transition ${
+                        selectedProductionCaseId === productionCase.id
+                          ? 'border-cyan-pop shadow-[4px_4px_0_#00e5ff]'
+                          : 'border-line hover:border-cyan-pop'
+                      }`}
+                    >
+                      <button
+                        type="button"
+                        onClick={() =>
+                          setSelectedProductionCaseId((current) =>
+                            current === productionCase.id ? null : productionCase.id
+                          )
+                        }
+                        aria-expanded={selectedProductionCaseId === productionCase.id}
+                        aria-controls={`case-details-${productionCase.id}`}
+                        className="block w-full p-5 text-left focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-cyan-pop"
+                      >
+                        <div className="flex flex-wrap items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="font-pixel text-[7px] text-cyan-pop">
+                              CASE {String(productionCases.length - caseIndex).padStart(2, '0')}
+                            </p>
+                            <h3 className="mt-2 font-display text-sm text-paper">
+                              {productionCase.title || 'Untitled script review'}
+                            </h3>
+                            <p className="mt-1 font-pixel text-[7px] text-lavender">
+                              {new Date(productionCase.created_at).toLocaleString()} ·{' '}
+                              {productionCase.asset_count ?? 0} attached{' '}
+                              {(productionCase.asset_count ?? 0) === 1 ? 'asset' : 'assets'}
+                            </p>
+                          </div>
+                          <span className="flex items-center gap-2">
+                            <span className="border border-ink bg-white px-2 py-1 font-pixel text-[7px] text-ink">
+                              {productionCase.findings.length}{' '}
+                              {productionCase.findings.length === 1 ? 'FINDING' : 'FINDINGS'}
+                            </span>
+                            <ChevronRight
+                              className={`size-4 text-cyan-pop transition ${
+                                selectedProductionCaseId === productionCase.id ? 'rotate-90' : ''
+                              }`}
+                              aria-hidden
+                            />
+                          </span>
+                        </div>
+
+                        <p className="mt-4 line-clamp-3 border-l-2 border-brand pl-3 text-[11px] leading-[17px] text-lavender-soft">
+                          {productionCase.script_text}
+                        </p>
+                        <p className="mt-3 font-pixel text-[7px] text-brand">
+                          {selectedProductionCaseId === productionCase.id
+                            ? 'HIDE CASE DETAILS'
+                            : 'VIEW CASE DETAILS'}
+                        </p>
+                      </button>
+
+                      {selectedProductionCaseId === productionCase.id ? (
+                        <div
+                          id={`case-details-${productionCase.id}`}
+                          className="border-t-2 border-line bg-canvas/20 p-5"
+                          data-testid="production-case-details"
+                        >
+                          <div>
+                            <PixelLabel>SOURCE MATERIAL</PixelLabel>
+                            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap border border-line bg-canvas/40 p-4 font-mono text-[10.5px] leading-[17px] text-lavender-soft">
+                              {productionCase.script_text}
+                            </pre>
+                          </div>
+
+                          <div className="mt-5">
+                            <PixelLabel>RESEARCH FINDINGS</PixelLabel>
+                            {productionCase.findings.length === 0 ? (
+                              <p className="mt-2 text-[10.5px] italic text-lavender-soft">
+                                No research leads were found in this case.
+                              </p>
+                            ) : (
+                              <ul className="mt-3 space-y-3">
+                                {productionCase.findings.map((finding) => (
+                                  <li
+                                    key={finding.id}
+                                    className="border border-line bg-panel p-4"
+                                  >
+                                    <div className="flex flex-wrap items-center justify-between gap-2">
+                                      <span className="font-pixel text-[7px] uppercase text-lavender">
+                                        {finding.category.replace(/_/g, ' ')}
+                                      </span>
+                                      <span
+                                        className={`border px-1.5 py-0.5 font-pixel text-[7px] ${
+                                          finding.reviewer_status === 'escalated'
+                                            ? 'border-accent text-accent'
+                                            : finding.reviewer_status === 'dismissed'
+                                              ? 'border-lavender text-lavender'
+                                              : finding.reviewer_status === 'accepted'
+                                                ? 'border-brand text-brand'
+                                                : 'border-cyan-pop text-cyan-pop'
+                                        }`}
+                                      >
+                                        {finding.reviewer_status.toUpperCase()}
+                                      </span>
+                                    </div>
+                                    <h4 className="mt-2 font-display text-[11px] text-paper">
+                                      {finding.detected_item}
+                                    </h4>
+                                    <p className="mt-2 text-[10.5px] leading-[17px] text-lavender-soft">
+                                      {finding.explanation}
+                                    </p>
+                                    <p className="mt-3 font-pixel text-[7px] text-lavender">
+                                      {Math.round(finding.confidence * 100)}% CONFIDENCE ·{' '}
+                                      {finding.source_urls.length}{' '}
+                                      {finding.source_urls.length === 1
+                                        ? 'WEB SOURCE'
+                                        : 'WEB SOURCES'}
+                                    </p>
+
+                                    {finding.evidence?.rationale ? (
+                                      <p className="mt-3 border-l-2 border-brand pl-3 text-[10.5px] leading-[17px] text-paper">
+                                        <strong className="text-brand">Why this evidence:</strong>{' '}
+                                        {finding.evidence.rationale}
+                                      </p>
+                                    ) : null}
+
+                                    {finding.supporting_evidence.length > 0 ? (
+                                      <ul className="mt-3 space-y-2">
+                                        {finding.supporting_evidence.map((evidence) => (
+                                          <li
+                                            key={evidence.source.url}
+                                            className="border border-line bg-canvas/30 p-3"
+                                          >
+                                            <div className="flex flex-wrap items-start justify-between gap-2">
+                                              <a
+                                                href={evidence.source.url}
+                                                target="_blank"
+                                                rel="noreferrer"
+                                                className="inline-flex items-center gap-1 font-display text-[8px] text-cyan-pop underline-offset-2 hover:underline"
+                                              >
+                                                {evidence.source.title}
+                                                <ChevronRight
+                                                  className="size-3"
+                                                  aria-hidden
+                                                />
+                                              </a>
+                                              {finding.evidence?.primary?.source.url ===
+                                              evidence.source.url ? (
+                                                <span className="border border-brand px-1.5 py-0.5 font-pixel text-[6px] text-brand">
+                                                  PRIMARY
+                                                </span>
+                                              ) : (
+                                                <span className="border border-lavender px-1.5 py-0.5 font-pixel text-[6px] text-lavender">
+                                                  ALTERNATIVE
+                                                </span>
+                                              )}
+                                            </div>
+
+                                            <div className="mt-3 border-l-2 border-cyan-pop pl-3">
+                                              <p className="font-pixel text-[6.5px] text-cyan-pop">
+                                                HUMAN-READABLE SUMMARY
+                                              </p>
+                                              <p className="mt-1.5 text-[10.5px] leading-[17px] text-paper">
+                                                {finding.evidence?.primary?.source.url ===
+                                                  evidence.source.url &&
+                                                finding.evidence.rationale
+                                                  ? finding.evidence.rationale
+                                                  : `Parallel returned this as an additional source for “${finding.detected_item}.” Review it alongside the primary evidence before making a clearance decision.`}
+                                              </p>
+                                            </div>
+
+                                            <details className="mt-3 border-t border-line pt-3">
+                                              <summary className="cursor-pointer font-pixel text-[7px] text-brand marker:text-cyan-pop">
+                                                VIEW RAW PARALLEL EXTRACT
+                                              </summary>
+                                              <div className="mt-3">
+                                                <p className="font-pixel text-[6.5px] text-lavender">
+                                                  RAW PROVIDER RETURN
+                                                </p>
+                                                <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap border border-line bg-canvas/60 p-3 font-mono text-[9.5px] leading-4 text-lavender-pale">
+                                                  {evidence.excerpt}
+                                                </pre>
+                                              </div>
+                                            </details>
+                                          </li>
+                                        ))}
+                                      </ul>
+                                    ) : (
+                                      <p className="mt-3 text-[9.5px] italic text-lavender-soft">
+                                        No web source was verified for this finding.
+                                      </p>
+                                    )}
+                                  </li>
+                                ))}
+                              </ul>
+                            )}
+                          </div>
+                        </div>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </section>
           </div>
         )}
       </main>
