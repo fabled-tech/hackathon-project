@@ -1,6 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createCase,
+  getCase,
   listAssets,
   listCases,
   updateFindingStatus,
@@ -141,5 +142,77 @@ describe('asset and case-history API helpers', () => {
     const request = fetcher.mock.calls[0][1];
     expect(request.headers).toBeUndefined();
     expect((request.body as FormData).get('file')).toBeInstanceOf(File);
+  });
+});
+
+describe('getCase', () => {
+  it('fetches a case by encoded id and returns the parsed result', async () => {
+    const casePayload = {
+      id: 'case/one',
+      script_text: 'Nimbus Soda appears.',
+      created_at: '2026-08-02T00:00:00Z',
+      asset_count: 1,
+      findings: []
+    };
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify(casePayload), {
+        status: 200,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+
+    const result = await getCase('case/one', 'http://api.test', fetcher);
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://api.test/api/cases/case%2Fone',
+      expect.objectContaining({ method: 'GET' })
+    );
+    expect(result.id).toBe('case/one');
+    expect(result.script_text).toBe('Nimbus Soda appears.');
+    expect(result.findings).toEqual([]);
+  });
+});
+
+describe('error handling', () => {
+  it('createCase throws when the API returns a non-2xx status', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: 'Internal Server Error' }), {
+        status: 500,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+
+    await expect(
+      createCase({ script_text: 'Some script.' }, 'http://api.test', fetcher)
+    ).rejects.toThrow('500');
+  });
+
+  it('getCase throws when the API returns a non-2xx status', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: 'Not Found' }), {
+        status: 404,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+
+    await expect(getCase('missing-id', 'http://api.test', fetcher)).rejects.toThrow('404');
+  });
+
+  it('uploadAsset throws when the API returns a non-2xx status', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: 'Payload Too Large' }), {
+        status: 413,
+        headers: { 'Content-Type': 'application/json' }
+      })
+    );
+
+    await expect(
+      uploadAsset(
+        'case-1',
+        new File(['data'], 'note.txt', { type: 'text/plain' }),
+        'http://api.test',
+        fetcher
+      )
+    ).rejects.toThrow('413');
   });
 });
