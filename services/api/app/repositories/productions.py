@@ -7,7 +7,6 @@ from app.models import (
     Production,
     ProductionStatus,
     ProductionSummary,
-    ProjectIndustry,
     ReviewerStatus,
 )
 
@@ -29,7 +28,6 @@ class ProductionRepository(Protocol):
         *,
         title: str | None = None,
         studio: str | None = None,
-        industry: ProjectIndustry | None = None,
         status: ProductionStatus | None = None,
         icon: str | None = None,
         ignore_keywords: "builtins.list[str] | None" = None,
@@ -72,7 +70,6 @@ def summarize_production(production: Production, cases: list[Case]) -> Productio
                 "id",
                 "title",
                 "studio",
-                "industry",
                 "status",
                 "icon",
                 "icon_version",
@@ -115,7 +112,6 @@ class InMemoryProductionRepository:
         *,
         title: str | None = None,
         studio: str | None = None,
-        industry: ProjectIndustry | None = None,
         status: ProductionStatus | None = None,
         icon: str | None = None,
         ignore_keywords: "builtins.list[str] | None" = None,
@@ -128,8 +124,6 @@ class InMemoryProductionRepository:
             production.title = title
         if studio is not None:
             production.studio = studio
-        if industry is not None:
-            production.industry = industry
         if status is not None:
             production.status = status
         if icon is not None:
@@ -203,7 +197,6 @@ class FirestoreProductionRepository:
         *,
         title: str | None = None,
         studio: str | None = None,
-        industry: ProjectIndustry | None = None,
         status: ProductionStatus | None = None,
         icon: str | None = None,
         ignore_keywords: "builtins.list[str] | None" = None,
@@ -217,8 +210,6 @@ class FirestoreProductionRepository:
             updates["title"] = title
         if studio is not None:
             updates["studio"] = studio
-        if industry is not None:
-            updates["industry"] = industry.value
         if status is not None:
             updates["status"] = status.value
         if icon is not None:

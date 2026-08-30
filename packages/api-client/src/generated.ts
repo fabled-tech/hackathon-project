@@ -54,7 +54,6 @@ export interface CreateFindingCommentRequest {
 export interface CreateProductionRequest {
   title: string;
   studio?: string;
-  industry?: ProjectIndustry;
   status?: ProductionStatus;
   icon?: string;
 }
@@ -102,7 +101,6 @@ export interface Production {
   id: string;
   title: string;
   studio?: string;
-  industry?: ProjectIndustry;
   status?: ProductionStatus;
   icon?: string;
   icon_version?: string | null;
@@ -117,7 +115,6 @@ export interface ProductionSummary {
   id: string;
   title: string;
   studio?: string;
-  industry?: ProjectIndustry;
   status?: ProductionStatus;
   icon?: string;
   icon_version?: string | null;
@@ -128,8 +125,6 @@ export interface ProductionSummary {
   open_finding_count?: number;
   escalated_finding_count?: number;
 }
-
-export type ProjectIndustry = "film_tv" | "advertising" | "gaming" | "music" | "podcast_audio" | "publishing" | "digital_media";
 
 export type ReviewerStatus = "pending" | "accepted" | "dismissed" | "escalated";
 
@@ -150,7 +145,6 @@ export interface UpdateFindingRequest {
 export interface UpdateProductionRequest {
   title?: string | null;
   studio?: string | null;
-  industry?: ProjectIndustry | null;
   status?: ProductionStatus | null;
   icon?: string | null;
   ignore_keywords?: string[] | null;

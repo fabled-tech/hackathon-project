@@ -1,16 +1,14 @@
 # RightsRadar
 
 RightsRadar is a hosted-app foundation for the Google Cloud Agentic Cinema Hackathon — Parallel
-Track. It helps creative, clearance, delivery, and legal teams research possible rights-clearance
-concerns across film and television, advertising, games, music, podcasts, publishing, and digital
-media. It is research assistance only: it does not provide legal advice or make final infringement
+Track. It helps production teams research possible rights-clearance concerns in scripts and assets.
+It is research assistance only: it does not provide legal advice or make final infringement
 determinations.
 
-Each rights project records its industry and adapts lifecycle labels and material guidance to that
-format. The workspace accepts text plus PDF, DOCX, PNG, JPEG, and WebP creative files.
+The production workspace accepts script text plus PDF, DOCX, PNG, JPEG, and WebP production files.
 Gemini identifies rights-clearance research leads from text, document layout, and imagery; each
 lead is converted into a text research objective for Parallel Search and Extract. The resulting
-case keeps traceable web evidence and lets a reviewer clear, dismiss, or escalate each finding.
+case keeps traceable web evidence and lets a reviewer dismiss or escalate each finding.
 
 Analyzed files are limited to 10 MiB and are stored privately with their case. DOCX text is
 extracted server-side; PDF and image files retain Gemini's visual and layout context. Parallel does
@@ -19,17 +17,15 @@ leads against web pages. Reviewers can also attach UTF-8 plain-text script sides
 clearance notes, prop/product-placement logs, character or likeness notes, and quote/music-cue
 lists up to 256 KiB without analyzing them. The browser exposes only asset metadata.
 
-Each project can configure up to 50 case-insensitive whole-phrase ignore entries. Matching detected
-items are removed before Parallel research to suppress organization-owned or otherwise expected
-references without changing existing findings. Project cards support private PNG, JPEG, or WebP
+Each production can configure up to 50 case-insensitive whole-phrase ignore entries. Matching
+detected items are removed before Parallel research to suppress studio-owned or otherwise expected
+references without changing existing findings. Production cards support private PNG, JPEG, or WebP
 icons up to 512 KiB.
 
 The case workspace visualizes the integrated agent pipeline—Gemini Intake, Parallel Web Research,
 and Gemini Evidence Curation—inside each synchronous analysis request. It reports detected leads,
 verified source counts, and selected primary evidence without restoring a separate persistent
-agent-run history. Project-linked findings also support an explicit review handoff: teams can
-assign an owner, set a due date, and preserve discussion notes alongside the evidence before a human
-reviewer clears, dismisses, or escalates the lead.
+agent-run history.
 
 ## Requirements
 
@@ -106,9 +102,7 @@ uses Application Default Credentials (ADC) with Vertex AI; it follows the curren
 The Parallel adapter uses its documented [Search API](https://docs.parallel.ai/api-reference/search/search)
 and [Extract API](https://docs.parallel.ai/api-reference/extract/extract) with
 `RIGHTSRADAR_PARALLEL_API_KEY` only on the server. No secret is exposed to the browser or written
-to logs. `RIGHTSRADAR_CORS_ORIGINS` accepts a comma-separated list of browser origins; a hosted API
-must include the deployed web app origin. The web build's public `NEXT_PUBLIC_API_BASE_URL` must
-point to that hosted API rather than localhost.
+to logs.
 
 ### Verified research pipeline
 

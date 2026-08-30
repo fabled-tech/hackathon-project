@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  addFindingComment,
   createCase,
   createCaseFromFile,
   getCase,
@@ -11,16 +10,13 @@ import {
   type Case,
   type CaseSummary,
   type Finding,
-  type ProjectIndustry,
   type ReviewerStatus,
   uploadAsset,
-  updateFindingMeta,
   updateFindingStatus
 } from '@rightsrader/api-client';
 import {
   ArrowRight,
   ArrowUpRight,
-  CalendarClock,
   Check,
   CircleAlert,
   FileSearch,
@@ -28,8 +24,6 @@ import {
   FileUp,
   Globe2,
   Loader2,
-  MessageSquareText,
-  UserRound,
   Sparkles
 } from 'lucide-react';
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
@@ -37,47 +31,6 @@ import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 const SAMPLE_SCRIPT =
   'EXT. NEON SKYWALK — MIDNIGHT\n\nMARA skates through the rain, kicks a Nimbus Soda can into her palm, and smirks. "Time keeps the reel turning," she says as a drone camera dives past.';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
-
-const INDUSTRY_MATERIAL_GUIDANCE: Record<
-  ProjectIndustry,
-  { intro: string; placeholder: string; note: string }
-> = {
-  film_tv: {
-    intro: 'Paste a scene or upload a project file.',
-    placeholder: 'Paste a script excerpt to scan for rights-clearance research leads…',
-    note: 'scripts, treatments, storyboards, cuts, artwork, and clearance notes'
-  },
-  advertising: {
-    intro: 'Paste campaign copy or upload creative.',
-    placeholder: 'Paste campaign copy, a storyboard, or an ad script to scan for rights leads…',
-    note: 'campaign copy, boards, spots, social creative, and brand assets'
-  },
-  gaming: {
-    intro: 'Paste narrative content or upload game creative.',
-    placeholder: 'Paste dialogue, lore, character notes, or marketing copy to scan for rights leads…',
-    note: 'narrative scripts, concept art, characters, environments, and marketing assets'
-  },
-  music: {
-    intro: 'Paste lyrics or cues, or upload release creative.',
-    placeholder: 'Paste lyrics, sample notes, credits, or promotional copy to scan for rights leads…',
-    note: 'lyrics, samples, recordings, artwork, visuals, and promotional materials'
-  },
-  podcast_audio: {
-    intro: 'Paste an episode script or transcript, or upload show assets.',
-    placeholder: 'Paste an episode script, transcript, ad read, or cue sheet to scan for rights leads…',
-    note: 'episode scripts, transcripts, clips, music cues, artwork, and ad reads'
-  },
-  publishing: {
-    intro: 'Paste manuscript copy or upload editorial material.',
-    placeholder: 'Paste manuscript text, excerpts, quotes, or publicity copy to scan for rights leads…',
-    note: 'manuscripts, excerpts, cover art, illustrations, quotes, and publicity copy'
-  },
-  digital_media: {
-    intro: 'Paste creator copy or upload channel assets.',
-    placeholder: 'Paste a video script, post, newsletter, or sponsor copy to scan for rights leads…',
-    note: 'video scripts, posts, newsletters, thumbnails, clips, and sponsored content'
-  }
-};
 
 function statusLabel(status: ReviewerStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
@@ -173,17 +126,15 @@ function PrimaryButton({
 function SecondaryButton({
   children,
   disabled,
-  onClick,
-  type = 'button'
+  onClick
 }: {
   children: ReactNode;
   disabled?: boolean;
   onClick?: () => void;
-  type?: 'submit' | 'button';
 }) {
   return (
     <button
-      type={type}
+      type="button"
       onClick={onClick}
       disabled={disabled}
       className="inline-flex shrink-0 items-center gap-1.5 border-2 border-ink bg-white px-3 py-2 font-display text-[10px] text-ink shadow-press transition hover:bg-exhibit focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
@@ -208,27 +159,6 @@ function EscalateButton({
       onClick={onClick}
       disabled={disabled}
       className="inline-flex shrink-0 items-center gap-1.5 border-2 border-ink bg-gradient-to-b from-accent-soft via-accent to-accent-strong px-3 py-2 font-display text-[10px] text-white shadow-press [text-shadow:0_1px_1px_rgb(0_0_0/0.3)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {children}
-    </button>
-  );
-}
-
-function ClearButton({
-  children,
-  disabled,
-  onClick
-}: {
-  children: ReactNode;
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex shrink-0 items-center gap-1.5 border-2 border-ink bg-brand px-3 py-2 font-display text-[10px] text-ink shadow-press transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
     >
       {children}
     </button>
@@ -358,196 +288,10 @@ function AgentPipeline({
   );
 }
 
-function FindingHandoff({
-  productionId,
-  caseId,
-  finding,
-  onUpdated,
-  onError
-}: {
-  productionId: string;
-  caseId: string;
-  finding: Finding;
-  onUpdated: (finding: Finding) => void;
-  onError: (message: string | null) => void;
-}) {
-  const [assignee, setAssignee] = useState(finding.assignee ?? '');
-  const [dueDate, setDueDate] = useState(finding.due_date ?? '');
-  const [commentAuthor, setCommentAuthor] = useState('');
-  const [commentBody, setCommentBody] = useState('');
-  const [isSavingMeta, setIsSavingMeta] = useState(false);
-  const [isAddingComment, setIsAddingComment] = useState(false);
-  const comments = finding.comments ?? [];
-
-  async function saveHandoff(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    setIsSavingMeta(true);
-    onError(null);
-    try {
-      const updatedFinding = await updateFindingMeta(
-        productionId,
-        caseId,
-        finding.id,
-        {
-          assignee: assignee.trim(),
-          due_date: dueDate
-        },
-        API_BASE_URL
-      );
-      onUpdated(updatedFinding);
-    } catch {
-      onError('The finding handoff could not be saved. Please try again.');
-    } finally {
-      setIsSavingMeta(false);
-    }
-  }
-
-  async function addComment(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    const author = commentAuthor.trim();
-    const body = commentBody.trim();
-    if (!author || !body) return;
-
-    setIsAddingComment(true);
-    onError(null);
-    try {
-      const updatedFinding = await addFindingComment(
-        productionId,
-        caseId,
-        finding.id,
-        { author, body },
-        API_BASE_URL
-      );
-      onUpdated(updatedFinding);
-      setCommentBody('');
-    } catch {
-      onError('The review note could not be added. Please try again.');
-    } finally {
-      setIsAddingComment(false);
-    }
-  }
-
-  return (
-    <section
-      className="mt-4 border-2 border-ink bg-white p-3.5"
-      aria-labelledby={`handoff-${finding.id}`}
-    >
-      <div className="flex flex-wrap items-start justify-between gap-2">
-        <div>
-          <h4
-            id={`handoff-${finding.id}`}
-            className="font-display text-[11px] uppercase text-ink"
-          >
-            Review handoff
-          </h4>
-          <p className="mt-1 max-w-xl text-[10.5px] leading-4 text-muted">
-            Assign the next owner and preserve the context creative, delivery, or counsel needs to resolve
-            this lead.
-          </p>
-        </div>
-        <span className="inline-flex items-center gap-1 border border-ink bg-exhibit px-2 py-1 font-pixel text-[7px] text-ink">
-          <MessageSquareText className="size-3" aria-hidden />
-          {comments.length} {comments.length === 1 ? 'NOTE' : 'NOTES'}
-        </span>
-      </div>
-
-      <form onSubmit={saveHandoff} className="mt-3 grid gap-3 sm:grid-cols-[1fr_10rem_auto]">
-        <label className="block">
-          <span className="flex items-center gap-1 font-pixel text-[7px] text-line-strong">
-            <UserRound className="size-3" aria-hidden /> OWNER / TEAM
-          </span>
-          <input
-            value={assignee}
-            onChange={(event) => setAssignee(event.target.value)}
-            maxLength={120}
-            placeholder="Clearance, creative, counsel…"
-            aria-label={`Owner for ${finding.detected_item}`}
-            className="mt-1.5 block w-full border-2 border-ink bg-white px-2 py-1.5 text-[10.5px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
-          />
-        </label>
-        <label className="block">
-          <span className="flex items-center gap-1 font-pixel text-[7px] text-line-strong">
-            <CalendarClock className="size-3" aria-hidden /> DUE
-          </span>
-          <input
-            type="date"
-            value={dueDate}
-            onChange={(event) => setDueDate(event.target.value)}
-            aria-label={`Due date for ${finding.detected_item}`}
-            className="mt-1.5 block w-full border-2 border-ink bg-white px-2 py-1.5 text-[10.5px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
-          />
-        </label>
-        <div className="flex items-end">
-          <PrimaryButton disabled={isSavingMeta}>
-            {isSavingMeta ? <Spinner className="size-3.5" /> : null}
-            Save handoff
-          </PrimaryButton>
-        </div>
-      </form>
-
-      {comments.length > 0 ? (
-        <ol className="mt-3 space-y-2 border-t border-dashed border-faint pt-3">
-          {comments.map((comment) => (
-            <li key={comment.id} className="border-l-2 border-cyan-pop pl-2.5">
-              <div className="flex flex-wrap items-baseline justify-between gap-2">
-                <span className="text-[10.5px] font-bold text-ink">{comment.author}</span>
-                <time className="font-pixel text-[6.5px] text-muted">
-                  {formatDateTime(comment.created_at)}
-                </time>
-              </div>
-              <p className="mt-1 whitespace-pre-wrap text-[10.5px] leading-4 text-ink-soft">
-                {comment.body}
-              </p>
-            </li>
-          ))}
-        </ol>
-      ) : null}
-
-      <form
-        onSubmit={addComment}
-        className="mt-3 grid gap-2 border-t border-dashed border-faint pt-3 sm:grid-cols-[9rem_1fr_auto]"
-      >
-        <input
-          value={commentAuthor}
-          onChange={(event) => setCommentAuthor(event.target.value)}
-          maxLength={120}
-          required
-          placeholder="Your name or team"
-          aria-label={`Review note author for ${finding.detected_item}`}
-          className="block w-full border-2 border-ink bg-white px-2 py-1.5 text-[10.5px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
-        />
-        <input
-          value={commentBody}
-          onChange={(event) => setCommentBody(event.target.value)}
-          maxLength={4_000}
-          required
-          placeholder="Add the decision context, question, or next step…"
-          aria-label={`Review note for ${finding.detected_item}`}
-          className="block w-full border-2 border-ink bg-white px-2 py-1.5 text-[10.5px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
-        />
-        <SecondaryButton
-          disabled={isAddingComment || !commentAuthor.trim() || !commentBody.trim()}
-          type="submit"
-        >
-          {isAddingComment ? <Spinner className="size-3.5" /> : null}
-          Add note
-        </SecondaryButton>
-      </form>
-    </section>
-  );
-}
-
 export function ScriptReview({
   productionId,
-  industry = 'film_tv',
-  onCaseCreated,
-  onCaseUpdated
-}: {
-  productionId?: string;
-  industry?: ProjectIndustry;
-  onCaseCreated?: () => void;
-  onCaseUpdated?: () => void;
-} = {}) {
+  onCaseCreated
+}: { productionId?: string; onCaseCreated?: () => void } = {}) {
   const [scriptText, setScriptText] = useState(SAMPLE_SCRIPT);
   const [caseResult, setCaseResult] = useState<Case | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -733,26 +477,21 @@ export function ScriptReview({
         reviewerStatus,
         API_BASE_URL
       );
-      replaceFinding(updatedFinding);
+      setCaseResult((current) =>
+        current
+          ? {
+              ...current,
+              findings: current.findings.map((candidate) =>
+                candidate.id === updatedFinding.id ? updatedFinding : candidate
+              )
+            }
+          : current
+      );
     } catch {
       setError('The reviewer status could not be saved. Please try again.');
     } finally {
       setUpdatingFindingId(null);
     }
-  }
-
-  function replaceFinding(updatedFinding: Finding) {
-    setCaseResult((current) =>
-      current
-        ? {
-            ...current,
-            findings: current.findings.map((candidate) =>
-              candidate.id === updatedFinding.id ? updatedFinding : candidate
-            )
-          }
-        : current
-    );
-    onCaseUpdated?.();
   }
 
   return (
@@ -764,8 +503,8 @@ export function ScriptReview({
             RightsRadar
           </h1>
           <p className="mt-3 max-w-md text-[11.5px] leading-[17.83px] text-lavender-soft">
-            Surface potential research leads for names, brands, quotations, characters, music,
-            artwork, and likenesses, then let a human reviewer decide what needs follow-up.
+            Surface potential research leads for brands, quotations, characters, franchises, and
+            likenesses, then let a human reviewer decide what needs follow-up.
           </p>
         </div>
 
@@ -779,9 +518,8 @@ export function ScriptReview({
                     RightsRadar
                   </p>
                   <p className="mt-2 max-w-xs text-[11.5px] leading-[17.83px] text-lavender-soft">
-                    {INDUSTRY_MATERIAL_GUIDANCE[industry].intro}{' '}
-                    We&apos;ll surface what needs rights research before publication, launch, or
-                    release.
+                    Paste a scene or upload a production file. We&apos;ll surface what needs rights
+                    research before release.
                   </p>
                   <aside
                     className="mt-4 border border-warn-line bg-warn-bg p-3.5 text-[11px] leading-[17px] text-lavender-soft"
@@ -813,7 +551,7 @@ export function ScriptReview({
                       rows={8}
                       maxLength={20_000}
                       required
-                      placeholder={INDUSTRY_MATERIAL_GUIDANCE[industry].placeholder}
+                      placeholder="Paste a script excerpt to scan for rights-clearance research leads…"
                       className="mt-2.5 block w-full resize-y border-2 border-ink bg-white px-2.5 py-2.5 text-[11px] leading-[17px] text-ink-soft transition placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-cyan-pop"
                     />
                     <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
@@ -841,12 +579,11 @@ export function ScriptReview({
                         htmlFor="analysis-file"
                         className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
                       >
-                        ▸ OR ANALYZE A PROJECT FILE
+                        ▸ OR ANALYZE A PRODUCTION FILE
                       </label>
                       <p className="mt-2 text-[10.5px] leading-4 text-muted">
-                        Best for {INDUSTRY_MATERIAL_GUIDANCE[industry].note}. Gemini reviews PDF and
-                        image layout visually; DOCX text is extracted securely, then detected leads
-                        are researched on the web through Parallel.
+                        Gemini reviews PDF and image layout visually. DOCX text is extracted
+                        securely, then detected leads are researched on the web through Parallel.
                       </p>
                       <input
                         ref={analysisFileInputRef}
@@ -970,37 +707,11 @@ export function ScriptReview({
                                   </blockquote>
                                 ))}
                               </div>
-                              {productionId ? (
-                                <FindingHandoff
-                                  productionId={productionId}
-                                  caseId={caseResult.id}
-                                  finding={finding}
-                                  onUpdated={replaceFinding}
-                                  onError={setError}
-                                />
-                              ) : null}
                               <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3">
                                 <span className="text-[10px] text-muted">✂ - - - - -</span>
                                 <div className="flex gap-2.5">
-                                  <ClearButton
-                                    disabled={
-                                      updatingFindingId === finding.id ||
-                                      finding.reviewer_status === 'accepted'
-                                    }
-                                    onClick={() => changeStatus(finding, 'accepted')}
-                                  >
-                                    {updatingFindingId === finding.id ? (
-                                      <Spinner className="size-3.5" />
-                                    ) : (
-                                      <Check className="size-3.5" aria-hidden />
-                                    )}
-                                    Clear
-                                  </ClearButton>
                                   <SecondaryButton
-                                    disabled={
-                                      updatingFindingId === finding.id ||
-                                      finding.reviewer_status === 'dismissed'
-                                    }
+                                    disabled={updatingFindingId === finding.id}
                                     onClick={() => changeStatus(finding, 'dismissed')}
                                   >
                                     {updatingFindingId === finding.id ? (
@@ -1009,10 +720,7 @@ export function ScriptReview({
                                     Dismiss
                                   </SecondaryButton>
                                   <EscalateButton
-                                    disabled={
-                                      updatingFindingId === finding.id ||
-                                      finding.reviewer_status === 'escalated'
-                                    }
+                                    disabled={updatingFindingId === finding.id}
                                     onClick={() => changeStatus(finding, 'escalated')}
                                   >
                                     {updatingFindingId === finding.id ? (
@@ -1035,10 +743,10 @@ export function ScriptReview({
                   <div className="mt-3">
                     <Panel>
                       <p className="font-pixel text-[8px] tracking-[0.16px] text-line-strong">
-                        STEP 3 / PROJECT NOTES
+                        STEP 3 / PRODUCTION NOTES
                       </p>
                       <h2 className="mt-2 font-display text-base text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4]">
-                        Attach a project note
+                        Attach a production note
                       </h2>
 
                       <form
@@ -1064,7 +772,7 @@ export function ScriptReview({
                           <p className="mt-1.5">
                             This attachment is stored with the case for human review; it is not
                             analyzed. To analyze a PDF, DOCX, PNG, JPEG, or WebP file, use the
-                            project-file uploader above.
+                            production-file uploader above.
                           </p>
                         </div>
                         <input
@@ -1108,7 +816,7 @@ export function ScriptReview({
                         </h3>
                         {assets.length === 0 ? (
                           <p className="mt-2 text-[11.5px] leading-[17.83px] text-lavender-soft">
-                            No plain-text project notes are attached yet.
+                            No plain-text production notes are attached yet.
                           </p>
                         ) : (
                           <ul className="mt-2 space-y-2">
