@@ -14,7 +14,18 @@ import {
   uploadAsset,
   updateFindingStatus
 } from '@rightsrader/api-client';
-import { ArrowUpRight, CircleAlert, FileText, FileUp, Loader2 } from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  CircleAlert,
+  FileSearch,
+  FileText,
+  FileUp,
+  Globe2,
+  Loader2,
+  Sparkles
+} from 'lucide-react';
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 
 const SAMPLE_SCRIPT =
@@ -154,6 +165,129 @@ function EscalateButton({
   );
 }
 
+type AgentWorkflowStatus = 'idle' | 'running' | 'complete' | 'failed';
+
+function AgentPipeline({
+  status,
+  result
+}: {
+  status: AgentWorkflowStatus;
+  result: Case | null;
+}) {
+  const findings = result?.findings ?? [];
+  const citedSources = new Set(
+    findings.flatMap((finding) => finding.source_urls)
+  ).size;
+  const curatedSources = findings.filter(
+    (finding) => finding.evidence?.primary
+  ).length;
+  const stages = [
+    {
+      name: 'Gemini Intake',
+      description: 'Detects clearance leads in text, documents, and imagery.',
+      icon: <Sparkles className="size-3.5" aria-hidden />,
+      output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`
+    },
+    {
+      name: 'Parallel Research',
+      description: 'Searches and extracts relevant public web sources.',
+      icon: <Globe2 className="size-3.5" aria-hidden />,
+      output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`
+    },
+    {
+      name: 'Gemini Curation',
+      description: 'Selects grounded evidence and rejects unsupported citations.',
+      icon: <FileSearch className="size-3.5" aria-hidden />,
+      output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`
+    }
+  ];
+
+  return (
+    <section
+      className="mt-4 border-2 border-line bg-panel p-4"
+      aria-label="Case agent pipeline"
+      data-testid="agent-pipeline"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-pixel text-[8px] tracking-[0.16px] text-cyan-pop">
+            CASE AGENT PIPELINE
+          </p>
+          <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
+            Gemini and Parallel collaborate inside this case request. No separate run history is
+            stored.
+          </p>
+        </div>
+        <span
+          className={`border px-2 py-1 font-pixel text-[7px] ${
+            status === 'complete'
+              ? 'border-brand text-brand'
+              : status === 'failed'
+                ? 'border-accent text-accent'
+                : status === 'running'
+                  ? 'border-cyan-pop text-cyan-pop'
+                  : 'border-line-strong text-lavender'
+          }`}
+          aria-live="polite"
+        >
+          {status === 'running'
+            ? 'WORKING'
+            : status === 'complete'
+              ? 'COMPLETE'
+              : status === 'failed'
+                ? 'RETRY NEEDED'
+                : 'READY'}
+        </span>
+      </div>
+
+      <ol className="mt-4 grid gap-2 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
+        {stages.map((stage, index) => (
+            <li key={stage.name} className="contents">
+              <div
+                className={`border-2 p-3 transition ${
+                  status === 'running'
+                    ? 'animate-pulse border-cyan-pop/70 bg-cyan-pop/5'
+                    : status === 'complete'
+                      ? 'border-brand/70 bg-brand/5'
+                      : status === 'failed'
+                        ? 'border-accent/70 bg-danger-bg'
+                        : 'border-line bg-canvas/20'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="flex size-7 items-center justify-center border border-line bg-canvas text-cyan-pop">
+                    {status === 'complete' ? (
+                      <Check className="size-3.5 text-brand" aria-hidden />
+                    ) : status === 'running' ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      stage.icon
+                    )}
+                  </span>
+                  <span className="font-display text-[9px] text-paper">{stage.name}</span>
+                </div>
+                <p className="mt-2 text-[9.5px] leading-4 text-lavender-soft">
+                  {stage.description}
+                </p>
+                {status === 'complete' ? (
+                  <p className="mt-2 font-pixel text-[7px] leading-3 text-brand">
+                    {stage.output}
+                  </p>
+                ) : null}
+              </div>
+              {index < stages.length - 1 ? (
+                <ArrowRight
+                  className="mx-auto hidden size-4 self-center text-cyan-pop lg:block"
+                  aria-hidden
+                />
+              ) : null}
+            </li>
+          ))}
+      </ol>
+    </section>
+  );
+}
+
 export function ScriptReview({
   productionId,
   onCaseCreated
@@ -167,6 +301,8 @@ export function ScriptReview({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
+  const [agentWorkflowStatus, setAgentWorkflowStatus] =
+    useState<AgentWorkflowStatus>('idle');
   const [isLoadingRecentCases, setIsLoadingRecentCases] = useState(false);
   const [isLoadingCaseId, setIsLoadingCaseId] = useState<string | null>(null);
   const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
@@ -185,6 +321,7 @@ export function ScriptReview({
     const operationGeneration = ++caseOperationGeneration.current;
     const requestGeneration = ++submissionGeneration.current;
     setIsSubmitting(true);
+    setAgentWorkflowStatus('running');
     setError(null);
     try {
       const nextCase = await createCase(
@@ -196,12 +333,14 @@ export function ScriptReview({
       }
       activeCaseIdRef.current = nextCase.id;
       setCaseResult(nextCase);
+      setAgentWorkflowStatus('complete');
       setAssets([]);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       onCaseCreated?.();
     } catch {
       if (caseOperationGeneration.current === operationGeneration) {
+        setAgentWorkflowStatus('failed');
         setError('RightsRadar could not analyze this script right now. Please try again.');
       }
     } finally {
@@ -252,6 +391,7 @@ export function ScriptReview({
     const operationGeneration = ++caseOperationGeneration.current;
     const requestGeneration = ++fileAnalysisGeneration.current;
     setIsAnalyzingFile(true);
+    setAgentWorkflowStatus('running');
     setError(null);
     try {
       const nextCase = await createCaseFromFile(
@@ -264,6 +404,7 @@ export function ScriptReview({
       activeCaseIdRef.current = nextCase.id;
       setScriptText(nextCase.script_text);
       setCaseResult(nextCase);
+      setAgentWorkflowStatus('complete');
       setAssets(nextAssets);
       setAnalysisFile(null);
       setSelectedFile(null);
@@ -272,6 +413,7 @@ export function ScriptReview({
       onCaseCreated?.();
     } catch {
       if (caseOperationGeneration.current === operationGeneration) {
+        setAgentWorkflowStatus('failed');
         setError(
           'RightsRadar could not analyze this file. Use a PDF, DOCX, PNG, JPEG, or WebP file up to 10 MiB.'
         );
@@ -309,6 +451,7 @@ export function ScriptReview({
       activeCaseIdRef.current = caseId;
       setScriptText(nextCase.script_text);
       setCaseResult(nextCase);
+      setAgentWorkflowStatus('complete');
       setAssets(nextAssets);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -472,6 +615,7 @@ export function ScriptReview({
                       </div>
                     </form>
                   ) : null}
+                  <AgentPipeline status={agentWorkflowStatus} result={caseResult} />
                 </Panel>
               </div>
             </div>

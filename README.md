@@ -22,6 +22,11 @@ detected items are removed before Parallel research to suppress studio-owned or 
 references without changing existing findings. Production cards support private PNG, JPEG, or WebP
 icons up to 512 KiB.
 
+The case workspace visualizes the integrated agent pipeline—Gemini Intake, Parallel Web Research,
+and Gemini Evidence Curation—inside each synchronous analysis request. It reports detected leads,
+verified source counts, and selected primary evidence without restoring a separate persistent
+agent-run history.
+
 ## Requirements
 
 - Node.js 20.9+ and `pnpm` 10

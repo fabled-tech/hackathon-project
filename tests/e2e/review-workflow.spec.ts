@@ -246,6 +246,12 @@ test('submits a script and lets the reviewer dismiss a finding', async ({ page }
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
+  await expect(page.getByTestId('agent-pipeline')).toContainText('COMPLETE');
+  await expect(page.getByTestId('agent-pipeline')).toContainText('Gemini Intake');
+  await expect(page.getByTestId('agent-pipeline')).toContainText('Parallel Research');
+  await expect(page.getByTestId('agent-pipeline')).toContainText('Gemini Curation');
+  await expect(page.getByTestId('agent-pipeline')).toContainText('2 leads detected');
+
   const brandFinding = page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' });
   await expect(brandFinding).toContainText('brand reference archive');
   await expect(brandFinding).toContainText('Pending');
@@ -284,6 +290,7 @@ test('shows an error banner when script submission fails', async ({ page }) => {
   await expect(
     page.getByText('RightsRadar could not analyze this script right now. Please try again.')
   ).toBeVisible();
+  await expect(page.getByTestId('agent-pipeline')).toContainText('RETRY NEEDED');
 
   await page.unroute('**/api/cases');
 });
