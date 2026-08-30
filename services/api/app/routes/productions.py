@@ -139,9 +139,13 @@ def update_finding_meta(
     payload: UpdateFindingMetaRequest,
     request: Request,
 ) -> Finding:
-    del production_id
+    services = _services(request)
     try:
-        return _services(request).case_repository.update_finding_meta(
+        services.production_repository.get(production_id)
+    except ProductionRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Production not found") from error
+    try:
+        return services.case_repository.update_finding_meta(
             case_id, finding_id, assignee=payload.assignee, due_date=payload.due_date
         )
     except CaseRepositoryNotFound as error:
@@ -162,7 +166,11 @@ def add_finding_comment(
     payload: CreateFindingCommentRequest,
     request: Request,
 ) -> Finding:
-    del production_id
+    services = _services(request)
+    try:
+        services.production_repository.get(production_id)
+    except ProductionRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Production not found") from error
     comment = FindingComment(
         id=str(uuid4()),
         author=payload.author,
@@ -170,7 +178,7 @@ def add_finding_comment(
         created_at=datetime.now(UTC),
     )
     try:
-        return _services(request).case_repository.add_finding_comment(case_id, finding_id, comment)
+        return services.case_repository.add_finding_comment(case_id, finding_id, comment)
     except CaseRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Case not found") from error
     except FindingNotFound as error:
