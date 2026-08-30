@@ -1,5 +1,5 @@
-import { ScriptReview } from '@/components/script-review';
+import { Dashboard } from '@/components/dashboard';
 
 export default function HomePage() {
-  return <ScriptReview />;
+  return <Dashboard />;
 }

@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 from .analysis import Evidence, EvidenceSelection
+from .productions import FindingComment
 
 
 class ReviewerStatus(StrEnum):
@@ -12,6 +13,12 @@ class ReviewerStatus(StrEnum):
     ACCEPTED = "accepted"
     DISMISSED = "dismissed"
     ESCALATED = "escalated"
+
+
+class FindingSeverity(StrEnum):
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
 
 
 class Finding(BaseModel):
@@ -26,6 +33,9 @@ class Finding(BaseModel):
     retrieved_at: datetime
     reviewer_status: ReviewerStatus
     evidence: EvidenceSelection = Field(default_factory=EvidenceSelection)
+    assignee: str | None = None
+    due_date: str | None = None
+    comments: list[FindingComment] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -38,6 +48,14 @@ class Finding(BaseModel):
         }
         return normalized
 
+    @property
+    def severity(self) -> FindingSeverity:
+        if self.reviewer_status is ReviewerStatus.ESCALATED or self.confidence >= 0.8:
+            return FindingSeverity.HIGH
+        if self.confidence >= 0.6:
+            return FindingSeverity.MEDIUM
+        return FindingSeverity.LOW
+
 
 class Case(BaseModel):
     id: str
@@ -45,3 +63,6 @@ class Case(BaseModel):
     created_at: datetime
     findings: list[Finding]
     asset_count: int = Field(default=0, ge=0)
+    production_id: str | None = None
+    title: str = ""
+    notes: str = ""
