@@ -53,6 +53,10 @@ body {
   text-rendering: optimizeLegibility;
 }
 
+html {
+  color-scheme: dark;
+}
+
 ::selection {
   background: rgb(45 212 191 / 0.3);
   color: #f8fafc;
