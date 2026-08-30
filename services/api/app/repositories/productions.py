@@ -3,7 +3,6 @@ from collections.abc import Mapping
 from typing import Any, Protocol
 
 from app.models import (
-    AgentRun,
     Case,
     Production,
     ProductionStatus,
@@ -31,6 +30,16 @@ class ProductionRepository(Protocol):
         studio: str | None = None,
         status: ProductionStatus | None = None,
         icon: str | None = None,
+        ignore_keywords: "builtins.list[str] | None" = None,
+        clear_custom_icon: bool = False,
+    ) -> Production: ...
+
+    def set_icon_metadata(
+        self,
+        production_id: str,
+        *,
+        version: str | None,
+        content_type: str | None,
     ) -> Production: ...
 
     def delete(self, production_id: str) -> None: ...
@@ -57,7 +66,17 @@ def summarize_production(production: Production, cases: list[Case]) -> Productio
     ]
     return ProductionSummary(
         **production.model_dump(
-            include={"id", "title", "studio", "status", "icon", "created_at"}
+            include={
+                "id",
+                "title",
+                "studio",
+                "status",
+                "icon",
+                "icon_version",
+                "icon_content_type",
+                "ignore_keywords",
+                "created_at",
+            }
         ),
         case_count=len(production_cases),
         open_finding_count=len(open_findings),
@@ -95,6 +114,8 @@ class InMemoryProductionRepository:
         studio: str | None = None,
         status: ProductionStatus | None = None,
         icon: str | None = None,
+        ignore_keywords: "builtins.list[str] | None" = None,
+        clear_custom_icon: bool = False,
     ) -> Production:
         production = self._productions.get(production_id)
         if production is None:
@@ -107,6 +128,25 @@ class InMemoryProductionRepository:
             production.status = status
         if icon is not None:
             production.icon = icon
+        if ignore_keywords is not None:
+            production.ignore_keywords = ignore_keywords
+        if clear_custom_icon:
+            production.icon_version = None
+            production.icon_content_type = None
+        return production.model_copy(deep=True)
+
+    def set_icon_metadata(
+        self,
+        production_id: str,
+        *,
+        version: str | None,
+        content_type: str | None,
+    ) -> Production:
+        production = self._productions.get(production_id)
+        if production is None:
+            raise ProductionRepositoryNotFound(production_id)
+        production.icon_version = version
+        production.icon_content_type = content_type
         return production.model_copy(deep=True)
 
     def delete(self, production_id: str) -> None:
@@ -118,46 +158,6 @@ class InMemoryProductionRepository:
         self, production: Production, cases: "builtins.list[Case]"
     ) -> ProductionSummary:
         return summarize_production(production, cases)
-
-
-class AgentRunRepository(Protocol):
-    def create(self, run: AgentRun) -> AgentRun: ...
-
-    def get(self, run_id: str) -> AgentRun: ...
-
-    def list_for_production(self, production_id: str, limit: int) -> list[AgentRun]: ...
-
-    def update(self, run: AgentRun) -> AgentRun: ...
-
-
-class AgentRunNotFound(Exception):
-    pass
-
-
-class InMemoryAgentRunRepository:
-    def __init__(self) -> None:
-        self._runs: dict[str, AgentRun] = {}
-
-    def create(self, run: AgentRun) -> AgentRun:
-        self._runs[run.id] = run.model_copy(deep=True)
-        return run
-
-    def get(self, run_id: str) -> AgentRun:
-        run = self._runs.get(run_id)
-        if run is None:
-            raise AgentRunNotFound(run_id)
-        return run.model_copy(deep=True)
-
-    def list_for_production(self, production_id: str, limit: int) -> list[AgentRun]:
-        runs = [run for run in self._runs.values() if run.production_id == production_id]
-        runs.sort(key=lambda run: run.created_at, reverse=True)
-        return [run.model_copy(deep=True) for run in runs[:limit]]
-
-    def update(self, run: AgentRun) -> AgentRun:
-        if run.id not in self._runs:
-            raise AgentRunNotFound(run.id)
-        self._runs[run.id] = run.model_copy(deep=True)
-        return run
 
 
 class FirestoreProductionRepository:
@@ -199,6 +199,8 @@ class FirestoreProductionRepository:
         studio: str | None = None,
         status: ProductionStatus | None = None,
         icon: str | None = None,
+        ignore_keywords: "builtins.list[str] | None" = None,
+        clear_custom_icon: bool = False,
     ) -> Production:
         document = self._collection.document(production_id)
         if not document.get().exists:
@@ -212,8 +214,31 @@ class FirestoreProductionRepository:
             updates["status"] = status.value
         if icon is not None:
             updates["icon"] = icon
+        if ignore_keywords is not None:
+            updates["ignore_keywords"] = ignore_keywords
+        if clear_custom_icon:
+            updates["icon_version"] = None
+            updates["icon_content_type"] = None
         if updates:
             document.update(updates)
+        return self.get(production_id)
+
+    def set_icon_metadata(
+        self,
+        production_id: str,
+        *,
+        version: str | None,
+        content_type: str | None,
+    ) -> Production:
+        document = self._collection.document(production_id)
+        if not document.get().exists:
+            raise ProductionRepositoryNotFound(production_id)
+        document.update(
+            {
+                "icon_version": version,
+                "icon_content_type": content_type,
+            }
+        )
         return self.get(production_id)
 
     def delete(self, production_id: str) -> None:
@@ -226,47 +251,3 @@ class FirestoreProductionRepository:
         self, production: Production, cases: "builtins.list[Case]"
     ) -> ProductionSummary:
         return summarize_production(production, cases)
-
-
-class FirestoreAgentRunRepository:
-    """Cloud agent-run repository loaded only when a real repository is selected."""
-
-    def __init__(self, project: str, collection_name: str, *, client: Any | None = None) -> None:
-        if client is None:
-            from google.cloud import firestore
-
-            client = firestore.Client(project=project)
-        self._collection = client.collection(collection_name)
-
-    def create(self, run: AgentRun) -> AgentRun:
-        self._collection.document(run.id).set(run.model_dump(mode="json"))
-        return run
-
-    def get(self, run_id: str) -> AgentRun:
-        snapshot = self._collection.document(run_id).get()
-        if not snapshot.exists:
-            raise AgentRunNotFound(run_id)
-        document = snapshot.to_dict()
-        if not isinstance(document, Mapping):
-            raise AgentRunNotFound(run_id)
-        return AgentRun.model_validate(document)
-
-    def list_for_production(self, production_id: str, limit: int) -> "builtins.list[AgentRun]":
-        snapshots = (
-            self._collection.where("production_id", "==", production_id)
-            .order_by("created_at", direction="DESCENDING")
-            .limit(limit)
-            .stream()
-        )
-        return [
-            AgentRun.model_validate(document)
-            for snapshot in snapshots
-            if isinstance((document := snapshot.to_dict()), Mapping)
-        ]
-
-    def update(self, run: AgentRun) -> AgentRun:
-        document = self._collection.document(run.id)
-        if not document.get().exists:
-            raise AgentRunNotFound(run.id)
-        document.set(run.model_dump(mode="json"))
-        return run

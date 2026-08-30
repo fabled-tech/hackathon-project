@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from collections.abc import Callable
+from collections.abc import Callable, Sequence
 from datetime import UTC, datetime
 from uuid import UUID
 
@@ -125,7 +125,12 @@ class SensitiveStoreFailureAssetRepository(FakeAssetRepository):
 
 
 class UnusedAgentService:
-    def analyze(self, _case_id: str, _script_text: str) -> list[object]:
+    def analyze(
+        self,
+        _case_id: str,
+        _script_text: str,
+        _ignored_keywords: Sequence[str] = (),
+    ) -> list[object]:
         raise AssertionError("The repository smoke must not invoke the agent service")
 
 

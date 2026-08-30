@@ -1,4 +1,6 @@
 import asyncio
+import re
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Protocol
 from uuid import uuid4
@@ -16,7 +18,30 @@ from app.models.analysis import GeminiSignal
 
 
 class AgentService(Protocol):
-    async def analyze(self, case_id: str, script_text: str) -> list[Finding]: ...
+    async def analyze(
+        self, case_id: str, script_text: str, ignored_keywords: Sequence[str] = ()
+    ) -> list[Finding]: ...
+
+    async def analyze_file(
+        self,
+        case_id: str,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        ignored_keywords: Sequence[str] = (),
+    ) -> list[Finding]: ...
+
+
+def _contains_ignored_phrase(detected_item: str, ignored_keywords: Sequence[str]) -> bool:
+    normalized_item = detected_item.casefold()
+    for keyword in ignored_keywords:
+        words = keyword.casefold().split()
+        if not words:
+            continue
+        pattern = r"(?<!\w)" + r"\s+".join(re.escape(word) for word in words) + r"(?!\w)"
+        if re.search(pattern, normalized_item):
+            return True
+    return False
 
 
 class RightsClearanceAgentService:
@@ -39,9 +64,43 @@ class RightsClearanceAgentService:
             if close is not None:
                 await close()
 
-    async def analyze(self, case_id: str, script_text: str) -> list[Finding]:
+    async def analyze(
+        self, case_id: str, script_text: str, ignored_keywords: Sequence[str] = ()
+    ) -> list[Finding]:
         retrieved_at = datetime.now(UTC)
         signals = await self._gemini.identify_material(script_text)
+        return await self._research_signals(
+            case_id, signals, ignored_keywords, retrieved_at
+        )
+
+    async def analyze_file(
+        self,
+        case_id: str,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        ignored_keywords: Sequence[str] = (),
+    ) -> list[Finding]:
+        retrieved_at = datetime.now(UTC)
+        signals = await self._gemini.identify_material_from_file(
+            filename, content_type, content
+        )
+        return await self._research_signals(
+            case_id, signals, ignored_keywords, retrieved_at
+        )
+
+    async def _research_signals(
+        self,
+        case_id: str,
+        signals: list[GeminiSignal],
+        ignored_keywords: Sequence[str],
+        retrieved_at: datetime,
+    ) -> list[Finding]:
+        indexed_signals = [
+            (index, signal)
+            for index, signal in enumerate(signals)
+            if not _contains_ignored_phrase(signal.detected_item, ignored_keywords)
+        ]
         semaphore = asyncio.Semaphore(self._max_concurrency)
 
         async def analyze_signal(index: int, signal: GeminiSignal) -> Finding:
@@ -50,7 +109,7 @@ class RightsClearanceAgentService:
 
         return list(
             await asyncio.gather(
-                *(analyze_signal(index, signal) for index, signal in enumerate(signals))
+                *(analyze_signal(index, signal) for index, signal in indexed_signals)
             )
         )
 

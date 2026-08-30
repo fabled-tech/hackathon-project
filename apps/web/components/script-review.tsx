@@ -2,7 +2,7 @@
 
 import {
   createCase,
-  escalateFinding,
+  createCaseFromFile,
   getCase,
   listAssets,
   listCases,
@@ -11,13 +11,25 @@ import {
   type CaseSummary,
   type Finding,
   type ReviewerStatus,
-  type WorkspaceMember,
   uploadAsset,
   updateFindingStatus
 } from '@rightsrader/api-client';
-import { ArrowUpRight, CircleAlert, FileText, Loader2 } from 'lucide-react';
+import {
+  ArrowRight,
+  ArrowUpRight,
+  Check,
+  CircleAlert,
+  FileSearch,
+  FileText,
+  FileUp,
+  Globe2,
+  Loader2,
+  Sparkles
+} from 'lucide-react';
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 
+const SAMPLE_SCRIPT =
+  'EXT. NEON SKYWALK — MIDNIGHT\n\nMARA skates through the rain, kicks a Nimbus Soda can into her palm, and smirks. "Time keeps the reel turning," she says as a drone camera dives past.';
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
 function statusLabel(status: ReviewerStatus): string {
@@ -135,17 +147,15 @@ function SecondaryButton({
 function EscalateButton({
   children,
   disabled,
-  onClick,
-  type = 'button'
+  onClick
 }: {
   children: ReactNode;
   disabled?: boolean;
   onClick?: () => void;
-  type?: 'submit' | 'button';
 }) {
   return (
     <button
-      type={type}
+      type="button"
       onClick={onClick}
       disabled={disabled}
       className="inline-flex shrink-0 items-center gap-1.5 border-2 border-ink bg-gradient-to-b from-accent-soft via-accent to-accent-strong px-3 py-2 font-display text-[10px] text-white shadow-press [text-shadow:0_1px_1px_rgb(0_0_0/0.3)] transition hover:brightness-110 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:opacity-60"
@@ -155,41 +165,155 @@ function EscalateButton({
   );
 }
 
+type AgentWorkflowStatus = 'idle' | 'running' | 'complete' | 'failed';
+
+function AgentPipeline({
+  status,
+  result
+}: {
+  status: AgentWorkflowStatus;
+  result: Case | null;
+}) {
+  const findings = result?.findings ?? [];
+  const citedSources = new Set(
+    findings.flatMap((finding) => finding.source_urls)
+  ).size;
+  const curatedSources = findings.filter(
+    (finding) => finding.evidence?.primary
+  ).length;
+  const stages = [
+    {
+      name: 'Gemini Intake',
+      description: 'Detects clearance leads in text, documents, and imagery.',
+      icon: <Sparkles className="size-3.5" aria-hidden />,
+      output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`
+    },
+    {
+      name: 'Parallel Research',
+      description: 'Searches and extracts relevant public web sources.',
+      icon: <Globe2 className="size-3.5" aria-hidden />,
+      output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`
+    },
+    {
+      name: 'Gemini Curation',
+      description: 'Selects grounded evidence and rejects unsupported citations.',
+      icon: <FileSearch className="size-3.5" aria-hidden />,
+      output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`
+    }
+  ];
+
+  return (
+    <section
+      className="mt-4 border-2 border-line bg-panel p-4"
+      aria-label="Case agent pipeline"
+      data-testid="agent-pipeline"
+    >
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <div>
+          <p className="font-pixel text-[8px] tracking-[0.16px] text-cyan-pop">
+            CASE AGENT PIPELINE
+          </p>
+          <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
+            Gemini and Parallel collaborate inside this case request. No separate run history is
+            stored.
+          </p>
+        </div>
+        <span
+          className={`border px-2 py-1 font-pixel text-[7px] ${
+            status === 'complete'
+              ? 'border-brand text-brand'
+              : status === 'failed'
+                ? 'border-accent text-accent'
+                : status === 'running'
+                  ? 'border-cyan-pop text-cyan-pop'
+                  : 'border-line-strong text-lavender'
+          }`}
+          aria-live="polite"
+        >
+          {status === 'running'
+            ? 'WORKING'
+            : status === 'complete'
+              ? 'COMPLETE'
+              : status === 'failed'
+                ? 'RETRY NEEDED'
+                : 'READY'}
+        </span>
+      </div>
+
+      <ol className="mt-4 grid gap-2 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
+        {stages.map((stage, index) => (
+            <li key={stage.name} className="contents">
+              <div
+                className={`border-2 p-3 transition ${
+                  status === 'running'
+                    ? 'animate-pulse border-cyan-pop/70 bg-cyan-pop/5'
+                    : status === 'complete'
+                      ? 'border-brand/70 bg-brand/5'
+                      : status === 'failed'
+                        ? 'border-accent/70 bg-danger-bg'
+                        : 'border-line bg-canvas/20'
+                }`}
+              >
+                <div className="flex items-center gap-2">
+                  <span className="flex size-7 items-center justify-center border border-line bg-canvas text-cyan-pop">
+                    {status === 'complete' ? (
+                      <Check className="size-3.5 text-brand" aria-hidden />
+                    ) : status === 'running' ? (
+                      <Loader2 className="size-3.5 animate-spin" aria-hidden />
+                    ) : (
+                      stage.icon
+                    )}
+                  </span>
+                  <span className="font-display text-[9px] text-paper">{stage.name}</span>
+                </div>
+                <p className="mt-2 text-[9.5px] leading-4 text-lavender-soft">
+                  {stage.description}
+                </p>
+                {status === 'complete' ? (
+                  <p className="mt-2 font-pixel text-[7px] leading-3 text-brand">
+                    {stage.output}
+                  </p>
+                ) : null}
+              </div>
+              {index < stages.length - 1 ? (
+                <ArrowRight
+                  className="mx-auto hidden size-4 self-center text-cyan-pop lg:block"
+                  aria-hidden
+                />
+              ) : null}
+            </li>
+          ))}
+      </ol>
+    </section>
+  );
+}
+
 export function ScriptReview({
   productionId,
-  productionTitle,
-  members,
-  onCaseCreated,
-  onHandoffCompleted,
-  onOpenTeam
-}: {
-  productionId: string;
-  productionTitle: string;
-  members: WorkspaceMember[];
-  onCaseCreated?: () => void | Promise<void>;
-  onHandoffCompleted?: () => void | Promise<void>;
-  onOpenTeam: () => void;
-}) {
-  const [scriptText, setScriptText] = useState('');
+  onCaseCreated
+}: { productionId?: string; onCaseCreated?: () => void } = {}) {
+  const [scriptText, setScriptText] = useState(SAMPLE_SCRIPT);
   const [caseResult, setCaseResult] = useState<Case | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [analysisFile, setAnalysisFile] = useState<File | null>(null);
   const [recentCases, setRecentCases] = useState<CaseSummary[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
+  const [agentWorkflowStatus, setAgentWorkflowStatus] =
+    useState<AgentWorkflowStatus>('idle');
   const [isLoadingRecentCases, setIsLoadingRecentCases] = useState(false);
   const [isLoadingCaseId, setIsLoadingCaseId] = useState<string | null>(null);
   const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
-  const [handoffFinding, setHandoffFinding] = useState<Finding | null>(null);
-  const [handoffAssigneeId, setHandoffAssigneeId] = useState('');
-  const [handoffDueDate, setHandoffDueDate] = useState('');
-  const [isEscalating, setIsEscalating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const analysisFileInputRef = useRef<HTMLInputElement>(null);
   const caseOperationGeneration = useRef(0);
   const activeCaseIdRef = useRef<string | null>(null);
   const submissionGeneration = useRef(0);
   const uploadGeneration = useRef(0);
+  const fileAnalysisGeneration = useRef(0);
   const caseLoadingGeneration = useRef(0);
 
   async function submitScript(event: FormEvent<HTMLFormElement>) {
@@ -197,6 +321,7 @@ export function ScriptReview({
     const operationGeneration = ++caseOperationGeneration.current;
     const requestGeneration = ++submissionGeneration.current;
     setIsSubmitting(true);
+    setAgentWorkflowStatus('running');
     setError(null);
     try {
       const nextCase = await createCase(
@@ -208,12 +333,14 @@ export function ScriptReview({
       }
       activeCaseIdRef.current = nextCase.id;
       setCaseResult(nextCase);
+      setAgentWorkflowStatus('complete');
       setAssets([]);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
-      await onCaseCreated?.();
+      onCaseCreated?.();
     } catch {
       if (caseOperationGeneration.current === operationGeneration) {
+        setAgentWorkflowStatus('failed');
         setError('RightsRadar could not analyze this script right now. Please try again.');
       }
     } finally {
@@ -240,6 +367,7 @@ export function ScriptReview({
       ) {
         return;
       }
+
       setAssets(nextAssets);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -253,6 +381,46 @@ export function ScriptReview({
     } finally {
       if (uploadGeneration.current === requestGeneration) {
         setIsUploading(false);
+      }
+    }
+  }
+
+  async function submitAnalysisFile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!productionId || !analysisFile) return;
+    const operationGeneration = ++caseOperationGeneration.current;
+    const requestGeneration = ++fileAnalysisGeneration.current;
+    setIsAnalyzingFile(true);
+    setAgentWorkflowStatus('running');
+    setError(null);
+    try {
+      const nextCase = await createCaseFromFile(
+        productionId,
+        analysisFile,
+        API_BASE_URL
+      );
+      const nextAssets = await listAssets(nextCase.id, API_BASE_URL);
+      if (caseOperationGeneration.current !== operationGeneration) return;
+      activeCaseIdRef.current = nextCase.id;
+      setScriptText(nextCase.script_text);
+      setCaseResult(nextCase);
+      setAgentWorkflowStatus('complete');
+      setAssets(nextAssets);
+      setAnalysisFile(null);
+      setSelectedFile(null);
+      if (analysisFileInputRef.current) analysisFileInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      onCaseCreated?.();
+    } catch {
+      if (caseOperationGeneration.current === operationGeneration) {
+        setAgentWorkflowStatus('failed');
+        setError(
+          'RightsRadar could not analyze this file. Use a PDF, DOCX, PNG, JPEG, or WebP file up to 10 MiB.'
+        );
+      }
+    } finally {
+      if (fileAnalysisGeneration.current === requestGeneration) {
+        setIsAnalyzingFile(false);
       }
     }
   }
@@ -283,6 +451,7 @@ export function ScriptReview({
       activeCaseIdRef.current = caseId;
       setScriptText(nextCase.script_text);
       setCaseResult(nextCase);
+      setAgentWorkflowStatus('complete');
       setAssets(nextAssets);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -325,78 +494,39 @@ export function ScriptReview({
     }
   }
 
-  function openHandoff(finding: Finding) {
-    setHandoffFinding(finding);
-    setHandoffAssigneeId('');
-    setHandoffDueDate('');
-  }
-
-  async function submitHandoff(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!caseResult || !handoffFinding || !handoffAssigneeId) return;
-    setIsEscalating(true);
-    setError(null);
-    try {
-      const updatedFinding = await escalateFinding(
-        productionId,
-        caseResult.id,
-        handoffFinding.id,
-        { assignee: handoffAssigneeId, due_date: handoffDueDate || null },
-        API_BASE_URL
-      );
-      setCaseResult((current) =>
-        current
-          ? {
-              ...current,
-              findings: current.findings.map((finding) =>
-                finding.id === updatedFinding.id ? updatedFinding : finding
-              )
-            }
-          : current
-      );
-      setHandoffFinding(null);
-      await onHandoffCompleted?.();
-    } catch {
-      setError('The handoff could not be created. Confirm the assignee is still in the team directory.');
-    } finally {
-      setIsEscalating(false);
-    }
-  }
-
   return (
-    <div className="max-w-[960px]">
-      <div className="pb-5">
-        <div className="flex items-start gap-3">
-          <span className="flex size-9 shrink-0 items-center justify-center border-2 border-ink bg-white text-ink">
-            <FileText className="size-4" aria-hidden />
-          </span>
-          <div>
-            <PixelLabel>NEW CASE</PixelLabel>
-            <h1 className="mt-1 font-display text-xl text-paper [text-shadow:2px_2px_0_#aab5c4]">
-              Script intake
-            </h1>
-            <p className="mt-1 text-[9.5px] text-lavender-soft">{productionTitle}</p>
-          </div>
+    <div className="min-h-screen">
+      <main className="mx-auto max-w-6xl px-5 pb-24 pt-12 sm:px-8 sm:pt-14">
+        <div className="pb-10">
+          <PixelLabel>Rights clearance research</PixelLabel>
+          <h1 className="mt-3 font-display text-2xl text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4] sm:text-3xl">
+            RightsRadar
+          </h1>
+          <p className="mt-3 max-w-md text-[11.5px] leading-[17.83px] text-lavender-soft">
+            Surface potential research leads for brands, quotations, characters, franchises, and
+            likenesses, then let a human reviewer decide what needs follow-up.
+          </p>
         </div>
-        <p className="mt-5 max-w-[680px] text-[11px] leading-[17px] text-lavender-soft">
-          Surface potential research leads for brands, quotations, characters, franchises, and
-          likenesses, then let a human reviewer decide what needs follow-up.
-        </p>
-      </div>
 
-        <div className="space-y-5">
-          <div className="space-y-5">
+        <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
+          <div className="space-y-10">
             <div className="animate-fade-up">
-              <section className="border-2 border-ink bg-exhibit p-[14px] text-ink shadow-card">
-                  <p className="font-pixel text-[8px] tracking-[0.16px] text-line-strong">
-                    ▸ STEP 1 / SCRIPT TEXT
+              <PixelLabel>01: Material Checking</PixelLabel>
+              <div className="mt-3">
+                <Panel>
+                  <p className="font-display text-xl text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4]">
+                    RightsRadar
+                  </p>
+                  <p className="mt-2 max-w-xs text-[11.5px] leading-[17.83px] text-lavender-soft">
+                    Paste a scene or upload a production file. We&apos;ll surface what needs rights
+                    research before release.
                   </p>
                   <aside
-                    className="mt-3 border border-warn-line bg-warn-bg p-3 text-[10px] leading-[15px] text-ink-soft"
+                    className="mt-4 border border-warn-line bg-warn-bg p-3.5 text-[11px] leading-[17px] text-lavender-soft"
                     aria-label="Legal disclaimer"
                   >
                     <p>
-                      <strong className="font-bold text-ink">Research assistance only.</strong>{' '}
+                      <strong className="font-bold text-paper">Research assistance only.</strong>{' '}
                       RightsRadar does not provide legal advice or make final infringement
                       determinations. Verify findings with qualified counsel and your clearance
                       process.
@@ -405,20 +535,26 @@ export function ScriptReview({
 
                   <form
                     onSubmit={submitScript}
-                    className="mt-3 border-2 border-ink bg-white px-3 pb-3 pt-4"
+                    className="mt-4 border-2 border-ink bg-exhibit px-[18px] pb-[18px] pt-6 shadow-card"
                   >
+                    <label
+                      htmlFor="script-text"
+                      className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
+                    >
+                      ▸ STEP 1 / Script text
+                    </label>
                     <textarea
                       id="script-text"
                       name="script-text"
                       value={scriptText}
                       onChange={(event) => setScriptText(event.target.value)}
-                      rows={5}
+                      rows={8}
                       maxLength={20_000}
                       required
                       placeholder="Paste a script excerpt to scan for rights-clearance research leads…"
                       className="mt-2.5 block w-full resize-y border-2 border-ink bg-white px-2.5 py-2.5 text-[11px] leading-[17px] text-ink-soft transition placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-cyan-pop"
                     />
-                    <div className="mt-2.5 flex flex-wrap items-center justify-between gap-3">
+                    <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
                       <span className="font-pixel text-[8px] tabular-nums text-muted">
                         {scriptText.length.toLocaleString()} / 20,000
                       </span>
@@ -433,7 +569,55 @@ export function ScriptReview({
                       </PrimaryButton>
                     </div>
                   </form>
-              </section>
+
+                  {productionId ? (
+                    <form
+                      onSubmit={submitAnalysisFile}
+                      className="mt-4 border-2 border-ink bg-exhibit p-[18px] shadow-card"
+                    >
+                      <label
+                        htmlFor="analysis-file"
+                        className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
+                      >
+                        ▸ OR ANALYZE A PRODUCTION FILE
+                      </label>
+                      <p className="mt-2 text-[10.5px] leading-4 text-muted">
+                        Gemini reviews PDF and image layout visually. DOCX text is extracted
+                        securely, then detected leads are researched on the web through Parallel.
+                      </p>
+                      <input
+                        ref={analysisFileInputRef}
+                        id="analysis-file"
+                        type="file"
+                        accept=".pdf,.docx,image/png,image/jpeg,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        onChange={(event) =>
+                          setAnalysisFile(event.target.files?.[0] ?? null)
+                        }
+                        className="mt-3 block w-full cursor-pointer border-2 border-dashed border-line-strong bg-white px-3 py-2.5 text-[11px] text-muted transition file:mr-3 file:cursor-pointer file:border-2 file:border-ink file:bg-cyan-pop file:px-2.5 file:py-1 file:font-display file:text-[9px] file:text-ink hover:border-cyan-pop focus:outline-none focus:ring-2 focus:ring-cyan-pop"
+                      />
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                        <span className="text-[10px] text-muted">
+                          {analysisFile
+                            ? `${analysisFile.name} · ${fileSizeLabel(analysisFile.size)}`
+                            : 'PDF · DOCX · PNG · JPEG · WEBP · 10 MiB max'}
+                        </span>
+                        <PrimaryButton disabled={!analysisFile || isAnalyzingFile}>
+                          {isAnalyzingFile ? (
+                            <>
+                              <Spinner /> Analyzing file…
+                            </>
+                          ) : (
+                            <>
+                              <FileUp className="size-3.5" aria-hidden /> Analyze file
+                            </>
+                          )}
+                        </PrimaryButton>
+                      </div>
+                    </form>
+                  ) : null}
+                  <AgentPipeline status={agentWorkflowStatus} result={caseResult} />
+                </Panel>
+              </div>
             </div>
 
             {error ? (
@@ -451,13 +635,13 @@ export function ScriptReview({
                 <div className="animate-fade-up">
                   <PixelLabel>02: Searching</PixelLabel>
                   <div className="mt-3">
-                    <section className="border-2 border-ink bg-exhibit p-[14px] text-ink shadow-card">
+                    <Panel>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
                           <p className="font-pixel text-[8px] tracking-[0.16px] text-line-strong">
                             STEP 2 / FINDINGS
                           </p>
-                          <h2 className="mt-2 font-display text-base text-ink">
+                          <h2 className="mt-2 font-display text-base text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4]">
                             Potential research leads
                           </h2>
                         </div>
@@ -502,15 +686,6 @@ export function ScriptReview({
                                   {formatDateTime(finding.retrieved_at)}
                                 </span>
                               </div>
-                              {finding.reviewer_status === 'escalated' ? (
-                                <div className="mt-3 border border-accent bg-danger-bg px-3 py-2 text-[10.5px] text-ink">
-                                  <strong>Organization handoff:</strong>{' '}
-                                  {finding.assignee
-                                    ? `Assigned to ${finding.assignee}`
-                                    : 'Needs an owner'}
-                                  {finding.due_date ? ` · Due ${finding.due_date}` : ''}
-                                </div>
-                              ) : null}
                               <div className="mt-3 border-t-2 border-dashed border-faint pt-2.5">
                                 <h4 className="font-pixel text-[8px] uppercase tracking-[0.16px] text-line-strong">
                                   Evidence / liner notes
@@ -545,34 +720,32 @@ export function ScriptReview({
                                     Dismiss
                                   </SecondaryButton>
                                   <EscalateButton
-                                    disabled={updatingFindingId === finding.id || isEscalating}
-                                    onClick={() => openHandoff(finding)}
+                                    disabled={updatingFindingId === finding.id}
+                                    onClick={() => changeStatus(finding, 'escalated')}
                                   >
-                                    {finding.reviewer_status === 'escalated'
-                                      ? 'Reassign owner'
-                                      : 'Assign follow-up ⚡'}
+                                    {updatingFindingId === finding.id ? (
+                                      <Spinner className="size-3.5" />
+                                    ) : null}
+                                    Escalate ⚡
                                   </EscalateButton>
                                 </div>
                               </div>
-                              <p className="mt-2 text-right text-[9.5px] text-muted">
-                                Sends this finding to the organization issue queue with an owner and due date.
-                              </p>
                             </article>
                           ))
                         )}
                       </div>
-                    </section>
+                    </Panel>
                   </div>
                 </div>
 
                 <div className="animate-fade-up">
                   <PixelLabel>03: Tracklist</PixelLabel>
                   <div className="mt-3">
-                    <section className="border-2 border-ink bg-exhibit p-[14px] text-ink shadow-card">
+                    <Panel>
                       <p className="font-pixel text-[8px] tracking-[0.16px] text-line-strong">
                         STEP 3 / PRODUCTION NOTES
                       </p>
-                      <h2 className="mt-2 font-display text-base text-ink">
+                      <h2 className="mt-2 font-display text-base text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4]">
                         Attach a production note
                       </h2>
 
@@ -586,12 +759,29 @@ export function ScriptReview({
                         >
                           ▸ Attach plain-text asset
                         </label>
+                        <div
+                          id="asset-file-guidance"
+                          className="border-2 border-line bg-white px-3 py-2.5 text-[10.5px] leading-4 text-muted"
+                        >
+                          <p>
+                            <strong className="font-bold text-ink">Expected:</strong> a{' '}
+                            <code className="text-accent">.txt</code> export of script sides,
+                            continuity or clearance notes, prop and product-placement logs,
+                            character or likeness notes, or quote and music-cue lists.
+                          </p>
+                          <p className="mt-1.5">
+                            This attachment is stored with the case for human review; it is not
+                            analyzed. To analyze a PDF, DOCX, PNG, JPEG, or WebP file, use the
+                            production-file uploader above.
+                          </p>
+                        </div>
                         <input
                           ref={fileInputRef}
                           id="asset-file"
                           name="asset-file"
                           type="file"
                           accept="text/plain,.txt"
+                          aria-describedby="asset-file-guidance asset-file-limits"
                           onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
                           className="block w-full cursor-pointer border-2 border-dashed border-line-strong bg-white px-3 py-2.5 text-[11px] text-muted transition file:mr-3 file:cursor-pointer file:border-2 file:border-ink file:bg-brand file:px-2.5 file:py-1 file:font-display file:text-[9px] file:text-ink hover:border-cyan-pop focus:outline-none focus:ring-2 focus:ring-cyan-pop"
                         />
@@ -605,8 +795,8 @@ export function ScriptReview({
                           </p>
                         ) : null}
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <span className="font-pixel text-[8px] text-muted">
-                            PLAIN-TEXT · 256 KIB MAX
+                          <span id="asset-file-limits" className="font-pixel text-[8px] text-muted">
+                            UTF-8 .TXT · 256 KIB MAX
                           </span>
                           <PrimaryButton disabled={!selectedFile || isUploading}>
                             {isUploading ? (
@@ -648,15 +838,15 @@ export function ScriptReview({
                           </ul>
                         )}
                       </div>
-                    </section>
+                    </Panel>
                   </div>
                 </div>
               </>
             ) : null}
           </div>
 
-          <aside className="animate-fade-up">
-            <PixelLabel>RECENT CASES</PixelLabel>
+          <aside className="animate-fade-up lg:sticky lg:top-8">
+            <PixelLabel>04: Dashboard</PixelLabel>
             <div className="mt-3">
               <Panel>
                 <h2 className="font-display text-base text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4]">
@@ -728,146 +918,7 @@ export function ScriptReview({
             </div>
           </aside>
         </div>
-      {handoffFinding ? (
-        <HandoffDialog
-          finding={handoffFinding}
-          members={members}
-          assigneeId={handoffAssigneeId}
-          dueDate={handoffDueDate}
-          isSubmitting={isEscalating}
-          onAssigneeChange={setHandoffAssigneeId}
-          onDueDateChange={setHandoffDueDate}
-          onSubmit={submitHandoff}
-          onClose={() => setHandoffFinding(null)}
-          onOpenTeam={onOpenTeam}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function HandoffDialog({
-  finding,
-  members,
-  assigneeId,
-  dueDate,
-  isSubmitting,
-  onAssigneeChange,
-  onDueDateChange,
-  onSubmit,
-  onClose,
-  onOpenTeam
-}: {
-  finding: Finding;
-  members: WorkspaceMember[];
-  assigneeId: string;
-  dueDate: string;
-  isSubmitting: boolean;
-  onAssigneeChange: (memberId: string) => void;
-  onDueDateChange: (value: string) => void;
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
-  onClose: () => void;
-  onOpenTeam: () => void;
-}) {
-  return (
-    <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-ink/80 p-4 backdrop-blur-sm"
-      role="presentation"
-      onMouseDown={(event) => {
-        if (event.target === event.currentTarget) onClose();
-      }}
-    >
-      <section
-        aria-labelledby="handoff-dialog-title"
-        aria-modal="true"
-        role="dialog"
-        className="w-full max-w-xl border-2 border-accent bg-panel p-6 shadow-pop"
-      >
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <PixelLabel>ORGANIZATION HANDOFF</PixelLabel>
-            <h2
-              id="handoff-dialog-title"
-              className="mt-1 font-display text-xl text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4]"
-            >
-              Assign follow-up
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="border-2 border-line px-2 py-1 font-pixel text-[9px] text-lavender-soft transition hover:border-brand hover:text-brand focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand"
-          >
-            CLOSE
-          </button>
-        </div>
-
-        <div className="mt-5 border-2 border-line bg-ink/30 p-4">
-          <p className="font-display text-[11px] text-paper">{finding.detected_item}</p>
-          <p className="mt-2 text-[11px] leading-[17px] text-lavender-pale">
-            This will mark the finding as escalated, create a visible item in the organization issue
-            queue, and log the handoff for the assigned teammate.
-          </p>
-        </div>
-
-        {members.length === 0 ? (
-          <div className="mt-5 space-y-4">
-            <p className="text-sm leading-6 text-lavender-pale">
-              Add at least one teammate before escalating. A handoff needs a named owner so it does
-              not disappear into an unassigned queue.
-            </p>
-            <div className="flex flex-wrap gap-2">
-              <SecondaryButton
-                onClick={() => {
-                  onClose();
-                  onOpenTeam();
-                }}
-              >
-                Open team directory
-              </SecondaryButton>
-              <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-            </div>
-          </div>
-        ) : (
-          <form onSubmit={onSubmit} className="mt-5 space-y-4">
-            <label className="block">
-              <span className="font-pixel text-[8px] text-lavender">ASSIGN TO</span>
-              <select
-                autoFocus
-                required
-                value={assigneeId}
-                onChange={(event) => onAssigneeChange(event.target.value)}
-                className="mt-1.5 block w-full border-2 border-ink bg-white px-2.5 py-2.5 text-[11px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
-              >
-                <option value="" disabled>
-                  Select a workspace member
-                </option>
-                {members.map((member) => (
-                  <option key={member.id} value={member.id}>
-                    {member.name} · {member.role ?? 'clearance'}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block">
-              <span className="font-pixel text-[8px] text-lavender">FOLLOW-UP DUE DATE</span>
-              <input
-                type="date"
-                value={dueDate}
-                onChange={(event) => onDueDateChange(event.target.value)}
-                className="mt-1.5 block w-full border-2 border-ink bg-white px-2.5 py-2.5 text-[11px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
-              />
-            </label>
-            <div className="flex flex-wrap justify-end gap-2 pt-2">
-              <SecondaryButton onClick={onClose}>Cancel</SecondaryButton>
-              <EscalateButton type="submit" disabled={isSubmitting || !assigneeId}>
-                {isSubmitting ? <Spinner className="size-3.5" /> : null}
-                Escalate and assign
-              </EscalateButton>
-            </div>
-          </form>
-        )}
-      </section>
+      </main>
     </div>
   );
 }

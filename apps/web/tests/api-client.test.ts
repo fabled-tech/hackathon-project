@@ -1,11 +1,15 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
   createCase,
+  createCaseFromFile,
+  deleteProductionIcon,
   getCase,
   listAssets,
   listCases,
+  updateProduction,
   updateFindingStatus,
-  uploadAsset
+  uploadAsset,
+  uploadProductionIcon
 } from '@rightsrader/api-client';
 
 describe('createCase evidence contract', () => {
@@ -56,6 +60,34 @@ describe('createCase evidence contract', () => {
     expect(finding.evidence?.primary?.source.url).toBe('https://source.test/a');
     expect(finding.evidence?.rationale).toContain('directly relevant');
     expect(finding.evidence?.alternatives).toEqual([]);
+  });
+
+  describe('createCaseFromFile', () => {
+    it('uploads a production source without forcing a JSON content type', async () => {
+      const fetcher = vi.fn().mockResolvedValue(
+        new Response(
+          JSON.stringify({
+            id: 'case-file',
+            script_text: 'Uploaded image',
+            created_at: '2026-08-30T00:00:00Z',
+            findings: [],
+            asset_count: 1,
+            production_id: 'production-1',
+            title: 'board.png'
+          }),
+          { status: 201, headers: { 'Content-Type': 'application/json' } }
+        )
+      );
+      const file = new File(['image'], 'board.png', { type: 'image/png' });
+
+      await createCaseFromFile('production-1', file, 'http://api.test', fetcher);
+
+      expect(fetcher).toHaveBeenCalledWith(
+        'http://api.test/api/cases/from-file/production-1',
+        expect.objectContaining({ method: 'POST', body: expect.any(FormData) })
+      );
+      expect(fetcher.mock.calls[0][1].headers).toBeUndefined();
+    });
   });
 });
 
@@ -170,6 +202,79 @@ describe('getCase', () => {
     expect(result.id).toBe('case/one');
     expect(result.script_text).toBe('Nimbus Soda appears.');
     expect(result.findings).toEqual([]);
+  });
+});
+
+describe('updateProduction', () => {
+  it('sends production-scoped ignore phrases', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'production-1',
+          title: 'Studio Feature',
+          ignore_keywords: ['Universal Studios']
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    const production = await updateProduction(
+      'production-1',
+      { ignore_keywords: ['Universal Studios'] },
+      'http://api.test',
+      fetcher
+    );
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://api.test/api/productions/production-1',
+      expect.objectContaining({
+        method: 'PATCH',
+        body: JSON.stringify({ ignore_keywords: ['Universal Studios'] })
+      })
+    );
+    expect(production.ignore_keywords).toEqual(['Universal Studios']);
+  });
+
+  describe('production icons', () => {
+    it('uploads and removes a custom image', async () => {
+      const fetcher = vi
+        .fn()
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              id: 'production-1',
+              title: 'Studio Feature',
+              icon_version: 'version-1'
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        )
+        .mockResolvedValueOnce(
+          new Response(
+            JSON.stringify({
+              id: 'production-1',
+              title: 'Studio Feature',
+              icon_version: null
+            }),
+            { status: 200, headers: { 'Content-Type': 'application/json' } }
+          )
+        );
+      const file = new File(['png'], 'icon.png', { type: 'image/png' });
+
+      await uploadProductionIcon('production-1', file, 'http://api.test', fetcher);
+      await deleteProductionIcon('production-1', 'http://api.test', fetcher);
+
+      expect(fetcher.mock.calls[0][0]).toBe(
+        'http://api.test/api/productions/production-1/icon'
+      );
+      expect(fetcher.mock.calls[0][1]).toEqual(
+        expect.objectContaining({ method: 'POST', body: expect.any(FormData) })
+      );
+      expect(fetcher.mock.calls[1]).toEqual([
+        'http://api.test/api/productions/production-1/icon',
+        { method: 'DELETE' }
+      ]);
+    });
   });
 });
 

@@ -192,6 +192,27 @@ def test_lead_research_is_bounded_and_preserves_detector_order() -> None:
     ]
 
 
+def test_ignored_whole_phrases_skip_downstream_research() -> None:
+    parallel = YieldingParallel()
+    service = RightsClearanceAgentService(
+        ThreeLeadGemini(), parallel, max_concurrency=2
+    )
+
+    findings = asyncio.run(
+        service.analyze(
+            "case-1",
+            "A scene with three leads.",
+            ignored_keywords=["LEAD 2", "ead 3"],
+        )
+    )
+
+    assert [finding.detected_item for finding in findings] == ["Lead 1", "Lead 3"]
+    assert parallel.sessions == {
+        "rightsrader:case-1:0",
+        "rightsrader:case-1:2",
+    }
+
+
 def test_agent_rejects_a_curated_url_not_returned_by_extract() -> None:
     service = RightsClearanceAgentService(
         UnknownUrlGemini(), YieldingParallel(), max_concurrency=1

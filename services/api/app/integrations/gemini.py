@@ -10,6 +10,13 @@ from app.models.analysis import EvidenceCurationDecision, GeminiSignal, SearchRe
 class GeminiClient(Protocol):
     async def identify_material(self, script_text: str) -> list[GeminiSignal]: ...
 
+    async def identify_material_from_file(
+        self,
+        filename: str,
+        content_type: str,
+        content: bytes,
+    ) -> list[GeminiSignal]: ...
+
     async def curate_evidence(
         self, signal: GeminiSignal, candidates: list[SearchResult]
     ) -> EvidenceCurationDecision: ...
@@ -96,6 +103,26 @@ class MockGeminiClient:
             rationale="The retrieved source directly matches the detected research lead.",
         )
 
+    async def identify_material_from_file(
+        self,
+        filename: str,
+        content_type: str,
+        content: bytes,
+    ) -> list[GeminiSignal]:
+        del content
+        return [
+            GeminiSignal(
+                category="production_asset",
+                detected_item=filename,
+                explanation=(
+                    f"The uploaded {content_type} production asset should be reviewed for "
+                    "brands, artwork, characters, quotations, music, and likenesses."
+                ),
+                confidence=0.65,
+                context_excerpt=f"Uploaded production asset: {filename}",
+            )
+        ]
+
 
 class VertexGeminiClient:
     def __init__(
@@ -143,7 +170,9 @@ class VertexGeminiClient:
                 ),
             )
         except Exception as error:
-            raise AnalysisProviderError("Gemini lead detection failed") from error
+            raise AnalysisProviderError(
+                "Gemini lead detection failed", operation="gemini_lead_detection"
+            ) from error
 
         try:
             payload = json.loads(response.text or "[]")
@@ -151,7 +180,55 @@ class VertexGeminiClient:
                 raise ValueError("Gemini response was not a JSON list")
             return [GeminiSignal.model_validate(item) for item in payload]
         except (json.JSONDecodeError, TypeError, ValueError, ValidationError) as error:
-            raise AnalysisProviderError("Gemini lead detection returned invalid output") from error
+            raise AnalysisProviderError(
+                "Gemini lead detection returned invalid output",
+                operation="gemini_lead_detection",
+            ) from error
+
+    async def identify_material_from_file(
+        self,
+        filename: str,
+        content_type: str,
+        content: bytes,
+    ) -> list[GeminiSignal]:
+        from google.genai import types
+
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self._model,
+                contents=[
+                    (
+                        "Identify distinct possible rights-clearance research leads in this "
+                        f"production file named {filename}. Inspect visible text, imagery, logos, "
+                        "artwork, products, people, characters, quotations, music references, and "
+                        "other potentially protectable material. Include enough local context to "
+                        "distinguish each lead. Do not give legal advice or make infringement "
+                        "conclusions."
+                    ),
+                    types.Part.from_bytes(data=content, mime_type=content_type),
+                ],
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=list[GeminiSignal],
+                    temperature=0,
+                ),
+            )
+        except Exception as error:
+            raise AnalysisProviderError(
+                "Gemini file lead detection failed",
+                operation="gemini_file_lead_detection",
+            ) from error
+
+        try:
+            payload = json.loads(response.text or "[]")
+            if not isinstance(payload, list):
+                raise ValueError("Gemini response was not a JSON list")
+            return [GeminiSignal.model_validate(item) for item in payload]
+        except (json.JSONDecodeError, TypeError, ValueError, ValidationError) as error:
+            raise AnalysisProviderError(
+                "Gemini file lead detection returned invalid output",
+                operation="gemini_file_lead_detection",
+            ) from error
 
     async def curate_evidence(
         self, signal: GeminiSignal, candidates: list[SearchResult]
@@ -169,7 +246,8 @@ class VertexGeminiClient:
                     "Select at most one supplied source that is directly relevant to this "
                     "rights-clearance research lead. Select no source when the candidates are "
                     "ambiguous or unreliable. Do not make legal conclusions, create citations, "
-                    "invent URLs, or quote text not present in the candidates.\n\nLead:\n"
+                    "invent URLs, or quote text not present in the candidates. When selecting no "
+                    "source, return null for both primary_url and rationale.\n\nLead:\n"
                     + signal.model_dump_json()
                     + "\n\nExtracted candidates:\n"
                     + json.dumps(candidate_payload)
@@ -181,7 +259,9 @@ class VertexGeminiClient:
                 ),
             )
         except Exception as error:
-            raise AnalysisProviderError("Gemini evidence curation failed") from error
+            raise AnalysisProviderError(
+                "Gemini evidence curation failed", operation="gemini_evidence_curation"
+            ) from error
 
         try:
             decision = EvidenceCurationDecision.model_validate_json(response.text or "{}")
@@ -193,4 +273,6 @@ class VertexGeminiClient:
         candidate_urls = {candidate.source.url for candidate in candidates}
         if decision.primary_url is not None and decision.primary_url not in candidate_urls:
             raise EvidenceCurationError("Gemini selected an unknown evidence URL")
+        if decision.primary_url is None or not decision.rationale:
+            return EvidenceCurationDecision(primary_url=None, rationale=None)
         return decision

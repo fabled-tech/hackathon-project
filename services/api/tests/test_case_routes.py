@@ -1,5 +1,6 @@
 import asyncio
 import threading
+from collections.abc import Sequence
 
 import pytest
 from fastapi import FastAPI, HTTPException
@@ -14,7 +15,12 @@ from app.routes.cases import upload_asset
 
 
 class EmptyAgentService:
-    def analyze(self, case_id: str, script_text: str) -> list[Finding]:
+    def analyze(
+        self, case_id: str, script_text: str, ignored_keywords: Sequence[str] = ()
+    ) -> list[Finding]:
+        del case_id
+        del script_text
+        del ignored_keywords
         return []
 
 

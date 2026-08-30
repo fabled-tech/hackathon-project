@@ -12,7 +12,8 @@ export default defineConfig({
       command: 'pnpm api:serve:e2e',
       url: 'http://127.0.0.1:8000/health',
       reuseExistingServer: !process.env.CI,
-      timeout: 60_000
+      timeout: 60_000,
+      env: { RIGHTSRADAR_MODE: 'mock' }
     },
     {
       command: 'pnpm web:serve',

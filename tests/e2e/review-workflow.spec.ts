@@ -1,10 +1,24 @@
-import { expect, test } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
+
+async function openCaseWorkspace(page: Page) {
+  const title = `E2E Production ${Date.now()} ${Math.random().toString(16).slice(2)}`;
+  const response = await page.request.post('http://127.0.0.1:8000/api/productions', {
+    data: { title, studio: 'RightsRadar Test Unit' }
+  });
+  expect(response.ok()).toBeTruthy();
+  await page.goto('/');
+  await page.getByRole('button', { name: new RegExp(title) }).first().click();
+  await page
+    .getByRole('navigation')
+    .getByRole('button', { name: 'New case' })
+    .click();
+}
 
 test('keeps the visible case usable after reopening another case fails', async ({ page }) => {
   const visibleScript = 'Failure guard visible case: Nimbus Soda remains on the prop table.';
   const failedScript = 'Failure guard target case: a quiet scene plays in silence.';
 
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill(visibleScript);
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
@@ -41,7 +55,7 @@ test('ignores stale asset uploads after a newer case is selected', async ({ page
   const olderScript = 'Stale upload older case: Nimbus Soda remains on the prop table.';
   const newerScript = 'Stale upload newer case: a quiet scene plays in silence.';
 
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill(olderScript);
   const olderCaseResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
@@ -102,7 +116,7 @@ test('ignores stale case reopen responses after a newer case is selected', async
   const olderScript = 'The Nimbus Soda can remains on the prop table.';
   const newerScript = 'A quiet scene without any fictional references plays in silence.';
 
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill(olderScript);
   const olderCaseResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
@@ -162,7 +176,7 @@ test('ignores stale case reopen responses after a newer case is selected', async
 });
 
 test('uploads a text asset and reopens it from recent cases', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill('Nimbus Soda appears in a shot.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
@@ -181,7 +195,7 @@ test('reopens a different case with its script, reviewer status, and assets', as
   const originalScript = 'Scene 47: Nimbus Soda appears beside a painted blue kettle.';
   const newerScript = 'A different scene contains no fictional brand references.';
 
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill(originalScript);
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
@@ -211,7 +225,7 @@ test('reopens a different case with its script, reviewer status, and assets', as
 });
 
 test('frames cited character leads as research assistance', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await expect(page.getByText('Potential research leads')).toBeVisible();
   await expect(page.getByText(/characters, franchises, and likenesses/i)).toBeVisible();
   await expect(page.getByLabel('Legal disclaimer')).toContainText('Research assistance only.');
@@ -226,11 +240,17 @@ test('frames cited character leads as research assistance', async ({ page }) => 
 });
 
 test('submits a script and lets the reviewer dismiss a finding', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill(
     'MARA opens a can of Nimbus Soda. "Time keeps the reel turning," she says.'
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  await expect(page.getByTestId('agent-pipeline')).toContainText('COMPLETE');
+  await expect(page.getByTestId('agent-pipeline')).toContainText('Gemini Intake');
+  await expect(page.getByTestId('agent-pipeline')).toContainText('Parallel Research');
+  await expect(page.getByTestId('agent-pipeline')).toContainText('Gemini Curation');
+  await expect(page.getByTestId('agent-pipeline')).toContainText('2 leads detected');
 
   const brandFinding = page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' });
   await expect(brandFinding).toContainText('brand reference archive');
@@ -241,7 +261,7 @@ test('submits a script and lets the reviewer dismiss a finding', async ({ page }
 });
 
 test('lets the reviewer escalate a finding', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill(
     'A Nimbus Soda billboard looms over the skyline in the establishing shot.'
   );
@@ -255,7 +275,7 @@ test('lets the reviewer escalate a finding', async ({ page }) => {
 });
 
 test('shows an error banner when script submission fails', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.route('**/api/cases', async (route) => {
     if (route.request().method() !== 'POST') {
       await route.continue();
@@ -270,12 +290,13 @@ test('shows an error banner when script submission fails', async ({ page }) => {
   await expect(
     page.getByText('RightsRadar could not analyze this script right now. Please try again.')
   ).toBeVisible();
+  await expect(page.getByTestId('agent-pipeline')).toContainText('RETRY NEEDED');
 
   await page.unroute('**/api/cases');
 });
 
 test('shows an error banner when asset upload fails', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
   await expect(page.getByTestId('finding-card').first()).toBeVisible();
@@ -299,7 +320,7 @@ test('shows an error banner when asset upload fails', async ({ page }) => {
 });
 
 test('shows an error banner when loading recent cases fails', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.route('**/api/cases*', async (route) => {
     if (route.request().method() !== 'GET') {
       await route.continue();
@@ -318,7 +339,7 @@ test('shows an error banner when loading recent cases fails', async ({ page }) =
 });
 
 test('shows an error banner when saving a reviewer status fails', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
@@ -339,7 +360,7 @@ test('shows an error banner when saving a reviewer status fails', async ({ page 
 });
 
 test('shows a no-findings message when the script produces no leads', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.route('**/api/cases', async (route) => {
     if (route.request().method() !== 'POST') {
       await route.continue();
@@ -370,32 +391,138 @@ test('shows a no-findings message when the script produces no leads', async ({ p
 });
 
 test('shows the recent-cases placeholder before the first refresh', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await expect(
     page.getByText('Refresh to load recently reviewed cases.')
   ).toBeVisible();
 });
 
 test('character counter updates as the user types', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   const textarea = page.getByLabel('Script text');
   await textarea.fill('');
-  await expect(page.getByText('0 / 20,000 characters')).toBeVisible();
+  await expect(page.getByText('0 / 20,000')).toBeVisible();
 
   await textarea.fill('Hello');
-  await expect(page.getByText('5 / 20,000 characters')).toBeVisible();
+  await expect(page.getByText('5 / 20,000')).toBeVisible();
 });
 
 test('analyze button is disabled when the script textarea is empty', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill('');
   await expect(page.getByRole('button', { name: 'Analyze script' })).toBeDisabled();
 });
 
 test('upload button is disabled when no file is selected', async ({ page }) => {
-  await page.goto('/');
+  await openCaseWorkspace(page);
   await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
   await expect(page.getByTestId('finding-card').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Upload asset' })).toBeDisabled();
+});
+
+test('explains accepted production assets before upload', async ({ page }) => {
+  await openCaseWorkspace(page);
+  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  await expect(page.getByText('script sides, continuity or clearance notes')).toBeVisible();
+  await expect(page.getByText('To analyze a PDF, DOCX, PNG, JPEG, or WebP file')).toBeVisible();
+  await expect(page.getByText('it is not analyzed')).toBeVisible();
+  await expect(page.getByText('UTF-8 .TXT · 256 KIB MAX')).toBeVisible();
+});
+
+test('filters production ignore phrases before creating findings', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('New production').click();
+  await page.getByPlaceholder('Production title').fill('Ignore List Feature');
+  await page.getByPlaceholder('Studio (optional)').fill('Universal Studios');
+  await page.getByRole('button', { name: 'Create' }).click();
+
+  await page.getByRole('button', { name: 'Settings' }).click();
+  await page.getByLabel('IGNORE PHRASES').fill('NIMBUS SODA\nirrelevant fragment');
+  await page.getByRole('button', { name: 'Save settings' }).click();
+  await expect(page.getByLabel('IGNORE PHRASES')).toHaveValue(
+    'NIMBUS SODA\nirrelevant fragment'
+  );
+
+  await page.getByRole('button', { name: 'New case' }).click();
+  await page
+    .getByLabel('Script text')
+    .fill('Nimbus Soda appears. "Time keeps the reel turning," the director says.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  await expect(page.getByTestId('finding-card')).toHaveCount(1);
+  await expect(page.getByTestId('finding-card')).toContainText('Time keeps the reel turning');
+  await expect(page.getByTestId('finding-card')).not.toContainText('Nimbus Soda');
+});
+
+test('uses competition branding without OS positioning', async ({ page }) => {
+  await page.goto('/');
+
+  await expect(page.getByText('PRODUCTION RIGHTS WORKSPACE')).toBeVisible();
+  await expect(page.getByText('RIGHTS CLEARANCE OS')).toHaveCount(0);
+  await expect(page.getByRole('complementary').getByLabel('All productions')).toContainText(
+    'RightsRadar'
+  );
+});
+
+test('sorts the production portfolio without another API request', async ({ page }) => {
+  await page.request.post('http://127.0.0.1:8000/api/productions', {
+    data: { title: '000 Alpha Sort', studio: 'Sort Test' }
+  });
+  await page.request.post('http://127.0.0.1:8000/api/productions', {
+    data: { title: 'ZZZ Omega Sort', studio: 'Sort Test' }
+  });
+  await page.goto('/');
+
+  await page.getByLabel('Sort productions').selectOption('title');
+  const cards = await page
+    .locator('section[aria-labelledby="production-portfolio-title"] li button')
+    .allTextContents();
+
+  expect(cards.findIndex((text) => text.includes('000 Alpha Sort'))).toBeLessThan(
+    cards.findIndex((text) => text.includes('ZZZ Omega Sort'))
+  );
+});
+
+test('analyzes an uploaded production image through the case workspace', async ({ page }) => {
+  await openCaseWorkspace(page);
+
+  await page.getByLabel('OR ANALYZE A PRODUCTION FILE').setInputFiles({
+    name: 'wardrobe-board.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from('89504e470d0a1a0a6d6f636b2d696d616765', 'hex')
+  });
+  await page.getByRole('button', { name: 'Analyze file' }).click();
+
+  await expect(page.getByTestId('finding-card')).toContainText('wardrobe-board.png');
+  await expect(page.getByTestId('asset-list')).toContainText('wardrobe-board.png');
+});
+
+test('uploads a custom production icon and has no agent-run controls', async ({ page }) => {
+  const title = `Custom Icon ${Date.now()}`;
+  await page.request.post('http://127.0.0.1:8000/api/productions', {
+    data: { title, studio: 'Icon Test' }
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: new RegExp(title) }).first().click();
+  await page.getByRole('button', { name: 'Settings' }).click();
+
+  await page.getByLabel('CUSTOM ICON').setInputFiles({
+    name: 'production-icon.png',
+    mimeType: 'image/png',
+    buffer: Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=',
+      'base64'
+    )
+  });
+  await expect(
+    page.getByRole('main').getByRole('img', { name: `${title} custom icon` })
+  ).toBeVisible();
+
+  await page.getByRole('navigation').getByRole('button', { name: 'All productions' }).click();
+  await expect(page.getByText('Agent runs')).toHaveCount(0);
+  await expect(page.getByText('Clearance brief')).toHaveCount(0);
+  await expect(page.getByText('Run watch agent')).toHaveCount(0);
 });
