@@ -61,10 +61,10 @@ function formatDateTime(value: string): string {
 }
 
 const STATUS_STYLES: Record<ReviewerStatus, string> = {
-  pending: 'border-slate-600/60 bg-slate-500/10 text-slate-300',
-  dismissed: 'border-rose-400/30 bg-rose-400/10 text-rose-300',
-  escalated: 'border-amber-400/30 bg-amber-400/10 text-amber-300',
-  accepted: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-300'
+  pending: 'border-violet-300/60 bg-violet-500/10 text-violet-700',
+  dismissed: 'border-rose-400/30 bg-rose-400/10 text-rose-700',
+  escalated: 'border-amber-400/30 bg-amber-400/10 text-amber-700',
+  accepted: 'border-emerald-400/30 bg-emerald-400/10 text-emerald-700'
 };
 
 const STATUS_ICONS: Record<ReviewerStatus, typeof Clock3> = {
