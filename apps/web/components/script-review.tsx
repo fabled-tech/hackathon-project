@@ -153,7 +153,10 @@ function EscalateButton({
   );
 }
 
-export function ScriptReview({ productionId }: { productionId?: string } = {}) {
+export function ScriptReview({
+  productionId,
+  onCaseCreated
+}: { productionId?: string; onCaseCreated?: () => void } = {}) {
   const [scriptText, setScriptText] = useState(SAMPLE_SCRIPT);
   const [caseResult, setCaseResult] = useState<Case | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
@@ -191,6 +194,7 @@ export function ScriptReview({ productionId }: { productionId?: string } = {}) {
       setAssets([]);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
+      onCaseCreated?.();
     } catch {
       if (caseOperationGeneration.current === operationGeneration) {
         setError('RightsRadar could not analyze this script right now. Please try again.');

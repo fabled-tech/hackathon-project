@@ -407,7 +407,7 @@ export function Dashboard() {
         ) : null}
 
         {view.kind === 'case' || !activeProduction ? (
-          <ScriptReview productionId={activeProduction?.id} />
+          <ScriptReview productionId={activeProduction?.id} onCaseCreated={refreshProductions} />
         ) : view.kind === 'runs' ? (
           <AgentRunsView runs={agentRuns} />
         ) : view.kind === 'settings' ? (
