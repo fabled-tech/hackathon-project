@@ -380,10 +380,10 @@ test('character counter updates as the user types', async ({ page }) => {
   await page.goto('/');
   const textarea = page.getByLabel('Script text');
   await textarea.fill('');
-  await expect(page.getByText('0 / 20,000 characters')).toBeVisible();
+  await expect(page.getByText('0 / 20,000')).toBeVisible();
 
   await textarea.fill('Hello');
-  await expect(page.getByText('5 / 20,000 characters')).toBeVisible();
+  await expect(page.getByText('5 / 20,000')).toBeVisible();
 });
 
 test('analyze button is disabled when the script textarea is empty', async ({ page }) => {

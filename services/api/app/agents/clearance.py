@@ -15,7 +15,8 @@ from app.repositories import AgentRunRepository, CaseRepository
 
 
 class ClearanceAgentService:
-    """Production-scoped agent: digests findings (Gemini) and watches for new evidence (Parallel)."""
+    """Production-scoped agent: digests findings (Gemini) and watches for new evidence
+    (Parallel)."""
 
     def __init__(
         self,
