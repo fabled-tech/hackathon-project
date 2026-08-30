@@ -6,6 +6,7 @@ from .productions import (
     Production,
     ProductionStatus,
     ProductionSummary,
+    ProjectIndustry,
 )
 
 __all__ = [
@@ -23,6 +24,7 @@ __all__ = [
     "Production",
     "ProductionStatus",
     "ProductionSummary",
+    "ProjectIndustry",
     "ReviewerStatus",
     "Source",
     "StoredAsset",

@@ -30,10 +30,21 @@ class ProductionStatus(StrEnum):
     RELEASED = "released"
 
 
+class ProjectIndustry(StrEnum):
+    FILM_TV = "film_tv"
+    ADVERTISING = "advertising"
+    GAMING = "gaming"
+    MUSIC = "music"
+    PODCAST_AUDIO = "podcast_audio"
+    PUBLISHING = "publishing"
+    DIGITAL_MEDIA = "digital_media"
+
+
 class Production(BaseModel):
     id: str
     title: str
     studio: str = ""
+    industry: ProjectIndustry = ProjectIndustry.FILM_TV
     status: ProductionStatus = ProductionStatus.DEVELOPMENT
     icon: str = "clapperboard"
     icon_version: str | None = None

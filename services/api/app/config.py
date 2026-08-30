@@ -1,6 +1,6 @@
 from enum import StrEnum
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,8 +32,23 @@ class Settings(BaseSettings):
     firestore_collection: str = "rightsrader_cases"
     firestore_productions_collection: str = "rightsrader_productions"
     cloud_storage_bucket: str | None = None
+    cors_origins: str = "http://localhost:3000,http://127.0.0.1:3000"
     enable_real_smoke: bool = False
     enable_reconciliation: bool = False
+
+    @field_validator("cors_origins")
+    @classmethod
+    def validate_cors_origins(cls, value: str) -> str:
+        origins = [origin.strip().rstrip("/") for origin in value.split(",") if origin.strip()]
+        if not origins:
+            raise ValueError("cors_origins must include at least one origin")
+        if any(not origin.startswith(("http://", "https://")) for origin in origins):
+            raise ValueError("cors_origins entries must use http or https")
+        return ",".join(dict.fromkeys(origins))
+
+    @property
+    def allowed_cors_origins(self) -> list[str]:
+        return self.cors_origins.split(",")
 
     def selected_mode(self, integration_mode: IntegrationMode) -> IntegrationMode:
         if self.mode is EnvironmentMode.MOCK:

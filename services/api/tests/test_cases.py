@@ -159,6 +159,99 @@ def test_production_ignore_phrases_filter_findings_before_research() -> None:
     ]
 
 
+def test_projects_default_to_film_and_support_other_rights_industries() -> None:
+    from app.main import create_app
+
+    client = TestClient(create_app())
+    default_project = client.post(
+        "/api/productions",
+        json={"title": "Feature project", "studio": "Northlight"},
+    )
+    gaming_project = client.post(
+        "/api/productions",
+        json={
+            "title": "Skyward expansion",
+            "studio": "Northlight Interactive",
+            "industry": "gaming",
+            "icon": "gamepad",
+        },
+    )
+
+    assert default_project.status_code == 201
+    assert default_project.json()["industry"] == "film_tv"
+    assert gaming_project.status_code == 201
+    assert gaming_project.json()["industry"] == "gaming"
+
+    updated = client.patch(
+        f"/api/productions/{gaming_project.json()['id']}",
+        json={"industry": "digital_media"},
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["industry"] == "digital_media"
+    listed = client.get("/api/productions").json()
+    assert {project["industry"] for project in listed} == {"film_tv", "digital_media"}
+
+
+def test_project_finding_handoff_persists_owner_due_date_and_notes() -> None:
+    from app.main import create_app
+
+    client = TestClient(create_app())
+    project = client.post(
+        "/api/productions",
+        json={"title": "Launch campaign", "industry": "advertising"},
+    ).json()
+    case = client.post(
+        "/api/cases",
+        json={
+            "production_id": project["id"],
+            "script_text": "A Nimbus Soda can appears in the campaign.",
+        },
+    ).json()
+    finding_id = case["findings"][0]["id"]
+
+    handoff = client.patch(
+        f"/api/productions/{project['id']}/cases/{case['id']}/findings/{finding_id}/meta",
+        json={"assignee": "Brand clearance", "due_date": "2026-09-02"},
+    )
+    note = client.post(
+        f"/api/productions/{project['id']}/cases/{case['id']}/findings/{finding_id}/comments",
+        json={"author": "Campaign producer", "body": "Confirm client authorization."},
+    )
+
+    assert handoff.status_code == 200
+    assert handoff.json()["assignee"] == "Brand clearance"
+    assert handoff.json()["due_date"] == "2026-09-02"
+    assert note.status_code == 201
+    assert note.json()["comments"][0]["author"] == "Campaign producer"
+    stored_finding = client.get(f"/api/cases/{case['id']}").json()["findings"][0]
+    assert stored_finding["assignee"] == "Brand clearance"
+    assert stored_finding["due_date"] == "2026-09-02"
+    assert stored_finding["comments"][0]["body"] == "Confirm client authorization."
+
+
+def test_api_allows_configured_web_origin() -> None:
+    from app.config import Settings
+    from app.main import create_app
+
+    client = TestClient(
+        create_app(
+            Settings(cors_origins="https://rights.example, http://127.0.0.1:3100/")
+        )
+    )
+
+    response = client.options(
+        "/api/productions",
+        headers={
+            "Origin": "https://rights.example",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "https://rights.example"
+
+
 def test_case_creation_rejects_an_unknown_production() -> None:
     from app.main import create_app
 

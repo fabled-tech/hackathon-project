@@ -3,7 +3,12 @@ import asyncio
 import pytest
 from pydantic import ValidationError
 
-from app.agents.service import RightsClearanceAgentService
+from app.agents.service import (
+    EvidenceCurationAgent,
+    LeadDetectionAgent,
+    RightsClearanceAgentService,
+    WebResearchAgent,
+)
 from app.config import Settings
 from app.errors import EvidenceCurationError
 from app.models import EvidenceCurationDecision, Source
@@ -190,6 +195,14 @@ def test_lead_research_is_bounded_and_preserves_detector_order() -> None:
         "Lead 2",
         "Lead 3",
     ]
+
+
+def test_orchestrator_composes_three_specialized_agents() -> None:
+    service = RightsClearanceAgentService(ThreeLeadGemini(), YieldingParallel())
+
+    assert isinstance(service.lead_detection_agent, LeadDetectionAgent)
+    assert isinstance(service.web_research_agent, WebResearchAgent)
+    assert isinstance(service.evidence_curation_agent, EvidenceCurationAgent)
 
 
 def test_ignored_whole_phrases_skip_downstream_research() -> None:
