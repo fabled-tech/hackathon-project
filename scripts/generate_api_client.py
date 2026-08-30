@@ -221,7 +221,9 @@ def _render_path(operation: OperationSpec) -> str:
 
 
 def _render_parameters(parameters: tuple[ParameterSpec, ...]) -> str:
-    return "\n".join(
+    if not parameters:
+        return ""
+    lines = "\n".join(
         f"  {parameter.argument_name}: {parameter.type}"
         + (
             f" = {json.dumps(parameter.default)}"
@@ -231,6 +233,7 @@ def _render_parameters(parameters: tuple[ParameterSpec, ...]) -> str:
         + ","
         for parameter in parameters
     )
+    return f"{lines}\n"
 
 
 def _require_json_body(operation: OperationSpec) -> str:
@@ -256,8 +259,7 @@ def render_create_case(operation: OperationSpec) -> str:
 
 def render_get_case(operation: OperationSpec) -> str:
     return f"""export function getCase(
-{_render_parameters(operation.path_parameters)}
-  baseUrl: string,
+{_render_parameters(operation.path_parameters)}  baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<{operation.response_type}> {{
   return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{ method: '{operation.method}' }}, fetcher);
@@ -269,8 +271,7 @@ def render_list_cases(operation: OperationSpec) -> str:
         raise RuntimeError("Expected exactly one case-list query parameter")
     query = operation.query_parameters[0]
     return f"""export function listCases(
-{_render_parameters((query,))}
-  baseUrl: string,
+{_render_parameters((query,))}  baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<{operation.response_type}> {{
   return request<{operation.response_type}>(
@@ -288,8 +289,7 @@ def render_upload_asset(operation: OperationSpec) -> str:
     field = operation.multipart_field
     argument = ParameterSpec(field, "body", "File").argument_name
     return f"""export function uploadAsset(
-{_render_parameters(operation.path_parameters)}
-  {argument}: File,
+{_render_parameters(operation.path_parameters)}  {argument}: File,
   baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<{operation.response_type}> {{
@@ -306,8 +306,7 @@ def render_upload_asset(operation: OperationSpec) -> str:
 
 def render_list_assets(operation: OperationSpec) -> str:
     return f"""export function listAssets(
-{_render_parameters(operation.path_parameters)}
-  baseUrl: string,
+{_render_parameters(operation.path_parameters)}  baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<{operation.response_type}> {{
   return request<{operation.response_type}>(
@@ -325,8 +324,7 @@ def render_update_finding_status(operation: OperationSpec) -> str:
         raise RuntimeError("Expected exactly one finding-status request field")
     field = operation.json_body_fields[0]
     return f"""export function updateFindingStatus(
-{_render_parameters(operation.path_parameters)}
-  {field.argument_name}: {field.type},
+{_render_parameters(operation.path_parameters)}  {field.argument_name}: {field.type},
   baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<{operation.response_type}> {{
@@ -355,8 +353,7 @@ def render_json_payload(name: str, operation: OperationSpec) -> str:
 
 def render_get(name: str, operation: OperationSpec) -> str:
     return f"""export function {name}(
-{_render_parameters(operation.path_parameters)}
-  baseUrl: string,
+{_render_parameters(operation.path_parameters)}  baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<{operation.response_type}> {{
   return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{ method: '{operation.method}' }}, fetcher);
@@ -368,8 +365,7 @@ def render_get_with_query(name: str, operation: OperationSpec) -> str:
         raise RuntimeError(f"Expected exactly one query parameter for {name}")
     query = operation.query_parameters[0]
     return f"""export function {name}(
-{_render_parameters((*operation.path_parameters, query))}
-  baseUrl: string,
+{_render_parameters((*operation.path_parameters, query))}  baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<{operation.response_type}> {{
   return request<{operation.response_type}>(
@@ -383,8 +379,7 @@ def render_get_with_query(name: str, operation: OperationSpec) -> str:
 
 def render_post_action(name: str, operation: OperationSpec) -> str:
     return f"""export function {name}(
-{_render_parameters(operation.path_parameters)}
-  baseUrl: string,
+{_render_parameters(operation.path_parameters)}  baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<{operation.response_type}> {{
   return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{
@@ -397,8 +392,7 @@ def render_post_action(name: str, operation: OperationSpec) -> str:
 def render_patch_payload(name: str, operation: OperationSpec) -> str:
     body_type = _require_json_body(operation)
     return f"""export function {name}(
-{_render_parameters(operation.path_parameters)}
-  payload: {body_type},
+{_render_parameters(operation.path_parameters)}  payload: {body_type},
   baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<{operation.response_type}> {{
@@ -412,8 +406,7 @@ def render_patch_payload(name: str, operation: OperationSpec) -> str:
 
 def render_delete(name: str, operation: OperationSpec) -> str:
     return f"""export function {name}(
-{_render_parameters(operation.path_parameters)}
-  baseUrl: string,
+{_render_parameters(operation.path_parameters)}  baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<void> {{
   return request<void>({_render_path(operation)}, baseUrl, {{ method: '{operation.method}' }}, fetcher);
@@ -423,8 +416,7 @@ def render_delete(name: str, operation: OperationSpec) -> str:
 def render_post_payload_with_path(name: str, operation: OperationSpec) -> str:
     body_type = _require_json_body(operation)
     return f"""export function {name}(
-{_render_parameters(operation.path_parameters)}
-  payload: {body_type},
+{_render_parameters(operation.path_parameters)}  payload: {body_type},
   baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<{operation.response_type}> {{

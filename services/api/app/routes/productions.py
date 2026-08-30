@@ -1,12 +1,11 @@
 from datetime import UTC, datetime
-from typing import Any
 from uuid import uuid4
 
 from fastapi import APIRouter, HTTPException, Query, Request, status
 
 from app.agents import ClearanceAgentService
 from app.dependencies import ApplicationServices
-from app.models import AgentRun, Finding, FindingComment, Production, ProductionSummary
+from app.models import AgentRun, Case, Finding, FindingComment, Production, ProductionSummary
 from app.models.requests import (
     CreateFindingCommentRequest,
     CreateProductionRequest,
@@ -84,8 +83,8 @@ def delete_production(production_id: str, request: Request) -> None:
         raise HTTPException(status_code=404, detail="Production not found") from error
 
 
-@router.get("/{production_id}/cases", response_model=list)
-def list_production_cases(production_id: str, request: Request) -> list[Any]:
+@router.get("/{production_id}/cases", response_model=list[Case])
+def list_production_cases(production_id: str, request: Request) -> list[Case]:
     services = _services(request)
     try:
         services.production_repository.get(production_id)

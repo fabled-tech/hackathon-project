@@ -266,7 +266,6 @@ export function createProduction(
 }
 
 export function listProductions(
-
   baseUrl: string,
   fetcher: ApiFetcher = fetch
 ): Promise<ProductionSummary[]> {
@@ -306,8 +305,8 @@ export function listProductionCases(
   productionId: string,
   baseUrl: string,
   fetcher: ApiFetcher = fetch
-): Promise<unknown[]> {
-  return request<unknown[]>('/api/productions/' + encodeURIComponent(productionId) + '/cases', baseUrl, { method: 'GET' }, fetcher);
+): Promise<Case[]> {
+  return request<Case[]>('/api/productions/' + encodeURIComponent(productionId) + '/cases', baseUrl, { method: 'GET' }, fetcher);
 }
 
 export function runDigest(
