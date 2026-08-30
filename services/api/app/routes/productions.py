@@ -99,6 +99,17 @@ def _clearance_agent(services: ApplicationServices) -> ClearanceAgentService:
     return services.clearance_agent
 
 
+def _assert_case_belongs_to_production(
+    services: ApplicationServices, production_id: str, case_id: str
+) -> None:
+    try:
+        case = services.case_repository.get(case_id)
+    except CaseRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Case not found") from error
+    if case.production_id != production_id:
+        raise HTTPException(status_code=404, detail="Case not found")
+
+
 @router.post("/{production_id}/brief", response_model=AgentRun, status_code=status.HTTP_201_CREATED)
 async def run_digest(production_id: str, request: Request) -> AgentRun:
     services = _services(request)
@@ -144,6 +155,7 @@ def update_finding_meta(
         services.production_repository.get(production_id)
     except ProductionRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Production not found") from error
+    _assert_case_belongs_to_production(services, production_id, case_id)
     try:
         return services.case_repository.update_finding_meta(
             case_id, finding_id, assignee=payload.assignee, due_date=payload.due_date
@@ -171,6 +183,7 @@ def add_finding_comment(
         services.production_repository.get(production_id)
     except ProductionRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Production not found") from error
+    _assert_case_belongs_to_production(services, production_id, case_id)
     comment = FindingComment(
         id=str(uuid4()),
         author=payload.author,
