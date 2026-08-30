@@ -239,3 +239,163 @@ test('submits a script and lets the reviewer dismiss a finding', async ({ page }
   await brandFinding.getByRole('button', { name: 'Dismiss' }).click();
   await expect(brandFinding).toContainText('Dismissed');
 });
+
+test('lets the reviewer escalate a finding', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Script text').fill(
+    'A Nimbus Soda billboard looms over the skyline in the establishing shot.'
+  );
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  const brandFinding = page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' });
+  await expect(brandFinding).toContainText('Pending');
+
+  await brandFinding.getByRole('button', { name: 'Escalate' }).click();
+  await expect(brandFinding).toContainText('Escalated');
+});
+
+test('shows an error banner when script submission fails', async ({ page }) => {
+  await page.goto('/');
+  await page.route('**/api/cases', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  await expect(
+    page.getByText('RightsRadar could not analyze this script right now. Please try again.')
+  ).toBeVisible();
+
+  await page.unroute('**/api/cases');
+});
+
+test('shows an error banner when asset upload fails', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  await expect(page.getByTestId('finding-card').first()).toBeVisible();
+
+  await page.route('**/assets', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({ status: 413, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
+  await page.getByRole('button', { name: 'Upload asset' }).click();
+
+  await expect(
+    page.getByText('The asset could not be uploaded. Use a plain-text file no larger than 256 KiB.')
+  ).toBeVisible();
+
+  await page.unroute('**/assets');
+});
+
+test('shows an error banner when loading recent cases fails', async ({ page }) => {
+  await page.goto('/');
+  await page.route('**/api/cases*', async (route) => {
+    if (route.request().method() !== 'GET') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
+  });
+
+  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+
+  await expect(
+    page.getByText('Recent cases could not be loaded. Please try again.')
+  ).toBeVisible();
+
+  await page.unroute('**/api/cases*');
+});
+
+test('shows an error banner when saving a reviewer status fails', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  const brandFinding = page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' });
+  await expect(brandFinding).toBeVisible();
+
+  await page.route('**/findings/**', async (route) => {
+    await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
+  });
+
+  await brandFinding.getByRole('button', { name: 'Dismiss' }).click();
+
+  await expect(
+    page.getByText('The reviewer status could not be saved. Please try again.')
+  ).toBeVisible();
+
+  await page.unroute('**/findings/**');
+});
+
+test('shows a no-findings message when the script produces no leads', async ({ page }) => {
+  await page.goto('/');
+  await page.route('**/api/cases', async (route) => {
+    if (route.request().method() !== 'POST') {
+      await route.continue();
+      return;
+    }
+    await route.fulfill({
+      status: 201,
+      contentType: 'application/json',
+      body: JSON.stringify({
+        id: 'case-empty',
+        script_text: 'A quiet scene plays in silence.',
+        created_at: new Date().toISOString(),
+        asset_count: 0,
+        findings: []
+      })
+    });
+  });
+
+  await page.getByLabel('Script text').fill('A quiet scene plays in silence.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  await expect(
+    page.getByText('No deterministic research leads were found in this excerpt.')
+  ).toBeVisible();
+  await expect(page.getByTestId('finding-card')).toHaveCount(0);
+
+  await page.unroute('**/api/cases');
+});
+
+test('shows the recent-cases placeholder before the first refresh', async ({ page }) => {
+  await page.goto('/');
+  await expect(
+    page.getByText('Refresh to load recently reviewed cases.')
+  ).toBeVisible();
+});
+
+test('character counter updates as the user types', async ({ page }) => {
+  await page.goto('/');
+  const textarea = page.getByLabel('Script text');
+  await textarea.fill('');
+  await expect(page.getByText('0 / 20,000 characters')).toBeVisible();
+
+  await textarea.fill('Hello');
+  await expect(page.getByText('5 / 20,000 characters')).toBeVisible();
+});
+
+test('analyze button is disabled when the script textarea is empty', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Script text').fill('');
+  await expect(page.getByRole('button', { name: 'Analyze script' })).toBeDisabled();
+});
+
+test('upload button is disabled when no file is selected', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  await expect(page.getByTestId('finding-card').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Upload asset' })).toBeDisabled();
+});
