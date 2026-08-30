@@ -1,6 +1,6 @@
 from dataclasses import dataclass, field
 
-from app.agents import AgentService, ClearanceAgentService, RightsClearanceAgentService
+from app.agents import AgentService, RightsClearanceAgentService
 from app.config import IntegrationMode, Settings
 from app.integrations import (
     GeminiClient,
@@ -11,17 +11,17 @@ from app.integrations import (
     VertexGeminiClient,
 )
 from app.repositories import (
-    AgentRunRepository,
     AssetRepository,
     CaseRepository,
     CloudStorageAssetRepository,
-    FirestoreAgentRunRepository,
+    CloudStorageProductionIconRepository,
     FirestoreCaseRepository,
     FirestoreProductionRepository,
-    InMemoryAgentRunRepository,
     InMemoryAssetRepository,
     InMemoryCaseRepository,
+    InMemoryProductionIconRepository,
     InMemoryProductionRepository,
+    ProductionIconRepository,
     ProductionRepository,
 )
 
@@ -34,10 +34,9 @@ class ApplicationServices:
     production_repository: ProductionRepository = field(
         default_factory=InMemoryProductionRepository
     )
-    agent_run_repository: AgentRunRepository = field(
-        default_factory=InMemoryAgentRunRepository
+    production_icon_repository: ProductionIconRepository = field(
+        default_factory=InMemoryProductionIconRepository
     )
-    clearance_agent: ClearanceAgentService | None = None
 
 
 def _require(value: str | None, setting_name: str) -> str:
@@ -88,18 +87,22 @@ def build_services(settings: Settings) -> ApplicationServices:
     case_repository, asset_repository = build_repositories(settings)
 
     production_repository: ProductionRepository
-    agent_run_repository: AgentRunRepository
+    production_icon_repository: ProductionIconRepository
     if settings.selected_mode(settings.repository_mode) is IntegrationMode.REAL:
         project = _require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT")
         production_repository = FirestoreProductionRepository(
             project, settings.firestore_productions_collection
         )
-        agent_run_repository = FirestoreAgentRunRepository(
-            project, settings.firestore_agent_runs_collection
+        production_icon_repository = CloudStorageProductionIconRepository(
+            project=project,
+            bucket_name=_require(
+                settings.cloud_storage_bucket,
+                "RIGHTSRADAR_CLOUD_STORAGE_BUCKET",
+            ),
         )
     else:
         production_repository = InMemoryProductionRepository()
-        agent_run_repository = InMemoryAgentRunRepository()
+        production_icon_repository = InMemoryProductionIconRepository()
 
     return ApplicationServices(
         case_repository=case_repository,
@@ -108,8 +111,5 @@ def build_services(settings: Settings) -> ApplicationServices:
             gemini, parallel, max_concurrency=settings.parallel_max_concurrency
         ),
         production_repository=production_repository,
-        agent_run_repository=agent_run_repository,
-        clearance_agent=ClearanceAgentService(
-            gemini, parallel, case_repository, agent_run_repository
-        ),
+        production_icon_repository=production_icon_repository,
     )

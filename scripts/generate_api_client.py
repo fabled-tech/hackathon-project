@@ -283,12 +283,12 @@ def render_list_cases(operation: OperationSpec) -> str:
 }}"""
 
 
-def render_upload_asset(operation: OperationSpec) -> str:
+def render_upload(name: str, operation: OperationSpec) -> str:
     if operation.multipart_field is None:
         raise RuntimeError("Expected a multipart upload field")
     field = operation.multipart_field
     argument = ParameterSpec(field, "body", "File").argument_name
-    return f"""export function uploadAsset(
+    return f"""export function {name}(
 {_render_parameters(operation.path_parameters)}  {argument}: File,
   baseUrl: string,
   fetcher: ApiFetcher = fetch
@@ -302,6 +302,10 @@ def render_upload_asset(operation: OperationSpec) -> str:
     fetcher
   );
 }}"""
+
+
+def render_upload_asset(operation: OperationSpec) -> str:
+    return render_upload("uploadAsset", operation)
 
 
 def render_list_assets(operation: OperationSpec) -> str:
@@ -360,35 +364,6 @@ def render_get(name: str, operation: OperationSpec) -> str:
 }}"""
 
 
-def render_get_with_query(name: str, operation: OperationSpec) -> str:
-    if len(operation.query_parameters) != 1:
-        raise RuntimeError(f"Expected exactly one query parameter for {name}")
-    query = operation.query_parameters[0]
-    return f"""export function {name}(
-{_render_parameters((*operation.path_parameters, query))}  baseUrl: string,
-  fetcher: ApiFetcher = fetch
-): Promise<{operation.response_type}> {{
-  return request<{operation.response_type}>(
-    {_render_path(operation)} + '?{query.name}=' + encodeURIComponent({query.argument_name}),
-    baseUrl,
-    {{ method: '{operation.method}' }},
-    fetcher
-  );
-}}"""
-
-
-def render_post_action(name: str, operation: OperationSpec) -> str:
-    return f"""export function {name}(
-{_render_parameters(operation.path_parameters)}  baseUrl: string,
-  fetcher: ApiFetcher = fetch
-): Promise<{operation.response_type}> {{
-  return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{
-    method: '{operation.method}',
-    headers: {{ 'Content-Type': 'application/json' }}
-  }}, fetcher);
-}}"""
-
-
 def render_patch_payload(name: str, operation: OperationSpec) -> str:
     body_type = _require_json_body(operation)
     return f"""export function {name}(
@@ -413,6 +388,15 @@ def render_delete(name: str, operation: OperationSpec) -> str:
 }}"""
 
 
+def render_delete_with_response(name: str, operation: OperationSpec) -> str:
+    return f"""export function {name}(
+{_render_parameters(operation.path_parameters)}  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<{operation.response_type}> {{
+  return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{ method: '{operation.method}' }}, fetcher);
+}}"""
+
+
 def render_post_payload_with_path(name: str, operation: OperationSpec) -> str:
     body_type = _require_json_body(operation)
     return f"""export function {name}(
@@ -432,6 +416,10 @@ def generate() -> str:
     schema = create_app().openapi()
     operations = {
         "create_case": _operation_by_id(schema, "create_case_api_cases_post"),
+        "create_case_from_file": _operation_by_id(
+            schema,
+            "create_case_from_file_api_cases_from_file__production_id__post",
+        ),
         "list_cases": _operation_by_id(schema, "list_cases_api_cases_get"),
         "get_case": _operation_by_id(schema, "get_case_api_cases__case_id__get"),
         "upload_asset": _operation_by_id(
@@ -459,14 +447,11 @@ def generate() -> str:
         "list_production_cases": _operation_by_id(
             schema, "list_production_cases_api_productions__production_id__cases_get"
         ),
-        "run_digest": _operation_by_id(
-            schema, "run_digest_api_productions__production_id__brief_post"
+        "upload_production_icon": _operation_by_id(
+            schema, "upload_production_icon_api_productions__production_id__icon_post"
         ),
-        "run_watch": _operation_by_id(
-            schema, "run_watch_api_productions__production_id__watch_post"
-        ),
-        "list_agent_runs": _operation_by_id(
-            schema, "list_agent_runs_api_productions__production_id__runs_get"
+        "delete_production_icon": _operation_by_id(
+            schema, "delete_production_icon_api_productions__production_id__icon_delete"
         ),
         "update_finding_meta": _operation_by_id(
             schema,
@@ -507,11 +492,13 @@ async function request<T>(
 
 {render_create_case(operations["create_case"])}
 
+{render_upload("createCaseFromFile", operations["create_case_from_file"])}
+
 {render_get_case(operations["get_case"])}
 
 {render_list_cases(operations["list_cases"])}
 
-{render_upload_asset(operations["upload_asset"])}
+{render_upload("uploadAsset", operations["upload_asset"])}
 
 {render_list_assets(operations["list_assets"])}
 
@@ -529,11 +516,9 @@ async function request<T>(
 
 {render_get("listProductionCases", operations["list_production_cases"])}
 
-{render_post_action("runDigest", operations["run_digest"])}
+{render_upload("uploadProductionIcon", operations["upload_production_icon"])}
 
-{render_post_action("runWatch", operations["run_watch"])}
-
-{render_get_with_query("listAgentRuns", operations["list_agent_runs"])}
+{render_delete_with_response("deleteProductionIcon", operations["delete_production_icon"])}
 
 {render_patch_payload("updateFindingMeta", operations["update_finding_meta"])}
 

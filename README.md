@@ -5,13 +5,22 @@ Track. It helps production teams research possible rights-clearance concerns in 
 It is research assistance only: it does not provide legal advice or make final infringement
 determinations.
 
-The first walking skeleton accepts a script excerpt, identifies deterministic mock brand and
-quotation leads, gathers traceable mock evidence, stores the case, and lets a reviewer dismiss or
-escalate each finding.
+The production workspace accepts script text plus PDF, DOCX, PNG, JPEG, and WebP production files.
+Gemini identifies rights-clearance research leads from text, document layout, and imagery; each
+lead is converted into a text research objective for Parallel Search and Extract. The resulting
+case keeps traceable web evidence and lets a reviewer dismiss or escalate each finding.
 
-It also accepts plain-text production notes. Assets are limited to 256 KiB and their browser view
-shows only filename, size, and upload timestamp; stored content and storage references are not
-rendered or exposed in the UI.
+Analyzed files are limited to 10 MiB and are stored privately with their case. DOCX text is
+extracted server-side; PDF and image files retain Gemini's visual and layout context. Parallel does
+not accept local file uploads or return image results, so it researches Gemini's detected text
+leads against web pages. Reviewers can also attach UTF-8 plain-text script sides, continuity or
+clearance notes, prop/product-placement logs, character or likeness notes, and quote/music-cue
+lists up to 256 KiB without analyzing them. The browser exposes only asset metadata.
+
+Each production can configure up to 50 case-insensitive whole-phrase ignore entries. Matching
+detected items are removed before Parallel research to suppress studio-owned or otherwise expected
+references without changing existing findings. Production cards support private PNG, JPEG, or WebP
+icons up to 512 KiB.
 
 ## Requirements
 

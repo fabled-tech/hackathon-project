@@ -1,7 +1,25 @@
 from datetime import datetime
 from enum import StrEnum
+from typing import Annotated
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, StringConstraints, field_validator
+
+IgnoredKeyword = Annotated[
+    str,
+    StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
+]
+
+
+def normalize_ignore_keywords(values: list[str]) -> list[str]:
+    unique: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = " ".join(value.split())
+        key = normalized.casefold()
+        if key not in seen:
+            unique.append(normalized)
+            seen.add(key)
+    return unique
 
 
 class ProductionStatus(StrEnum):
@@ -18,7 +36,15 @@ class Production(BaseModel):
     studio: str = ""
     status: ProductionStatus = ProductionStatus.DEVELOPMENT
     icon: str = "clapperboard"
+    icon_version: str | None = None
+    icon_content_type: str | None = None
+    ignore_keywords: list[IgnoredKeyword] = Field(default_factory=list, max_length=50)
     created_at: datetime
+
+    @field_validator("ignore_keywords")
+    @classmethod
+    def deduplicate_ignore_keywords(cls, values: list[str]) -> list[str]:
+        return normalize_ignore_keywords(values)
 
 
 class ProductionSummary(Production):
@@ -32,26 +58,3 @@ class FindingComment(BaseModel):
     author: str
     body: str
     created_at: datetime
-
-
-class AgentRunStatus(StrEnum):
-    RUNNING = "running"
-    COMPLETED = "completed"
-    FAILED = "failed"
-
-
-class AgentRunTrigger(StrEnum):
-    MANUAL = "manual"
-    ON_NEW_CASE = "on_new_case"
-    SCHEDULE = "schedule"
-
-
-class AgentRun(BaseModel):
-    id: str
-    production_id: str
-    kind: str
-    trigger: AgentRunTrigger
-    status: AgentRunStatus
-    summary: str = ""
-    created_at: datetime
-    completed_at: datetime | None = None

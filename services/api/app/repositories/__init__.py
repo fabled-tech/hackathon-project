@@ -11,33 +11,35 @@ from .cases import (
     FirestoreCaseRepository,
     InMemoryCaseRepository,
 )
+from .production_icons import (
+    CloudStorageProductionIconRepository,
+    InMemoryProductionIconRepository,
+    ProductionIconNotFound,
+    ProductionIconRepository,
+)
 from .productions import (
-    AgentRunNotFound,
-    AgentRunRepository,
-    FirestoreAgentRunRepository,
     FirestoreProductionRepository,
-    InMemoryAgentRunRepository,
     InMemoryProductionRepository,
     ProductionRepository,
     ProductionRepositoryNotFound,
 )
 
 __all__ = [
-    "AgentRunNotFound",
-    "AgentRunRepository",
     "AssetRepository",
     "CaseRepository",
     "CaseRepositoryNotFound",
     "CloudStorageAssetRepository",
+    "CloudStorageProductionIconRepository",
     "FindingNotFound",
-    "FirestoreAgentRunRepository",
     "FirestoreCaseRepository",
     "FirestoreProductionRepository",
-    "InMemoryAgentRunRepository",
     "InMemoryAssetRepository",
     "InMemoryCaseRepository",
+    "InMemoryProductionIconRepository",
     "InMemoryProductionRepository",
     "ProductionRepository",
     "ProductionRepositoryNotFound",
+    "ProductionIconNotFound",
+    "ProductionIconRepository",
     "ReconciliationResult",
 ]

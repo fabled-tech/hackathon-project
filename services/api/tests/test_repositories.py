@@ -6,13 +6,26 @@ from typing import Any
 
 import pytest
 
-from app.models import AssetLifecycle, AssetUpload, Case, Finding, ReviewerStatus, StoredAsset
+from app.models import (
+    AssetLifecycle,
+    AssetUpload,
+    Case,
+    Finding,
+    Production,
+    ReviewerStatus,
+    StoredAsset,
+)
 from app.repositories.assets import CloudStorageAssetRepository as CloudStorageAssetRepositoryImpl
 from app.repositories.cases import (
     CaseRepositoryNotFound,
     FindingNotFound,
     FirestoreCaseRepository,
     InMemoryCaseRepository,
+)
+from app.repositories.production_icons import CloudStorageProductionIconRepository
+from app.repositories.productions import (
+    FirestoreProductionRepository,
+    InMemoryProductionRepository,
 )
 
 
@@ -36,6 +49,7 @@ class FakeQuery:
         self._limit: int | None = None
         self._matching_asset_id: str | None = None
         self._matching_lifecycles: list[str] | None = None
+        self._matching_production_id: str | None = None
 
     def order_by(self, _field: str, *, direction: str) -> FakeQuery:
         self._descending = direction == "DESCENDING"
@@ -50,6 +64,8 @@ class FakeQuery:
             self._matching_asset_id = value
         if field == "lifecycle":
             self._matching_lifecycles = list(value)
+        if field == "production_id":
+            self._matching_production_id = value
         return self
 
     def stream(self) -> list[FakeSnapshot]:
@@ -74,6 +90,10 @@ class FakeQuery:
                 document
                 for path, document in self._client.documents.items()
                 if path[:-1] == self._path
+                and (
+                    self._matching_production_id is None
+                    or document.get("production_id") == self._matching_production_id
+                )
             ]
         documents.sort(
             key=lambda document: document.get("created_at", ""),
@@ -1297,3 +1317,70 @@ def test_case_repository_delete_raises_for_a_missing_case(
 
     with pytest.raises(CaseRepositoryNotFound):
         repository.delete("missing")
+
+
+def test_in_memory_production_repository_updates_ignore_keywords() -> None:
+    repository = InMemoryProductionRepository()
+    production = Production(
+        id="production-1",
+        title="Studio Feature",
+        created_at=datetime(2026, 8, 30, tzinfo=UTC),
+    )
+    repository.create(production)
+
+    updated = repository.update(
+        production.id,
+        ignore_keywords=["Universal Studios", "NBC peacock"],
+    )
+
+    assert updated.ignore_keywords == ["Universal Studios", "NBC peacock"]
+    assert repository.get(production.id).ignore_keywords == updated.ignore_keywords
+
+
+def test_firestore_production_repository_persists_ignore_keywords() -> None:
+    firestore = FakeFirestoreClient()
+    repository = FirestoreProductionRepository(
+        "test-project",
+        "productions",
+        client=firestore,
+    )
+    production = Production(
+        id="production-1",
+        title="Studio Feature",
+        created_at=datetime(2026, 8, 30, tzinfo=UTC),
+    )
+    repository.create(production)
+
+    updated = repository.update(
+        production.id,
+        ignore_keywords=["Universal Studios"],
+    )
+
+    assert updated.ignore_keywords == ["Universal Studios"]
+    assert firestore.documents[("productions", production.id)]["ignore_keywords"] == [
+        "Universal Studios"
+    ]
+
+
+def test_cloud_production_icon_repository_uses_private_versioned_objects() -> None:
+    storage = FakeStorageClient()
+    repository = CloudStorageProductionIconRepository(
+        project="test-project",
+        bucket_name="asset-bucket",
+        client=storage,
+    )
+
+    repository.store(
+        "production-1",
+        "version-1",
+        "image/png",
+        b"\x89PNG\r\n\x1a\nicon",
+    )
+
+    object_name = "rightsrader-production-icons/production-1/version-1"
+    assert storage.uploads[object_name] == (b"\x89PNG\r\n\x1a\nicon", "image/png")
+    assert repository.get("production-1", "version-1") == b"\x89PNG\r\n\x1a\nicon"
+
+    repository.delete("production-1", "version-1")
+
+    assert object_name not in storage.uploads

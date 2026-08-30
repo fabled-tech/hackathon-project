@@ -2,35 +2,43 @@
 
 import {
   createProduction,
-  listAgentRuns,
+  deleteProductionIcon,
   listProductions,
-  runDigest,
-  runWatch,
+  uploadProductionIcon,
   updateProduction,
-  type AgentRun,
   type ProductionStatus,
   type ProductionSummary
 } from '@rightsrader/api-client';
 import {
-  Bot,
   Briefcase,
   ChevronRight,
   Clapperboard,
   FileSearch,
   Film,
   FolderPlus,
+  Home,
+  ImagePlus,
   LayoutDashboard,
   Loader2,
   Music,
   Radar,
   Settings,
-  Sparkles,
   Star,
+  Trash2,
   Tv,
   Video,
   Wand2
 } from 'lucide-react';
-import { type FormEvent, type ReactNode, useCallback, useEffect, useState } from 'react';
+import {
+  type ChangeEvent,
+  type FormEvent,
+  type ReactNode,
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState
+} from 'react';
 import { ScriptReview } from './script-review';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
@@ -74,9 +82,18 @@ function Panel({ children, glow = true }: { children: ReactNode; glow?: boolean 
   );
 }
 
-function BungeeHeading({ children, className = '' }: { children: ReactNode; className?: string }) {
+function BungeeHeading({
+  children,
+  className = '',
+  id
+}: {
+  children: ReactNode;
+  className?: string;
+  id?: string;
+}) {
   return (
     <h2
+      id={id}
       className={`font-display text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4] ${className}`}
     >
       {children}
@@ -107,27 +124,6 @@ function PrimaryButton({
   );
 }
 
-function GhostButton({
-  children,
-  disabled,
-  onClick
-}: {
-  children: ReactNode;
-  disabled?: boolean;
-  onClick?: () => void;
-}) {
-  return (
-    <button
-      type="button"
-      onClick={onClick}
-      disabled={disabled}
-      className="inline-flex shrink-0 items-center gap-1.5 border-2 border-ink bg-white px-3 py-2 font-display text-[10px] text-ink shadow-press transition hover:bg-exhibit focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand disabled:cursor-not-allowed disabled:opacity-60"
-    >
-      {children}
-    </button>
-  );
-}
-
 const PRODUCTION_ICONS = {
   clapperboard: Clapperboard,
   film: Film,
@@ -141,23 +137,118 @@ const PRODUCTION_ICONS = {
 
 type ProductionIcon = keyof typeof PRODUCTION_ICONS;
 
-function productionIcon(icon: string | undefined) {
-  return PRODUCTION_ICONS[(icon as ProductionIcon) ?? 'clapperboard'] ?? Clapperboard;
+function BuiltInProductionIcon({
+  icon,
+  className
+}: {
+  icon: string | undefined;
+  className: string;
+}) {
+  const props = { className, 'aria-hidden': true } as const;
+  switch (icon) {
+    case 'film':
+      return <Film {...props} />;
+    case 'video':
+      return <Video {...props} />;
+    case 'tv':
+      return <Tv {...props} />;
+    case 'music':
+      return <Music {...props} />;
+    case 'star':
+      return <Star {...props} />;
+    case 'wand':
+      return <Wand2 {...props} />;
+    case 'briefcase':
+      return <Briefcase {...props} />;
+    default:
+      return <Clapperboard {...props} />;
+  }
 }
 
-type View = { kind: 'case' } | { kind: 'overview' } | { kind: 'runs' } | { kind: 'settings' };
+function productionIconUrl(production: ProductionSummary): string | null {
+  if (!production.icon_version) return null;
+  return `${API_BASE_URL.replace(/\/$/, '')}/api/productions/${encodeURIComponent(
+    production.id
+  )}/icon/${encodeURIComponent(production.icon_version)}`;
+}
+
+function ProductionMark({
+  production,
+  className = 'size-10',
+  iconClassName = 'size-5',
+  forceBuiltIn = false,
+  builtInIcon
+}: {
+  production: ProductionSummary;
+  className?: string;
+  iconClassName?: string;
+  forceBuiltIn?: boolean;
+  builtInIcon?: string;
+}) {
+  const customIconUrl = forceBuiltIn ? null : productionIconUrl(production);
+  return (
+    <span
+      className={`flex shrink-0 items-center justify-center overflow-hidden border-2 border-ink bg-white bg-cover bg-center shadow-press ${className}`}
+      style={customIconUrl ? { backgroundImage: `url("${customIconUrl}")` } : undefined}
+      aria-label={customIconUrl ? `${production.title} custom icon` : undefined}
+      role={customIconUrl ? 'img' : undefined}
+    >
+      {customIconUrl ? null : (
+        <BuiltInProductionIcon
+          icon={builtInIcon ?? production.icon}
+          className={`${iconClassName} text-ink`}
+        />
+      )}
+    </span>
+  );
+}
+
+function AnimatedNumber({ value }: { value: number }) {
+  const [displayValue, setDisplayValue] = useState(0);
+  const previousValue = useRef(0);
+
+  useEffect(() => {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      previousValue.current = value;
+      const frame = requestAnimationFrame(() => setDisplayValue(value));
+      return () => cancelAnimationFrame(frame);
+    }
+    const from = previousValue.current;
+    const startedAt = performance.now();
+    let frame = 0;
+    const tick = (now: number) => {
+      const progress = Math.min((now - startedAt) / 320, 1);
+      const eased = 1 - (1 - progress) ** 3;
+      setDisplayValue(Math.round(from + (value - from) * eased));
+      if (progress < 1) {
+        frame = requestAnimationFrame(tick);
+      } else {
+        previousValue.current = value;
+      }
+    };
+    frame = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frame);
+  }, [value]);
+
+  return <>{displayValue}</>;
+}
+
+type View =
+  | { kind: 'home' }
+  | { kind: 'case' }
+  | { kind: 'overview' }
+  | { kind: 'settings' };
 
 export function Dashboard() {
   const [productions, setProductions] = useState<ProductionSummary[]>([]);
   const [activeProductionId, setActiveProductionId] = useState<string | null>(null);
-  const [view, setView] = useState<View>({ kind: 'case' });
-  const [agentRuns, setAgentRuns] = useState<AgentRun[]>([]);
+  const [view, setView] = useState<View>({ kind: 'home' });
   const [isLoadingProductions, setIsLoadingProductions] = useState(false);
-  const [isRunningAgent, setIsRunningAgent] = useState<'digest' | 'watch' | null>(null);
   const [showNewProduction, setShowNewProduction] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newStudio, setNewStudio] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const workspaceRef = useRef<HTMLElement>(null);
 
   const activeProduction = productions.find((p) => p.id === activeProductionId) ?? null;
 
@@ -169,15 +260,6 @@ export function Dashboard() {
       setActiveProductionId((current) => current ?? (list[0]?.id ?? null));
     } catch {
       setError('Could not load productions.');
-    }
-  }, []);
-
-  const refreshAgentRuns = useCallback(async (productionId: string) => {
-    try {
-      const runs = await listAgentRuns(productionId, 20, API_BASE_URL);
-      setAgentRuns(runs);
-    } catch {
-      /* non-fatal */
     }
   }, []);
 
@@ -204,20 +286,19 @@ export function Dashboard() {
   }, []);
 
   useEffect(() => {
-    if (!activeProductionId) return;
-    let cancelled = false;
-    (async () => {
-      try {
-        const runs = await listAgentRuns(activeProductionId, 20, API_BASE_URL);
-        if (!cancelled) setAgentRuns(runs);
-      } catch {
-        /* non-fatal */
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [activeProductionId]);
+    const workspace = workspaceRef.current;
+    if (!workspace || window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+      return;
+    }
+    const animation = workspace.animate(
+      [
+        { opacity: 0.55, transform: 'translateY(8px)' },
+        { opacity: 1, transform: 'translateY(0)' }
+      ],
+      { duration: 220, easing: 'cubic-bezier(0.16, 1, 0.3, 1)' }
+    );
+    return () => animation.cancel();
+  }, [activeProductionId, view.kind]);
 
   async function submitProduction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -239,42 +320,24 @@ export function Dashboard() {
     }
   }
 
-  async function triggerAgent(kind: 'digest' | 'watch') {
-    if (!activeProductionId) return;
-    setIsRunningAgent(kind);
-    setError(null);
-    try {
-      if (kind === 'digest') {
-        await runDigest(activeProductionId, API_BASE_URL);
-      } else {
-        await runWatch(activeProductionId, API_BASE_URL);
-      }
-      await refreshAgentRuns(activeProductionId);
-      await refreshProductions();
-      setView({ kind: 'runs' });
-    } catch {
-      setError(`The ${kind} agent could not run right now.`);
-    } finally {
-      setIsRunningAgent(null);
-    }
-  }
-
-  const latestBrief = agentRuns.find((r) => r.kind === 'digest' && r.status === 'completed');
-
   return (
     <div className="flex min-h-screen">
       {/* Sidebar */}
       <aside className="flex w-64 shrink-0 flex-col border-r-2 border-line bg-panel">
         <div className="border-b-2 border-line p-4">
-          <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={() => setView({ kind: 'home' })}
+            className="flex items-center gap-2 text-left focus-visible:outline-2 focus-visible:outline-cyan-pop"
+            aria-label="All productions"
+          >
             <span className="flex size-8 items-center justify-center border-2 border-ink bg-brand shadow-press">
               <Radar className="size-4 text-ink" aria-hidden />
             </span>
-            <span className="font-display text-sm text-paper [text-shadow:2px_2px_0_#aab5c4]">
+            <span className="font-display text-xl text-paper [text-shadow:3px_3px_0_#aab5c4]">
               RightsRadar
             </span>
-          </div>
-          <p className="mt-2 font-pixel text-[8px] text-lavender">RIGHTS CLEARANCE OS</p>
+          </button>
         </div>
 
         <div className="flex-1 overflow-y-auto p-3">
@@ -338,10 +401,11 @@ export function Dashboard() {
                   >
                     <span className="flex items-center justify-between gap-2">
                       <span className="flex min-w-0 items-center gap-1.5">
-                        {(() => {
-                          const Icon = productionIcon(production.icon);
-                          return <Icon className="size-3.5 shrink-0" aria-hidden />;
-                        })()}
+                        <ProductionMark
+                          production={production}
+                          className="size-6 border"
+                          iconClassName="size-3.5"
+                        />
                         <span className="line-clamp-1 font-display text-[10px]">
                           {production.title}
                         </span>
@@ -367,11 +431,24 @@ export function Dashboard() {
           <nav className="border-t-2 border-line p-3">
             <PixelLabel>WORKSPACE</PixelLabel>
             <ul className="mt-2 space-y-1">
+              <li>
+                <button
+                  type="button"
+                  onClick={() => setView({ kind: 'home' })}
+                  className={`flex w-full items-center gap-2 border-2 px-2.5 py-1.5 text-left font-display text-[9px] transition focus-visible:outline-2 focus-visible:outline-cyan-pop ${
+                    view.kind === 'home'
+                      ? 'border-ink bg-brand text-ink shadow-press'
+                      : 'border-transparent text-lavender-soft hover:border-line'
+                  }`}
+                >
+                  <Home className="size-3.5" aria-hidden />
+                  All productions
+                </button>
+              </li>
               {(
                 [
                   { kind: 'overview', label: 'Overview', icon: LayoutDashboard },
                   { kind: 'case', label: 'New case', icon: FileSearch },
-                  { kind: 'runs', label: 'Agent runs', icon: Bot },
                   { kind: 'settings', label: 'Settings', icon: Settings }
                 ] as const
               ).map((item) => (
@@ -396,7 +473,7 @@ export function Dashboard() {
       </aside>
 
       {/* Main pane */}
-      <main className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">
+      <main ref={workspaceRef} className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">
         {error ? (
           <p
             className="mb-4 flex items-start gap-2.5 border-2 border-accent bg-danger-bg px-4 py-3 text-sm font-semibold text-accent"
@@ -406,10 +483,18 @@ export function Dashboard() {
           </p>
         ) : null}
 
-        {view.kind === 'case' || !activeProduction ? (
+        {view.kind === 'home' ? (
+          <ProductionsHome
+            productions={productions}
+            isLoading={isLoadingProductions}
+            onCreate={() => setShowNewProduction(true)}
+            onOpen={(productionId) => {
+              setActiveProductionId(productionId);
+              setView({ kind: 'overview' });
+            }}
+          />
+        ) : view.kind === 'case' || !activeProduction ? (
           <ScriptReview productionId={activeProduction?.id} onCaseCreated={refreshProductions} />
-        ) : view.kind === 'runs' ? (
-          <AgentRunsView runs={agentRuns} />
         ) : view.kind === 'settings' ? (
           <ProductionSettings
             key={activeProduction.id}
@@ -422,14 +507,11 @@ export function Dashboard() {
             {/* Header */}
             <div className="flex flex-wrap items-start justify-between gap-4">
               <div className="flex items-start gap-3">
-                {(() => {
-                  const Icon = productionIcon(activeProduction.icon);
-                  return (
-                    <span className="flex size-12 shrink-0 items-center justify-center border-2 border-ink bg-white shadow-press">
-                      <Icon className="size-6 text-ink" aria-hidden />
-                    </span>
-                  );
-                })()}
+                <ProductionMark
+                  production={activeProduction}
+                  className="size-12"
+                  iconClassName="size-6"
+                />
                 <div>
                   <PixelLabel>PRODUCTION</PixelLabel>
                   <BungeeHeading className="mt-1 text-2xl">{activeProduction.title}</BungeeHeading>
@@ -438,31 +520,6 @@ export function Dashboard() {
                     {STATUS_LABELS[activeProduction.status ?? 'development']}
                   </p>
                 </div>
-              </div>
-              <div className="flex gap-2">
-                <GhostButton
-                  disabled={isRunningAgent !== null}
-                  onClick={() => triggerAgent('digest')}
-                >
-                  {isRunningAgent === 'digest' ? (
-                    <Spinner className="size-3.5" />
-                  ) : (
-                    <Sparkles className="size-3.5" aria-hidden />
-                  )}
-                  Clearance brief
-                </GhostButton>
-                <PrimaryButton
-                  type="button"
-                  disabled={isRunningAgent !== null}
-                  onClick={() => triggerAgent('watch')}
-                >
-                  {isRunningAgent === 'watch' ? (
-                    <Spinner className="size-3.5" />
-                  ) : (
-                    <Bot className="size-3.5" aria-hidden />
-                  )}
-                  ▶ Run watch agent
-                </PrimaryButton>
               </div>
             </div>
 
@@ -478,7 +535,7 @@ export function Dashboard() {
                 {
                   label: 'ESCALATED',
                   value: activeProduction.escalated_finding_count ?? 0,
-                  icon: Bot
+                  icon: Star
                 }
               ].map((stat) => (
                 <Panel key={stat.label} glow={false}>
@@ -487,32 +544,11 @@ export function Dashboard() {
                     <stat.icon className="size-4 text-cyan-pop" aria-hidden />
                   </div>
                   <p className="mt-2 font-display text-3xl text-paper [text-shadow:2px_2px_0_#aab5c4]">
-                    {stat.value}
+                    <AnimatedNumber value={stat.value} />
                   </p>
                 </Panel>
               ))}
             </div>
-
-            {/* Latest brief */}
-            <Panel>
-              <div className="flex items-center justify-between">
-                <PixelLabel>LATEST CLEARANCE BRIEF</PixelLabel>
-                <Sparkles className="size-4 text-brand" aria-hidden />
-              </div>
-              {latestBrief ? (
-                <>
-                  <p className="mt-3 text-[12px] leading-[18px] text-paper">{latestBrief.summary}</p>
-                  <p className="mt-2 font-pixel text-[8px] text-muted">
-                    {new Date(latestBrief.created_at).toLocaleString()}
-                  </p>
-                </>
-              ) : (
-                <p className="mt-3 text-[11.5px] italic leading-[17.83px] text-lavender-soft">
-                  No brief yet. Run the clearance brief agent to summarize open findings across this
-                  production.
-                </p>
-              )}
-            </Panel>
 
             {/* Cases quick link */}
             <Panel glow={false}>
@@ -538,45 +574,157 @@ export function Dashboard() {
   );
 }
 
-function AgentRunsView({ runs }: { runs: AgentRun[] }) {
+function ProductionsHome({
+  productions,
+  isLoading,
+  onCreate,
+  onOpen
+}: {
+  productions: ProductionSummary[];
+  isLoading: boolean;
+  onCreate: () => void;
+  onOpen: (productionId: string) => void;
+}) {
+  const [sortBy, setSortBy] = useState<
+    'newest' | 'title' | 'cases' | 'open' | 'escalated'
+  >('newest');
+  const sortedProductions = useMemo(() => {
+    const sorted = [...productions];
+    sorted.sort((left, right) => {
+      if (sortBy === 'title') return left.title.localeCompare(right.title);
+      if (sortBy === 'cases') return (right.case_count ?? 0) - (left.case_count ?? 0);
+      if (sortBy === 'open') {
+        return (right.open_finding_count ?? 0) - (left.open_finding_count ?? 0);
+      }
+      if (sortBy === 'escalated') {
+        return (right.escalated_finding_count ?? 0) - (left.escalated_finding_count ?? 0);
+      }
+      return new Date(right.created_at).getTime() - new Date(left.created_at).getTime();
+    });
+    return sorted;
+  }, [productions, sortBy]);
+
   return (
-    <div className="space-y-4">
-      <PixelLabel>AGENT RUNS</PixelLabel>
-      <BungeeHeading className="text-xl">Agent activity</BungeeHeading>
-      {runs.length === 0 ? (
-        <Panel>
-          <p className="text-[11.5px] italic leading-[17.83px] text-lavender-soft">
-            No agent runs yet. Trigger a clearance brief or watch run from the overview.
-          </p>
-        </Panel>
-      ) : (
-        <ul className="space-y-2.5">
-          {runs.map((run) => (
-            <li key={run.id} className="border-2 border-ink bg-exhibit p-4 shadow-card">
-              <div className="flex flex-wrap items-center justify-between gap-2">
-                <span className="font-display text-[10px] text-ink">
-                  {run.kind === 'digest' ? '✦ Clearance brief' : '⚡ Watch agent'}
-                </span>
-                <span
-                  className={`border px-1.5 py-0.5 font-pixel text-[8px] ${
-                    run.status === 'completed'
-                      ? 'border-ink text-ink'
-                      : run.status === 'failed'
-                        ? 'border-accent text-accent'
-                        : 'border-line-strong text-line-strong'
-                  }`}
-                >
-                  {run.status.toUpperCase()}
-                </span>
-              </div>
-              <p className="mt-2 text-[11.5px] leading-[17.83px] text-ink-soft">{run.summary}</p>
-              <p className="mt-2 font-pixel text-[8px] text-muted">
-                {run.trigger.toUpperCase()} · {new Date(run.created_at).toLocaleString()}
+    <div className="space-y-7">
+      <header className="relative overflow-hidden border-2 border-line bg-panel px-6 py-8 sm:px-8">
+        <div className="absolute -right-12 -top-16 size-48 rounded-full bg-brand/20 blur-3xl" />
+        <div className="absolute -bottom-20 left-1/3 size-44 rounded-full bg-cyan-pop/15 blur-3xl" />
+        <div className="relative flex flex-wrap items-end justify-between gap-5">
+          <div className="max-w-2xl">
+            <PixelLabel>PRODUCTION RIGHTS WORKSPACE</PixelLabel>
+            <h1 className="mt-2 font-display text-3xl text-paper [text-shadow:3px_3px_0_#aab5c4] sm:text-4xl">
+              Production control room
+            </h1>
+            <p className="mt-3 max-w-xl text-[12px] leading-5 text-lavender-soft">
+              Open a production to review scripts, track findings, attach clearance materials, and
+              tune production-specific nuisance filters.
+            </p>
+          </div>
+          <PrimaryButton type="button" onClick={onCreate}>
+            <FolderPlus className="size-4" aria-hidden /> New production
+          </PrimaryButton>
+        </div>
+      </header>
+
+      <section aria-labelledby="production-portfolio-title">
+        <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
+          <div>
+            <PixelLabel>PORTFOLIO</PixelLabel>
+            <BungeeHeading className="mt-1 text-xl" id="production-portfolio-title">
+              All productions
+            </BungeeHeading>
+          </div>
+          <div className="flex items-center gap-3">
+            <span className="font-pixel text-[8px] text-lavender">
+              {productions.length} TRACKED
+            </span>
+            <label className="flex items-center gap-2 font-pixel text-[8px] text-lavender">
+              SORT
+              <select
+                value={sortBy}
+                onChange={(event) =>
+                  setSortBy(
+                    event.target.value as 'newest' | 'title' | 'cases' | 'open' | 'escalated'
+                  )
+                }
+                className="border-2 border-ink bg-white px-2 py-1.5 font-sans text-[11px] font-bold text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
+                aria-label="Sort productions"
+              >
+                <option value="newest">Newest</option>
+                <option value="title">Title A–Z</option>
+                <option value="cases">Most cases</option>
+                <option value="open">Most open findings</option>
+                <option value="escalated">Most escalated</option>
+              </select>
+            </label>
+          </div>
+        </div>
+
+        {isLoading ? (
+          <Panel>
+            <p className="flex items-center gap-2 text-[11px] text-lavender-soft">
+              <Spinner className="size-3.5" /> Loading productions…
+            </p>
+          </Panel>
+        ) : productions.length === 0 ? (
+          <Panel>
+            <div className="py-8 text-center">
+              <Clapperboard className="mx-auto size-9 text-brand" aria-hidden />
+              <p className="mt-4 font-display text-sm text-paper">No productions yet</p>
+              <p className="mt-2 text-[11px] text-lavender-soft">
+                Create the first production to begin tracking clearance.
               </p>
-            </li>
-          ))}
-        </ul>
-      )}
+            </div>
+          </Panel>
+        ) : (
+          <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {sortedProductions.map((production) => (
+              <li key={production.id}>
+                <button
+                  type="button"
+                  onClick={() => onOpen(production.id)}
+                  className="group h-full w-full border-2 border-line bg-panel p-5 text-left transition hover:-translate-y-1 hover:border-cyan-pop hover:shadow-[5px_5px_0_#00e5ff] focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-cyan-pop"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <ProductionMark
+                      production={production}
+                      className="size-14"
+                      iconClassName="size-7"
+                    />
+                    <span
+                      className={`border px-1.5 py-1 font-pixel text-[7px] ${
+                        STATUS_COLORS[production.status ?? 'development']
+                      }`}
+                    >
+                      {STATUS_LABELS[production.status ?? 'development']}
+                    </span>
+                  </div>
+                  <h2 className="mt-4 font-display text-base text-paper transition group-hover:text-cyan-pop">
+                    {production.title}
+                  </h2>
+                  <p className="mt-1 min-h-4 text-[10.5px] text-lavender-soft">
+                    {production.studio || 'Independent production'}
+                  </p>
+                  <dl className="mt-5 grid grid-cols-3 gap-2 border-t border-line pt-3 text-center">
+                    {[
+                      ['CASES', production.case_count ?? 0],
+                      ['OPEN', production.open_finding_count ?? 0],
+                      ['ESC.', production.escalated_finding_count ?? 0]
+                    ].map(([label, value]) => (
+                      <div key={label}>
+                        <dt className="font-pixel text-[7px] text-muted">{label}</dt>
+                        <dd className="mt-1 font-display text-lg text-paper">
+                          <AnimatedNumber value={value as number} />
+                        </dd>
+                      </div>
+                    ))}
+                  </dl>
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
+      </section>
     </div>
   );
 }
@@ -594,7 +742,54 @@ function ProductionSettings({
   const [studio, setStudio] = useState(production.studio ?? '');
   const [status, setStatus] = useState<ProductionStatus>(production.status ?? 'development');
   const [icon, setIcon] = useState<string>(production.icon ?? 'clapperboard');
+  const [ignoreKeywords, setIgnoreKeywords] = useState(
+    (production.ignore_keywords ?? []).join('\n')
+  );
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploadingIcon, setIsUploadingIcon] = useState(false);
+  const [isRemovingIcon, setIsRemovingIcon] = useState(false);
+  const [useBuiltInIcon, setUseBuiltInIcon] = useState(false);
+
+  async function uploadCustomIcon(event: ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!['image/png', 'image/jpeg', 'image/webp'].includes(file.type)) {
+      onError('Custom icons must be PNG, JPEG, or WebP images.');
+      event.target.value = '';
+      return;
+    }
+    if (file.size > 512 * 1024) {
+      onError('Custom icons must not exceed 512 KiB.');
+      event.target.value = '';
+      return;
+    }
+    setIsUploadingIcon(true);
+    onError(null);
+    try {
+      await uploadProductionIcon(production.id, file, API_BASE_URL);
+      setUseBuiltInIcon(false);
+      await onSaved();
+    } catch {
+      onError('The custom production icon could not be uploaded.');
+    } finally {
+      setIsUploadingIcon(false);
+      event.target.value = '';
+    }
+  }
+
+  async function removeCustomIcon() {
+    setIsRemovingIcon(true);
+    onError(null);
+    try {
+      await deleteProductionIcon(production.id, API_BASE_URL);
+      setUseBuiltInIcon(false);
+      await onSaved();
+    } catch {
+      onError('The custom production icon could not be removed.');
+    } finally {
+      setIsRemovingIcon(false);
+    }
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -603,9 +798,19 @@ function ProductionSettings({
     try {
       await updateProduction(
         production.id,
-        { title: title.trim(), studio: studio.trim(), status, icon },
+        {
+          title: title.trim(),
+          studio: studio.trim(),
+          status,
+          icon: useBuiltInIcon || !production.icon_version ? icon : undefined,
+          ignore_keywords: ignoreKeywords
+            .split('\n')
+            .map((keyword) => keyword.trim())
+            .filter(Boolean)
+        },
         API_BASE_URL
       );
+      setUseBuiltInIcon(false);
       await onSaved();
     } catch {
       onError('Could not save production settings.');
@@ -633,7 +838,10 @@ function ProductionSettings({
                   <button
                     key={name}
                     type="button"
-                    onClick={() => setIcon(name)}
+                    onClick={() => {
+                      setIcon(name);
+                      setUseBuiltInIcon(true);
+                    }}
                     aria-pressed={selected}
                     aria-label={`Icon: ${name}`}
                     className={`flex size-11 items-center justify-center border-2 transition focus-visible:outline-2 focus-visible:outline-cyan-pop ${
@@ -646,6 +854,62 @@ function ProductionSettings({
                   </button>
                 );
               })}
+            </div>
+            <div className="mt-4 flex flex-wrap items-center gap-4 border-2 border-line bg-panel p-3">
+              <ProductionMark
+                production={production}
+                builtInIcon={icon}
+                forceBuiltIn={useBuiltInIcon}
+                className="size-16"
+                iconClassName="size-8"
+              />
+              <div className="min-w-0 flex-1">
+                <label
+                  htmlFor="settings-custom-icon"
+                  className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
+                >
+                  CUSTOM ICON
+                </label>
+                <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
+                  PNG, JPEG, or WebP · 512 KiB max. Square images work best.
+                </p>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  <label
+                    htmlFor="settings-custom-icon"
+                    className="inline-flex cursor-pointer items-center gap-1.5 border-2 border-ink bg-brand px-2.5 py-1.5 font-display text-[9px] text-ink shadow-press transition hover:brightness-105"
+                  >
+                    {isUploadingIcon ? (
+                      <Spinner className="size-3.5" />
+                    ) : (
+                      <ImagePlus className="size-3.5" aria-hidden />
+                    )}
+                    {production.icon_version ? 'Replace image' : 'Upload image'}
+                  </label>
+                  <input
+                    id="settings-custom-icon"
+                    type="file"
+                    accept="image/png,image/jpeg,image/webp"
+                    onChange={uploadCustomIcon}
+                    disabled={isUploadingIcon || isRemovingIcon}
+                    className="sr-only"
+                  />
+                  {production.icon_version && !useBuiltInIcon ? (
+                    <button
+                      type="button"
+                      onClick={removeCustomIcon}
+                      disabled={isRemovingIcon || isUploadingIcon}
+                      className="inline-flex items-center gap-1.5 border-2 border-ink bg-white px-2.5 py-1.5 font-display text-[9px] text-ink shadow-press transition hover:bg-exhibit disabled:opacity-60"
+                    >
+                      {isRemovingIcon ? (
+                        <Spinner className="size-3.5" />
+                      ) : (
+                        <Trash2 className="size-3.5" aria-hidden />
+                      )}
+                      Remove image
+                    </button>
+                  ) : null}
+                </div>
+              </div>
             </div>
           </div>
 
@@ -700,6 +964,33 @@ function ProductionSettings({
                 </option>
               ))}
             </select>
+          </div>
+
+          <div>
+            <label
+              htmlFor="settings-ignore-keywords"
+              className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
+            >
+              IGNORE PHRASES
+            </label>
+            <textarea
+              id="settings-ignore-keywords"
+              value={ignoreKeywords}
+              onChange={(event) => setIgnoreKeywords(event.target.value)}
+              rows={5}
+              maxLength={5_000}
+              placeholder={'Universal Studios\nNBC peacock'}
+              aria-describedby="settings-ignore-keywords-help"
+              className="mt-1.5 block w-full resize-y border-2 border-ink bg-white px-2.5 py-2 font-mono text-[11px] leading-5 text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
+            />
+            <p
+              id="settings-ignore-keywords-help"
+              className="mt-2 text-[10.5px] leading-4 text-lavender-soft"
+            >
+              One phrase per line, up to 50. Matching is case-insensitive and requires the whole
+              phrase in a detected item. Matches are removed before web research, reducing nuisance
+              results and provider usage for this production. Existing findings are unchanged.
+            </p>
           </div>
 
           <div className="flex justify-end">

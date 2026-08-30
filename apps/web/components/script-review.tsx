@@ -2,6 +2,7 @@
 
 import {
   createCase,
+  createCaseFromFile,
   getCase,
   listAssets,
   listCases,
@@ -13,7 +14,7 @@ import {
   uploadAsset,
   updateFindingStatus
 } from '@rightsrader/api-client';
-import { ArrowUpRight, CircleAlert, FileText, Loader2 } from 'lucide-react';
+import { ArrowUpRight, CircleAlert, FileText, FileUp, Loader2 } from 'lucide-react';
 import { type FormEvent, type ReactNode, useRef, useState } from 'react';
 
 const SAMPLE_SCRIPT =
@@ -161,18 +162,22 @@ export function ScriptReview({
   const [caseResult, setCaseResult] = useState<Case | null>(null);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [analysisFile, setAnalysisFile] = useState<File | null>(null);
   const [recentCases, setRecentCases] = useState<CaseSummary[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
   const [isLoadingRecentCases, setIsLoadingRecentCases] = useState(false);
   const [isLoadingCaseId, setIsLoadingCaseId] = useState<string | null>(null);
   const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const analysisFileInputRef = useRef<HTMLInputElement>(null);
   const caseOperationGeneration = useRef(0);
   const activeCaseIdRef = useRef<string | null>(null);
   const submissionGeneration = useRef(0);
   const uploadGeneration = useRef(0);
+  const fileAnalysisGeneration = useRef(0);
   const caseLoadingGeneration = useRef(0);
 
   async function submitScript(event: FormEvent<HTMLFormElement>) {
@@ -223,6 +228,7 @@ export function ScriptReview({
       ) {
         return;
       }
+
       setAssets(nextAssets);
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -236,6 +242,43 @@ export function ScriptReview({
     } finally {
       if (uploadGeneration.current === requestGeneration) {
         setIsUploading(false);
+      }
+    }
+  }
+
+  async function submitAnalysisFile(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!productionId || !analysisFile) return;
+    const operationGeneration = ++caseOperationGeneration.current;
+    const requestGeneration = ++fileAnalysisGeneration.current;
+    setIsAnalyzingFile(true);
+    setError(null);
+    try {
+      const nextCase = await createCaseFromFile(
+        productionId,
+        analysisFile,
+        API_BASE_URL
+      );
+      const nextAssets = await listAssets(nextCase.id, API_BASE_URL);
+      if (caseOperationGeneration.current !== operationGeneration) return;
+      activeCaseIdRef.current = nextCase.id;
+      setScriptText(nextCase.script_text);
+      setCaseResult(nextCase);
+      setAssets(nextAssets);
+      setAnalysisFile(null);
+      setSelectedFile(null);
+      if (analysisFileInputRef.current) analysisFileInputRef.current.value = '';
+      if (fileInputRef.current) fileInputRef.current.value = '';
+      onCaseCreated?.();
+    } catch {
+      if (caseOperationGeneration.current === operationGeneration) {
+        setError(
+          'RightsRadar could not analyze this file. Use a PDF, DOCX, PNG, JPEG, or WebP file up to 10 MiB.'
+        );
+      }
+    } finally {
+      if (fileAnalysisGeneration.current === requestGeneration) {
+        setIsAnalyzingFile(false);
       }
     }
   }
@@ -325,15 +368,15 @@ export function ScriptReview({
         <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
           <div className="space-y-10">
             <div className="animate-fade-up">
-              <PixelLabel>01: Script Checking</PixelLabel>
+              <PixelLabel>01: Material Checking</PixelLabel>
               <div className="mt-3">
                 <Panel>
                   <p className="font-display text-xl text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4]">
                     RightsRadar
                   </p>
                   <p className="mt-2 max-w-xs text-[11.5px] leading-[17.83px] text-lavender-soft">
-                    Drop in a scene. We&apos;ll tell you what&apos;s real, what&apos;s risky, before
-                    it airs.
+                    Paste a scene or upload a production file. We&apos;ll surface what needs rights
+                    research before release.
                   </p>
                   <aside
                     className="mt-4 border border-warn-line bg-warn-bg p-3.5 text-[11px] leading-[17px] text-lavender-soft"
@@ -383,6 +426,52 @@ export function ScriptReview({
                       </PrimaryButton>
                     </div>
                   </form>
+
+                  {productionId ? (
+                    <form
+                      onSubmit={submitAnalysisFile}
+                      className="mt-4 border-2 border-ink bg-exhibit p-[18px] shadow-card"
+                    >
+                      <label
+                        htmlFor="analysis-file"
+                        className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
+                      >
+                        ▸ OR ANALYZE A PRODUCTION FILE
+                      </label>
+                      <p className="mt-2 text-[10.5px] leading-4 text-muted">
+                        Gemini reviews PDF and image layout visually. DOCX text is extracted
+                        securely, then detected leads are researched on the web through Parallel.
+                      </p>
+                      <input
+                        ref={analysisFileInputRef}
+                        id="analysis-file"
+                        type="file"
+                        accept=".pdf,.docx,image/png,image/jpeg,image/webp,application/pdf,application/vnd.openxmlformats-officedocument.wordprocessingml.document"
+                        onChange={(event) =>
+                          setAnalysisFile(event.target.files?.[0] ?? null)
+                        }
+                        className="mt-3 block w-full cursor-pointer border-2 border-dashed border-line-strong bg-white px-3 py-2.5 text-[11px] text-muted transition file:mr-3 file:cursor-pointer file:border-2 file:border-ink file:bg-cyan-pop file:px-2.5 file:py-1 file:font-display file:text-[9px] file:text-ink hover:border-cyan-pop focus:outline-none focus:ring-2 focus:ring-cyan-pop"
+                      />
+                      <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+                        <span className="text-[10px] text-muted">
+                          {analysisFile
+                            ? `${analysisFile.name} · ${fileSizeLabel(analysisFile.size)}`
+                            : 'PDF · DOCX · PNG · JPEG · WEBP · 10 MiB max'}
+                        </span>
+                        <PrimaryButton disabled={!analysisFile || isAnalyzingFile}>
+                          {isAnalyzingFile ? (
+                            <>
+                              <Spinner /> Analyzing file…
+                            </>
+                          ) : (
+                            <>
+                              <FileUp className="size-3.5" aria-hidden /> Analyze file
+                            </>
+                          )}
+                        </PrimaryButton>
+                      </div>
+                    </form>
+                  ) : null}
                 </Panel>
               </div>
             </div>
@@ -537,9 +626,9 @@ export function ScriptReview({
                             character or likeness notes, or quote and music-cue lists.
                           </p>
                           <p className="mt-1.5">
-                            PDF, Final Draft, Word, spreadsheet, image, audio, and video files are
-                            not supported yet. Export relevant text as UTF-8. Attached text is
-                            stored with this production case for human review; it is not analyzed.
+                            This attachment is stored with the case for human review; it is not
+                            analyzed. To analyze a PDF, DOCX, PNG, JPEG, or WebP file, use the
+                            production-file uploader above.
                           </p>
                         </div>
                         <input

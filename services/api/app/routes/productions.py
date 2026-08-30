@@ -1,12 +1,17 @@
+import logging
 from datetime import UTC, datetime
+from typing import Annotated
 from uuid import uuid4
 
-from fastapi import APIRouter, HTTPException, Query, Request, status
+from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile, status
+from starlette.concurrency import run_in_threadpool
 
-from app.agents import ClearanceAgentService
 from app.dependencies import ApplicationServices
-from app.models import AgentRun, Case, Finding, FindingComment, Production, ProductionSummary
+from app.file_validation import content_matches_type
+from app.models import Case, Finding, FindingComment, Production, ProductionSummary
 from app.models.requests import (
+    ALLOWED_PRODUCTION_ICON_CONTENT_TYPES,
+    MAX_PRODUCTION_ICON_BYTES,
     CreateFindingCommentRequest,
     CreateProductionRequest,
     UpdateFindingMetaRequest,
@@ -15,10 +20,12 @@ from app.models.requests import (
 from app.repositories import (
     CaseRepositoryNotFound,
     FindingNotFound,
+    ProductionIconNotFound,
     ProductionRepositoryNotFound,
 )
 
 router = APIRouter(prefix="/api/productions", tags=["productions"])
+logger = logging.getLogger(__name__)
 
 
 def _services(request: Request) -> ApplicationServices:
@@ -63,24 +70,162 @@ def get_production(production_id: str, request: Request) -> ProductionSummary:
 def update_production(
     production_id: str, payload: UpdateProductionRequest, request: Request
 ) -> Production:
+    services = _services(request)
     try:
-        return _services(request).production_repository.update(
+        existing = services.production_repository.get(production_id)
+        updated = services.production_repository.update(
             production_id,
             title=payload.title,
             studio=payload.studio,
             status=payload.status,
             icon=payload.icon,
+            ignore_keywords=payload.ignore_keywords,
+            clear_custom_icon=payload.icon is not None,
+        )
+    except ProductionRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Production not found") from error
+    if payload.icon is not None and existing.icon_version is not None:
+        try:
+            services.production_icon_repository.delete(
+                production_id, existing.icon_version
+            )
+        except Exception:
+            logger.warning("Custom production icon cleanup failed after selecting a built-in icon.")
+    return updated
+
+
+@router.post("/{production_id}/icon", response_model=Production)
+async def upload_production_icon(
+    production_id: str,
+    file: Annotated[UploadFile, File(json_schema_extra={"format": "binary"})],
+    request: Request,
+) -> Production:
+    services = _services(request)
+    try:
+        production = await run_in_threadpool(
+            services.production_repository.get, production_id
         )
     except ProductionRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Production not found") from error
 
+    content_type = file.content_type or ""
+    if content_type not in ALLOWED_PRODUCTION_ICON_CONTENT_TYPES:
+        raise HTTPException(
+            status_code=422,
+            detail="Production icons must be PNG, JPEG, or WebP images",
+        )
+    content = await file.read(MAX_PRODUCTION_ICON_BYTES + 1)
+    if len(content) > MAX_PRODUCTION_ICON_BYTES:
+        raise HTTPException(status_code=422, detail="Production icon must not exceed 512 KiB")
+    if not content_matches_type(content, content_type):
+        raise HTTPException(
+            status_code=422,
+            detail="Production icon content does not match its image type",
+        )
+
+    version = str(uuid4())
+    await run_in_threadpool(
+        services.production_icon_repository.store,
+        production_id,
+        version,
+        content_type,
+        content,
+    )
+    try:
+        updated = await run_in_threadpool(
+            services.production_repository.set_icon_metadata,
+            production_id,
+            version=version,
+            content_type=content_type,
+        )
+    except Exception:
+        try:
+            await run_in_threadpool(
+                services.production_icon_repository.delete,
+                production_id,
+                version,
+            )
+        except Exception:
+            logger.warning("Custom production icon cleanup failed after a metadata error.")
+        raise
+
+    if production.icon_version is not None:
+        try:
+            await run_in_threadpool(
+                services.production_icon_repository.delete,
+                production_id,
+                production.icon_version,
+            )
+        except Exception:
+            logger.warning("Replaced custom production icon cleanup failed.")
+    return updated
+
+
+@router.get("/{production_id}/icon/{version}", response_class=Response)
+def get_production_icon(
+    production_id: str,
+    version: str,
+    request: Request,
+) -> Response:
+    services = _services(request)
+    try:
+        production = services.production_repository.get(production_id)
+    except ProductionRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Production not found") from error
+    if production.icon_version != version or production.icon_content_type is None:
+        raise HTTPException(status_code=404, detail="Production icon not found")
+    try:
+        content = services.production_icon_repository.get(production_id, version)
+    except ProductionIconNotFound as error:
+        raise HTTPException(status_code=404, detail="Production icon not found") from error
+    return Response(
+        content=content,
+        media_type=production.icon_content_type,
+        headers={
+            "Cache-Control": "private, max-age=31536000, immutable",
+            "X-Content-Type-Options": "nosniff",
+        },
+    )
+
+
+@router.delete("/{production_id}/icon", response_model=Production)
+def delete_production_icon(production_id: str, request: Request) -> Production:
+    services = _services(request)
+    try:
+        production = services.production_repository.get(production_id)
+    except ProductionRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Production not found") from error
+    if production.icon_version is None:
+        return production
+    updated = services.production_repository.set_icon_metadata(
+        production_id,
+        version=None,
+        content_type=None,
+    )
+    try:
+        services.production_icon_repository.delete(
+            production_id, production.icon_version
+        )
+    except Exception:
+        logger.warning("Custom production icon cleanup failed after removal.")
+    return updated
+
 
 @router.delete("/{production_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_production(production_id: str, request: Request) -> None:
+    services = _services(request)
     try:
-        _services(request).production_repository.delete(production_id)
+        production = services.production_repository.get(production_id)
+        services.production_repository.delete(production_id)
     except ProductionRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Production not found") from error
+    if production.icon_version is not None:
+        try:
+            services.production_icon_repository.delete(
+                production_id, production.icon_version
+            )
+        except Exception:
+            logger.warning("Custom production icon cleanup failed after production deletion.")
 
 
 @router.get("/{production_id}/cases", response_model=list[Case])
@@ -93,12 +238,6 @@ def list_production_cases(production_id: str, request: Request) -> list[Case]:
     return services.case_repository.list_for_production(production_id)
 
 
-def _clearance_agent(services: ApplicationServices) -> ClearanceAgentService:
-    if services.clearance_agent is None:
-        raise HTTPException(status_code=503, detail="Clearance agent is not configured")
-    return services.clearance_agent
-
-
 def _assert_case_belongs_to_production(
     services: ApplicationServices, production_id: str, case_id: str
 ) -> None:
@@ -108,38 +247,6 @@ def _assert_case_belongs_to_production(
         raise HTTPException(status_code=404, detail="Case not found") from error
     if case.production_id != production_id:
         raise HTTPException(status_code=404, detail="Case not found")
-
-
-@router.post("/{production_id}/brief", response_model=AgentRun, status_code=status.HTTP_201_CREATED)
-async def run_digest(production_id: str, request: Request) -> AgentRun:
-    services = _services(request)
-    try:
-        services.production_repository.get(production_id)
-    except ProductionRepositoryNotFound as error:
-        raise HTTPException(status_code=404, detail="Production not found") from error
-    return await _clearance_agent(services).digest(production_id)
-
-
-@router.post("/{production_id}/watch", response_model=AgentRun, status_code=status.HTTP_201_CREATED)
-async def run_watch(production_id: str, request: Request) -> AgentRun:
-    services = _services(request)
-    try:
-        services.production_repository.get(production_id)
-    except ProductionRepositoryNotFound as error:
-        raise HTTPException(status_code=404, detail="Production not found") from error
-    return await _clearance_agent(services).watch(production_id)
-
-
-@router.get("/{production_id}/runs", response_model=list[AgentRun])
-def list_agent_runs(
-    production_id: str, request: Request, limit: int = Query(default=20, ge=1, le=100)
-) -> list[AgentRun]:
-    services = _services(request)
-    try:
-        services.production_repository.get(production_id)
-    except ProductionRepositoryNotFound as error:
-        raise HTTPException(status_code=404, detail="Production not found") from error
-    return services.agent_run_repository.list_for_production(production_id, limit)
 
 
 @router.patch("/{production_id}/cases/{case_id}/findings/{finding_id}/meta", response_model=Finding)

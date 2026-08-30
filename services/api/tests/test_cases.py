@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -10,9 +12,12 @@ from app.routes import cases_router
 
 
 class FailingAgentService:
-    async def analyze(self, case_id: str, script_text: str) -> list[Finding]:
+    async def analyze(
+        self, case_id: str, script_text: str, ignored_keywords: Sequence[str] = ()
+    ) -> list[Finding]:
         del case_id
         del script_text
+        del ignored_keywords
         raise AnalysisProviderError("secret provider detail")
 
 
@@ -20,9 +25,12 @@ class ClosableAgentService:
     def __init__(self) -> None:
         self.closed = False
 
-    async def analyze(self, case_id: str, script_text: str) -> list[Finding]:
+    async def analyze(
+        self, case_id: str, script_text: str, ignored_keywords: Sequence[str] = ()
+    ) -> list[Finding]:
         del case_id
         del script_text
+        del ignored_keywords
         return []
 
     async def aclose(self) -> None:
@@ -111,6 +119,58 @@ def test_updating_a_finding_status_persists_on_the_case() -> None:
     assert response.json()["reviewer_status"] == "escalated"
     updated_case = client.get(f"/api/cases/{case['id']}").json()
     assert updated_case["findings"][0]["reviewer_status"] == "escalated"
+
+
+def test_production_ignore_phrases_filter_findings_before_research() -> None:
+    from app.main import create_app
+
+    client = TestClient(create_app())
+    production = client.post(
+        "/api/productions",
+        json={"title": "Studio Feature", "studio": "Universal Studios"},
+    ).json()
+    updated = client.patch(
+        f"/api/productions/{production['id']}",
+        json={
+            "ignore_keywords": [
+                "  NIMBUS   SODA ",
+                "nimbus soda",
+                "irrelevant fragment",
+            ]
+        },
+    )
+
+    assert updated.status_code == 200
+    assert updated.json()["ignore_keywords"] == ["NIMBUS SODA", "irrelevant fragment"]
+
+    response = client.post(
+        "/api/cases",
+        json={
+            "production_id": production["id"],
+            "script_text": (
+                'MARA opens a can of Nimbus Soda. "Time keeps the reel turning," she says.'
+            ),
+        },
+    )
+
+    assert response.status_code == 201
+    assert [finding["detected_item"] for finding in response.json()["findings"]] == [
+        "Time keeps the reel turning"
+    ]
+
+
+def test_case_creation_rejects_an_unknown_production() -> None:
+    from app.main import create_app
+
+    client = TestClient(create_app())
+
+    response = client.post(
+        "/api/cases",
+        json={"production_id": "missing", "script_text": "Nimbus Soda appears."},
+    )
+
+    assert response.status_code == 404
+    assert response.json() == {"detail": "Production not found"}
 
 
 def test_provider_failure_returns_safe_503_without_persisting_a_partial_case(

@@ -248,6 +248,32 @@ def test_vertex_detection_uses_schema_and_returns_contextual_signals() -> None:
     assert config.response_schema == list[GeminiSignal]
 
 
+def test_vertex_file_detection_sends_multimodal_content_with_schema() -> None:
+    fake = FakeGenAIClient(
+        "["
+        '{"category":"visual_brand","detected_item":"Example Logo",'
+        '"explanation":"A visible logo.","confidence":0.8,'
+        '"context_excerpt":"Logo on wardrobe."}'
+        "]"
+    )
+    client = VertexGeminiClient(
+        "project", "global", "gemini-2.5-flash", client=fake
+    )
+
+    signals = asyncio.run(
+        client.identify_material_from_file(
+            "wardrobe.png",
+            "image/png",
+            b"\x89PNG\r\n\x1a\nimage",
+        )
+    )
+
+    assert signals[0].detected_item == "Example Logo"
+    call = fake.aio.models.calls[0]
+    assert "wardrobe.png" in str(call["contents"][0])  # type: ignore[index]
+    assert call["config"].response_schema == list[GeminiSignal]
+
+
 def test_vertex_curation_wraps_malformed_json_without_exposing_it() -> None:
     fake = FakeGenAIClient("secret malformed provider output")
     client = VertexGeminiClient(
