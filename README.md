@@ -2,6 +2,8 @@
 
 RightsRadar is a hosted-app foundation for the Google Cloud Agentic Cinema Hackathon — Parallel
 Track. It helps production teams research possible rights-clearance concerns in scripts and assets.
+For the hackathon demo, the web app is packaged as a standalone Next.js app that can be deployed to
+Vercel for a single public judging URL.
 It is research assistance only: it does not provide legal advice or make final infringement
 determinations.
 

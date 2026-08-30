@@ -4,7 +4,7 @@ import './globals.css';
 
 export const metadata: Metadata = {
   title: 'RightsRadar',
-  description: 'Research-assistance workflow for film rights clearance.'
+  description: 'Hackathon demo for film rights clearance research.'
 };
 
 export const viewport = {
