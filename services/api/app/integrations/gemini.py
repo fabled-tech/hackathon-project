@@ -143,7 +143,9 @@ class VertexGeminiClient:
                 ),
             )
         except Exception as error:
-            raise AnalysisProviderError("Gemini lead detection failed") from error
+            raise AnalysisProviderError(
+                "Gemini lead detection failed", operation="gemini_lead_detection"
+            ) from error
 
         try:
             payload = json.loads(response.text or "[]")
@@ -151,7 +153,10 @@ class VertexGeminiClient:
                 raise ValueError("Gemini response was not a JSON list")
             return [GeminiSignal.model_validate(item) for item in payload]
         except (json.JSONDecodeError, TypeError, ValueError, ValidationError) as error:
-            raise AnalysisProviderError("Gemini lead detection returned invalid output") from error
+            raise AnalysisProviderError(
+                "Gemini lead detection returned invalid output",
+                operation="gemini_lead_detection",
+            ) from error
 
     async def curate_evidence(
         self, signal: GeminiSignal, candidates: list[SearchResult]
@@ -169,7 +174,8 @@ class VertexGeminiClient:
                     "Select at most one supplied source that is directly relevant to this "
                     "rights-clearance research lead. Select no source when the candidates are "
                     "ambiguous or unreliable. Do not make legal conclusions, create citations, "
-                    "invent URLs, or quote text not present in the candidates.\n\nLead:\n"
+                    "invent URLs, or quote text not present in the candidates. When selecting no "
+                    "source, return null for both primary_url and rationale.\n\nLead:\n"
                     + signal.model_dump_json()
                     + "\n\nExtracted candidates:\n"
                     + json.dumps(candidate_payload)
@@ -181,7 +187,9 @@ class VertexGeminiClient:
                 ),
             )
         except Exception as error:
-            raise AnalysisProviderError("Gemini evidence curation failed") from error
+            raise AnalysisProviderError(
+                "Gemini evidence curation failed", operation="gemini_evidence_curation"
+            ) from error
 
         try:
             decision = EvidenceCurationDecision.model_validate_json(response.text or "{}")
@@ -193,4 +201,6 @@ class VertexGeminiClient:
         candidate_urls = {candidate.source.url for candidate in candidates}
         if decision.primary_url is not None and decision.primary_url not in candidate_urls:
             raise EvidenceCurationError("Gemini selected an unknown evidence URL")
+        if decision.primary_url is None or not decision.rationale:
+            return EvidenceCurationDecision(primary_url=None, rationale=None)
         return decision

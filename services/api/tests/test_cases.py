@@ -113,7 +113,9 @@ def test_updating_a_finding_status_persists_on_the_case() -> None:
     assert updated_case["findings"][0]["reviewer_status"] == "escalated"
 
 
-def test_provider_failure_returns_safe_503_without_persisting_a_partial_case() -> None:
+def test_provider_failure_returns_safe_503_without_persisting_a_partial_case(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
     cases = InMemoryCaseRepository()
     app = FastAPI()
     app.state.services = ApplicationServices(
@@ -124,7 +126,8 @@ def test_provider_failure_returns_safe_503_without_persisting_a_partial_case() -
     app.include_router(cases_router)
     client = TestClient(app, raise_server_exceptions=False)
 
-    response = client.post("/api/cases", json={"script_text": "A scene."})
+    with caplog.at_level("WARNING", logger="app.routes.cases"):
+        response = client.post("/api/cases", json={"script_text": "A scene."})
 
     assert response.status_code == 503
     assert response.json() == {
@@ -132,6 +135,8 @@ def test_provider_failure_returns_safe_503_without_persisting_a_partial_case() -
     }
     assert cases.list_recent(10) == []
     assert "secret provider detail" not in response.text
+    assert "analysis_provider" in caplog.text
+    assert "secret provider detail" not in caplog.text
 
 
 def test_app_lifespan_closes_provider_clients(monkeypatch: pytest.MonkeyPatch) -> None:

@@ -41,6 +41,7 @@ async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
     try:
         findings = await services.agent_service.analyze(case_id, payload.script_text)
     except AnalysisUnavailableError as error:
+        logger.warning("Case analysis failed during %s.", error.operation)
         raise HTTPException(
             status_code=503,
             detail="RightsRadar analysis is temporarily unavailable. Please try again.",

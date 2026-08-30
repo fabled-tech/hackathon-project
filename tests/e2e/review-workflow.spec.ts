@@ -399,3 +399,14 @@ test('upload button is disabled when no file is selected', async ({ page }) => {
   await expect(page.getByTestId('finding-card').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Upload asset' })).toBeDisabled();
 });
+
+test('explains accepted production assets before upload', async ({ page }) => {
+  await page.goto('/');
+  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  await expect(page.getByText('script sides, continuity or clearance notes')).toBeVisible();
+  await expect(page.getByText('PDF, Final Draft, Word, spreadsheet')).toBeVisible();
+  await expect(page.getByText('it is not analyzed')).toBeVisible();
+  await expect(page.getByText('UTF-8 plain-text (.txt) files only')).toBeVisible();
+});

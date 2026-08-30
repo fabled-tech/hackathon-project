@@ -526,12 +526,29 @@ export function ScriptReview({
                         >
                           ▸ Attach plain-text asset
                         </label>
+                        <div
+                          id="asset-file-guidance"
+                          className="border-2 border-line bg-white px-3 py-2.5 text-[10.5px] leading-4 text-muted"
+                        >
+                          <p>
+                            <strong className="font-bold text-ink">Expected:</strong> a{' '}
+                            <code className="text-accent">.txt</code> export of script sides,
+                            continuity or clearance notes, prop and product-placement logs,
+                            character or likeness notes, or quote and music-cue lists.
+                          </p>
+                          <p className="mt-1.5">
+                            PDF, Final Draft, Word, spreadsheet, image, audio, and video files are
+                            not supported yet. Export relevant text as UTF-8. Attached text is
+                            stored with this production case for human review; it is not analyzed.
+                          </p>
+                        </div>
                         <input
                           ref={fileInputRef}
                           id="asset-file"
                           name="asset-file"
                           type="file"
                           accept="text/plain,.txt"
+                          aria-describedby="asset-file-guidance asset-file-limits"
                           onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
                           className="block w-full cursor-pointer border-2 border-dashed border-line-strong bg-white px-3 py-2.5 text-[11px] text-muted transition file:mr-3 file:cursor-pointer file:border-2 file:border-ink file:bg-brand file:px-2.5 file:py-1 file:font-display file:text-[9px] file:text-ink hover:border-cyan-pop focus:outline-none focus:ring-2 focus:ring-cyan-pop"
                         />
@@ -545,8 +562,8 @@ export function ScriptReview({
                           </p>
                         ) : null}
                         <div className="flex flex-wrap items-center justify-between gap-3">
-                          <span className="font-pixel text-[8px] text-muted">
-                            PLAIN-TEXT · 256 KIB MAX
+                          <span id="asset-file-limits" className="font-pixel text-[8px] text-muted">
+                            UTF-8 .TXT · 256 KIB MAX
                           </span>
                           <PrimaryButton disabled={!selectedFile || isUploading}>
                             {isUploading ? (

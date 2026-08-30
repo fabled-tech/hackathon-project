@@ -197,6 +197,37 @@ def test_vertex_curation_uses_schema_and_rejects_unknown_url() -> None:
     assert config.response_schema is EvidenceCurationDecision
 
 
+@pytest.mark.parametrize(
+    "response_text",
+    [
+        '{"primary_url":null,"rationale":"No candidate is reliable enough."}',
+        '{"primary_url":"https://source.test/known","rationale":null}',
+    ],
+)
+def test_vertex_curation_normalizes_incomplete_decisions_to_no_source(
+    response_text: str,
+) -> None:
+    fake = FakeGenAIClient(response_text)
+    client = VertexGeminiClient(
+        "project", "global", "gemini-2.5-flash", client=fake
+    )
+    signal = GeminiSignal(
+        category="quotation",
+        detected_item="Example quote",
+        explanation="A quotation.",
+        confidence=0.7,
+    )
+    candidate = SearchResult(
+        source=Source(title="Known", url="https://source.test/known"),
+        excerpt="Known excerpt.",
+    )
+
+    decision = asyncio.run(client.curate_evidence(signal, [candidate]))
+
+    assert decision.primary_url is None
+    assert decision.rationale is None
+
+
 def test_vertex_detection_uses_schema_and_returns_contextual_signals() -> None:
     fake = FakeGenAIClient(
         "["

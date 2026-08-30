@@ -185,9 +185,13 @@ class ParallelSearchHttpClient:
             response.raise_for_status()
             parsed = response.json()
         except (httpx.HTTPError, ValueError, TypeError) as error:
-            raise AnalysisProviderError(f"Parallel {path} request failed") from error
+            raise AnalysisProviderError(
+                f"Parallel {path} request failed", operation=f"parallel_{path}"
+            ) from error
         if not isinstance(parsed, Mapping):
-            raise AnalysisProviderError(f"Parallel {path} returned an invalid response")
+            raise AnalysisProviderError(
+                f"Parallel {path} returned an invalid response", operation=f"parallel_{path}"
+            )
         return parsed
 
     async def search(self, signal: GeminiSignal, session_id: str) -> list[SearchResult]:
@@ -223,7 +227,10 @@ class ParallelSearchHttpClient:
         )
         extracted = _normalize_results(payload, allowed_urls=set(urls))
         if not extracted:
-            raise AnalysisProviderError("Parallel could not extract any shortlisted source")
+            raise AnalysisProviderError(
+                "Parallel could not extract any shortlisted source",
+                operation="parallel_extract",
+            )
         return extracted
 
     async def aclose(self) -> None:

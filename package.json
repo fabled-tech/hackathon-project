@@ -4,8 +4,8 @@
   "packageManager": "pnpm@10.14.0",
   "scripts": {
     "dev": "concurrently --kill-others-on-fail --names api,web --prefix-colors blue,magenta \"pnpm api:serve\" \"pnpm web:serve\"",
-    "api:serve": "cd services/api && UV_CACHE_DIR=../../.uv-cache uv run uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
-    "api:serve:e2e": "cd services/api && UV_CACHE_DIR=../../.uv-cache uv run uvicorn app.main:app --host 127.0.0.1 --port 8000",
+    "api:serve": "uv run --directory services/api uvicorn app.main:app --reload --host 127.0.0.1 --port 8000",
+    "api:serve:e2e": "uv run --directory services/api uvicorn app.main:app --host 127.0.0.1 --port 8000",
     "web:serve": "pnpm --filter @rightsrader/web dev",
     "lint": "pnpm --filter @rightsrader/web lint",
     "typecheck": "pnpm --filter @rightsrader/web typecheck && pnpm --filter @rightsrader/api-client typecheck",
