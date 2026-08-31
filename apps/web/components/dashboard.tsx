@@ -287,17 +287,16 @@ export function Dashboard() {
 
   const activeProduction = productions.find((p) => p.id === activeProductionId) ?? null;
   const roster = activeProduction?.roster ?? [];
-  const activeMemberId = useMemo(() => {
-    const nextRoster = activeProduction?.roster ?? [];
-    if (nextRoster.length === 0) return '';
-    if (memberPick && nextRoster.some((member) => member.id === memberPick)) {
+  const activeMemberId = (() => {
+    if (roster.length === 0) return '';
+    if (memberPick && roster.some((member) => member.id === memberPick)) {
       return memberPick;
     }
     return readActiveMemberId(
       typeof window === 'undefined' ? { getItem: () => null } : window.localStorage,
-      nextRoster
+      roster
     );
-  }, [activeProduction?.id, activeProduction?.roster, memberPick]);
+  })();
   const inboxCases = inboxCasesForMember(productionCases, activeMemberId);
 
   const refreshProductions = useCallback(async () => {
