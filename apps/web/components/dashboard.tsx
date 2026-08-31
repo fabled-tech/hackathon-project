@@ -749,6 +749,9 @@ export function Dashboard() {
                     type="button"
                     onClick={() => {
                       if (item.kind === 'case') setOpenedCase(null);
+                      if (item.kind === 'overview' && activeProductionId) {
+                        void refreshProductionCases(activeProductionId);
+                      }
                       setView({ kind: item.kind });
                     }}
                     className={`flex w-full items-center gap-2 border-2 px-2.5 py-1.5 text-left font-display text-[9px] transition focus-visible:outline-2 focus-visible:outline-cyan-pop ${
@@ -804,6 +807,12 @@ export function Dashboard() {
             focusTour={coachOpen}
             onCaseCreated={() => {
               void refreshProductions();
+              if (activeProductionId) void refreshProductionCases(activeProductionId);
+            }}
+            onCaseUpdated={(nextCase) => {
+              setProductionCases((current) =>
+                current.map((item) => (item.id === nextCase.id ? nextCase : item))
+              );
               if (activeProductionId) void refreshProductionCases(activeProductionId);
             }}
           />

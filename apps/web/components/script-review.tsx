@@ -779,6 +779,7 @@ export function ScriptReview({
   roster = [],
   activeMemberId,
   onCaseCreated,
+  onCaseUpdated,
   initialCase = null,
   focusTour = false
 }: {
@@ -786,6 +787,7 @@ export function ScriptReview({
   roster?: ProductionMember[];
   activeMemberId?: string;
   onCaseCreated?: () => void;
+  onCaseUpdated?: (caseResult: Case) => void;
   initialCase?: Case | null;
   focusTour?: boolean;
 } = {}) {
@@ -1001,6 +1003,7 @@ export function ScriptReview({
       );
       const nextCase = await getCase(caseResult.id, API_BASE_URL);
       setCaseResult(nextCase);
+      onCaseUpdated?.(nextCase);
       if (stampBurstTimer.current) {
         clearTimeout(stampBurstTimer.current);
       }
