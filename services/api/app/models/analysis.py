@@ -36,6 +36,14 @@ class EvidenceCurationDecision(BaseModel):
     rationale: str | None
 
 
+class SearchObjectivePlan(BaseModel):
+    objectives: list[str] = Field(min_length=2, max_length=3)
+
+
+class StakeholderBrief(BaseModel):
+    brief: str = Field(min_length=1, max_length=2_000)
+
+
 class SearchResult(BaseModel):
     source: Source
     excerpt: str

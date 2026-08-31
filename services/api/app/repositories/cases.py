@@ -1,7 +1,14 @@
 from collections.abc import Callable, Mapping
 from typing import Any, Protocol
 
-from app.models import Case, CaseSummary, Finding, FindingComment, ReviewerStatus
+from app.models import (
+    Case,
+    CaseSummary,
+    CaseThreadMessage,
+    Finding,
+    FindingComment,
+    ReviewerStatus,
+)
 
 
 class CaseRepositoryNotFound(Exception):
@@ -33,6 +40,10 @@ class CaseRepository(Protocol):
     def add_finding_comment(
         self, case_id: str, finding_id: str, comment: FindingComment
     ) -> Finding: ...
+
+    def add_thread_message(
+        self, case_id: str, message: CaseThreadMessage
+    ) -> Case: ...
 
     def list_recent(self, limit: int) -> list[CaseSummary]: ...
 
@@ -118,6 +129,13 @@ class InMemoryCaseRepository:
 
     def list_all(self) -> list[Case]:
         return [case.model_copy(deep=True) for case in self._cases.values()]
+
+    def add_thread_message(self, case_id: str, message: CaseThreadMessage) -> Case:
+        case = self._cases.get(case_id)
+        if case is None:
+            raise CaseRepositoryNotFound(case_id)
+        case.thread.append(message)
+        return case.model_copy(deep=True)
 
     def list_for_production(self, production_id: str) -> list[Case]:
         return [
@@ -311,6 +329,19 @@ class FirestoreCaseRepository:
             for snapshot in snapshots
             if isinstance((document := snapshot.to_dict()), Mapping)
         ]
+
+    def add_thread_message(self, case_id: str, message: CaseThreadMessage) -> Case:
+        document = self._collection.document(case_id)
+        snapshot = document.get()
+        if not snapshot.exists:
+            raise CaseRepositoryNotFound(case_id)
+        stored_case = snapshot.to_dict()
+        if not isinstance(stored_case, Mapping):
+            raise CaseRepositoryNotFound(case_id)
+        case = Case.model_validate(stored_case)
+        case.thread.append(message)
+        document.update(case.model_dump(include={"thread"}, mode="json"))
+        return case
 
     def increment_asset_count(self, case_id: str) -> None:
         document = self._collection.document(case_id)

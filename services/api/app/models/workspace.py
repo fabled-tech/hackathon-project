@@ -1,15 +1,9 @@
 from datetime import datetime
-from enum import StrEnum
 
 from pydantic import BaseModel, Field
 
 from .cases import ReviewerStatus
-
-
-class WorkspaceRole(StrEnum):
-    PRODUCTION = "production"
-    CLEARANCE = "clearance"
-    LEGAL = "legal"
+from .productions import WorkspaceRole
 
 
 class WorkspaceMember(BaseModel):

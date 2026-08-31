@@ -1,15 +1,21 @@
 'use client';
 
 import {
+  createCase,
   createProduction,
+  deleteCase,
+  deleteProduction,
   deleteProductionIcon,
+  getCase,
   listProductionCases,
   listProductions,
   uploadProductionIcon,
   updateProduction,
   type Case,
+  type ProductionMemberInput,
   type ProductionStatus,
-  type ProductionSummary
+  type ProductionSummary,
+  type WorkspaceRole
 } from '@rightsrader/api-client';
 import {
   Briefcase,
@@ -41,7 +47,19 @@ import {
   useRef,
   useState
 } from 'react';
+import { DemoCoach } from './demo-coach';
+import { DemoGate } from './demo-gate';
 import { ScriptReview } from './script-review';
+import {
+  DEMO_MATRIX_SCRIPT,
+  DEMO_PRODUCTION_TITLE,
+  DEMO_ROSTER,
+  duplicateCaseIdsToRemove,
+  missingFeaturedDemoScripts,
+  normalizeDemoScript,
+  readDemoChoice,
+  writeDemoChoice
+} from '@/lib/demo-mode';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
@@ -235,6 +253,8 @@ function AnimatedNumber({ value }: { value: number }) {
   return <>{displayValue}</>;
 }
 
+const ROLE_OPTIONS: WorkspaceRole[] = ['clearance', 'production', 'legal'];
+
 type View =
   | { kind: 'home' }
   | { kind: 'case' }
@@ -251,10 +271,15 @@ export function Dashboard() {
   const [showNewProduction, setShowNewProduction] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newStudio, setNewStudio] = useState('');
+  const [newRoster, setNewRoster] = useState<ProductionMemberInput[]>(DEMO_ROSTER);
   const [error, setError] = useState<string | null>(null);
   const [selectedProductionCaseId, setSelectedProductionCaseId] = useState<string | null>(
     null
   );
+  const [gateOpen, setGateOpen] = useState(false);
+  const [coachOpen, setCoachOpen] = useState(false);
+  const [walkthroughBusy, setWalkthroughBusy] = useState(false);
+  const [openedCase, setOpenedCase] = useState<Case | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
 
   const activeProduction = productions.find((p) => p.id === activeProductionId) ?? null;
@@ -264,10 +289,61 @@ export function Dashboard() {
     try {
       const list = await listProductions(API_BASE_URL);
       setProductions(list);
-      setActiveProductionId((current) => current ?? (list[0]?.id ?? null));
+      setActiveProductionId((current) => {
+        if (current && list.some((item) => item.id === current)) return current;
+        return list[0]?.id ?? null;
+      });
     } catch {
       setError('Could not load productions.');
     }
+  }, []);
+
+  const removeProduction = useCallback(
+    async (production: ProductionSummary) => {
+      if (
+        !window.confirm(
+          `Remove “${production.title}” from the desk? This does not affect other productions.`
+        )
+      ) {
+        return;
+      }
+      setError(null);
+      setProductions((current) => current.filter((item) => item.id !== production.id));
+      if (activeProductionId === production.id) {
+        setOpenedCase(null);
+        setActiveProductionId(null);
+        setView({ kind: 'home' });
+      }
+      try {
+        await deleteProduction(production.id, API_BASE_URL);
+      } catch {
+        // Older empty-204 clients threw after a successful delete; refresh is authoritative.
+      }
+      try {
+        const list = await listProductions(API_BASE_URL);
+        setProductions(list);
+        if (list.some((item) => item.id === production.id)) {
+          setError('Could not remove that production.');
+        }
+      } catch {
+        setError('Could not remove that production.');
+      }
+    },
+    [activeProductionId]
+  );
+
+  const ensureFeaturedDemoCases = useCallback(async (productionId: string, existing: Case[]) => {
+    const missing = missingFeaturedDemoScripts(existing);
+    if (missing.length === 0) {
+      return existing;
+    }
+    for (const sample of missing) {
+      await createCase(
+        { script_text: sample.script, production_id: productionId, title: sample.title },
+        API_BASE_URL
+      );
+    }
+    return listProductionCases(productionId, API_BASE_URL);
   }, []);
 
   const refreshProductionCases = useCallback(async (productionId: string) => {
@@ -280,6 +356,99 @@ export function Dashboard() {
       setIsLoadingProductionCases(false);
     }
   }, []);
+
+  const removeCase = useCallback(
+    async (caseId: string, title: string) => {
+      if (!window.confirm(`Remove case “${title}” from this production?`)) {
+        return;
+      }
+      setError(null);
+      try {
+        await deleteCase(caseId, API_BASE_URL);
+        if (openedCase?.id === caseId) {
+          setOpenedCase(null);
+          setView({ kind: 'overview' });
+        }
+        if (activeProductionId) {
+          await refreshProductionCases(activeProductionId);
+        }
+        await refreshProductions();
+      } catch {
+        setError('Could not remove that case.');
+      }
+    },
+    [activeProductionId, openedCase?.id, refreshProductionCases, refreshProductions]
+  );
+
+  useEffect(() => {
+    if (!readDemoChoice()) {
+      setGateOpen(true);
+    }
+  }, []);
+
+  const chooseSelfServe = useCallback(() => {
+    writeDemoChoice('self-serve');
+    setGateOpen(false);
+    setCoachOpen(false);
+  }, []);
+
+  const runWalkthrough = useCallback(async () => {
+    writeDemoChoice('walkthrough');
+    setWalkthroughBusy(true);
+    setError(null);
+    try {
+      const list = await listProductions(API_BASE_URL);
+      let production = list.find((item) => item.title === DEMO_PRODUCTION_TITLE) ?? null;
+      if (!production) {
+        production = await createProduction(
+          {
+            title: DEMO_PRODUCTION_TITLE,
+            studio: 'RightsRadar Demo Unit',
+            roster: DEMO_ROSTER
+          },
+          API_BASE_URL
+        );
+      }
+      const sample = DEMO_MATRIX_SCRIPT;
+      const existingCases = await listProductionCases(production.id, API_BASE_URL);
+      const extras = duplicateCaseIdsToRemove(existingCases);
+      if (extras.length > 0) {
+        await Promise.all(extras.map((caseId) => deleteCase(caseId, API_BASE_URL)));
+      }
+      const uniqueCases =
+        extras.length > 0
+          ? await listProductionCases(production.id, API_BASE_URL)
+          : existingCases;
+      const deskCases = await ensureFeaturedDemoCases(production.id, uniqueCases);
+      const reusable = deskCases.find(
+        (item) => normalizeDemoScript(item.script_text) === normalizeDemoScript(sample.script)
+      );
+      const nextCase = reusable
+        ? await getCase(reusable.id, API_BASE_URL)
+        : await createCase(
+            {
+              script_text: sample.script,
+              production_id: production.id,
+              title: sample.title
+            },
+            API_BASE_URL
+          );
+      await refreshProductions();
+      if (activeProductionId === production.id) {
+        await refreshProductionCases(production.id);
+      }
+      setActiveProductionId(production.id);
+      setOpenedCase(nextCase);
+      setView({ kind: 'case' });
+      setGateOpen(false);
+      setCoachOpen(true);
+    } catch {
+      setError('Could not open the sample case. Use Demo to try again, or work the desk yourself.');
+      setGateOpen(true);
+    } finally {
+      setWalkthroughBusy(false);
+    }
+  }, [activeProductionId, ensureFeaturedDemoCases, refreshProductionCases, refreshProductions]);
 
   useEffect(() => {
     let cancelled = false;
@@ -323,7 +492,19 @@ export function Dashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const cases = await listProductionCases(activeProductionId, API_BASE_URL);
+        let cases = await listProductionCases(activeProductionId, API_BASE_URL);
+        if (activeProduction?.title === DEMO_PRODUCTION_TITLE) {
+          const extras = duplicateCaseIdsToRemove(cases);
+          if (extras.length > 0) {
+            await Promise.all(extras.map((caseId) => deleteCase(caseId, API_BASE_URL)));
+            cases = await listProductionCases(activeProductionId, API_BASE_URL);
+          }
+          const nextCases = await ensureFeaturedDemoCases(activeProductionId, cases);
+          if (nextCases !== cases || extras.length > 0) {
+            cases = nextCases;
+            await refreshProductions();
+          }
+        }
         if (cancelled) return;
         setProductionCases(cases);
         setSelectedProductionCaseId(null);
@@ -334,7 +515,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [activeProductionId]);
+  }, [activeProduction?.title, activeProductionId, ensureFeaturedDemoCases, refreshProductions]);
 
   async function submitProduction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -342,11 +523,16 @@ export function Dashboard() {
     setError(null);
     try {
       const created = await createProduction(
-        { title: newTitle.trim(), studio: newStudio.trim() },
+        {
+          title: newTitle.trim(),
+          studio: newStudio.trim(),
+          roster: newRoster.filter((member) => member.name.trim())
+        },
         API_BASE_URL
       );
       setNewTitle('');
       setNewStudio('');
+      setNewRoster(DEMO_ROSTER);
       setShowNewProduction(false);
       await refreshProductions();
       setActiveProductionId(created.id);
@@ -373,6 +559,14 @@ export function Dashboard() {
             <span className="font-display text-xl text-paper [text-shadow:3px_3px_0_#aab5c4]">
               RightsRadar
             </span>
+          </button>
+          <button
+            type="button"
+            data-testid="demo-control"
+            onClick={() => setGateOpen(true)}
+            className="mt-3 w-full border-2 border-ink bg-white px-2.5 py-1.5 font-display text-[9px] text-ink shadow-press transition hover:bg-exhibit focus-visible:outline-2 focus-visible:outline-cyan-pop"
+          >
+            Demo
           </button>
         </div>
 
@@ -407,6 +601,44 @@ export function Dashboard() {
                 placeholder="Studio (optional)"
                 className="block w-full border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
               />
+              <p className="font-pixel text-[7px] text-line-strong">ROSTER</p>
+              {newRoster.map((member, index) => (
+                <div key={`${member.role}-${index}`} className="flex gap-1">
+                  <input
+                    value={member.name}
+                    aria-label={`Roster name ${index + 1}`}
+                    onChange={(event) =>
+                      setNewRoster((current) =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, name: event.target.value } : item
+                        )
+                      )
+                    }
+                    placeholder="Name"
+                    className="min-w-0 flex-1 border-2 border-ink bg-white px-2 py-1 text-[11px] text-ink"
+                  />
+                  <select
+                    aria-label={`Roster role ${index + 1}`}
+                    value={member.role}
+                    onChange={(event) =>
+                      setNewRoster((current) =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index
+                            ? { ...item, role: event.target.value as WorkspaceRole }
+                            : item
+                        )
+                      )
+                    }
+                    className="border-2 border-ink bg-white px-1 py-1 text-[10px] text-ink"
+                  >
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
               <PrimaryButton disabled={!newTitle.trim()}>▶ Create</PrimaryButton>
             </form>
           ) : null}
@@ -422,14 +654,14 @@ export function Dashboard() {
           ) : (
             <ul className="space-y-1.5">
               {productions.map((production) => (
-                <li key={production.id}>
+                <li key={production.id} className="flex items-stretch gap-1">
                   <button
                     type="button"
                     onClick={() => {
                       setActiveProductionId(production.id);
                       setView({ kind: 'overview' });
                     }}
-                    className={`w-full border-2 px-2.5 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-cyan-pop ${
+                    className={`min-w-0 flex-1 border-2 px-2.5 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-cyan-pop ${
                       production.id === activeProductionId
                         ? 'border-ink bg-white text-ink shadow-press'
                         : 'border-transparent text-lavender-soft hover:border-line hover:bg-panel'
@@ -456,6 +688,17 @@ export function Dashboard() {
                       {production.case_count ?? 0} cases · {production.open_finding_count ?? 0} open
                       · {production.escalated_finding_count ?? 0} escalated
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="delete-production"
+                    aria-label="Remove from desk"
+                    onClick={() => {
+                      void removeProduction(production);
+                    }}
+                    className="shrink-0 self-start border-2 border-transparent px-1.5 py-2 text-muted transition hover:border-line hover:bg-panel hover:text-accent focus-visible:outline-2 focus-visible:outline-cyan-pop"
+                  >
+                    <Trash2 className="size-3.5" aria-hidden />
                   </button>
                 </li>
               ))}
@@ -491,7 +734,10 @@ export function Dashboard() {
                 <li key={item.kind}>
                   <button
                     type="button"
-                    onClick={() => setView({ kind: item.kind })}
+                    onClick={() => {
+                      if (item.kind === 'case') setOpenedCase(null);
+                      setView({ kind: item.kind });
+                    }}
                     className={`flex w-full items-center gap-2 border-2 px-2.5 py-1.5 text-left font-display text-[9px] transition focus-visible:outline-2 focus-visible:outline-cyan-pop ${
                       view.kind === item.kind
                         ? 'border-ink bg-brand text-ink shadow-press'
@@ -509,7 +755,12 @@ export function Dashboard() {
       </aside>
 
       {/* Main pane */}
-      <main ref={workspaceRef} className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">
+      <main
+        ref={workspaceRef}
+        className={`min-w-0 flex-1 overflow-y-auto ${
+          view.kind === 'case' || !activeProduction ? 'p-3 sm:p-4' : 'p-6 sm:p-8'
+        }`}
+      >
         {error ? (
           <p
             className="mb-4 flex items-start gap-2.5 border-2 border-accent bg-danger-bg px-4 py-3 text-sm font-semibold text-accent"
@@ -528,10 +779,15 @@ export function Dashboard() {
               setActiveProductionId(productionId);
               setView({ kind: 'overview' });
             }}
+            onRemove={removeProduction}
           />
         ) : view.kind === 'case' || !activeProduction ? (
           <ScriptReview
+            key={openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`}
             productionId={activeProduction?.id}
+            roster={activeProduction?.roster ?? []}
+            initialCase={openedCase}
+            focusTour={coachOpen}
             onCaseCreated={() => {
               void refreshProductions();
               if (activeProductionId) void refreshProductionCases(activeProductionId);
@@ -542,6 +798,7 @@ export function Dashboard() {
             key={activeProduction.id}
             production={activeProduction}
             onSaved={refreshProductions}
+            onDeleted={removeProduction}
             onError={setError}
           />
         ) : (
@@ -602,7 +859,10 @@ export function Dashboard() {
                 </div>
                 <button
                   type="button"
-                  onClick={() => setView({ kind: 'case' })}
+                  onClick={() => {
+                    setOpenedCase(null);
+                    setView({ kind: 'case' });
+                  }}
                   className="inline-flex items-center gap-1 border-2 border-ink bg-brand px-3 py-2 font-display text-[9px] text-ink shadow-press transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-cyan-pop"
                 >
                   New case <ChevronRight className="size-3.5" aria-hidden />
@@ -681,9 +941,26 @@ export function Dashboard() {
                             : 'VIEW CASE DETAILS'}
                         </p>
                       </button>
+                      <div className="flex justify-end border-t border-line px-5 py-2">
+                        <button
+                          type="button"
+                          data-testid="delete-case"
+                          aria-label="Remove case"
+                          onClick={() =>
+                            void removeCase(
+                              productionCase.id,
+                              productionCase.title || 'Untitled script review'
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 border-2 border-transparent px-2 py-1 font-display text-[9px] text-muted transition hover:border-line hover:text-accent"
+                        >
+                          <Trash2 className="size-3.5" aria-hidden />
+                          Remove case
+                        </button>
+                      </div>
 
                       {selectedProductionCaseId === productionCase.id ? (
-                        <div
+                      <div
                           id={`case-details-${productionCase.id}`}
                           className="border-t-2 border-line bg-canvas/20 p-5"
                           data-testid="production-case-details"
@@ -792,19 +1069,14 @@ export function Dashboard() {
                                               </p>
                                             </div>
 
-                                            <details className="mt-3 border-t border-line pt-3">
-                                              <summary className="cursor-pointer font-pixel text-[7px] text-brand marker:text-cyan-pop">
-                                                VIEW RAW PARALLEL EXTRACT
-                                              </summary>
-                                              <div className="mt-3">
-                                                <p className="font-pixel text-[6.5px] text-lavender">
-                                                  RAW PROVIDER RETURN
-                                                </p>
-                                                <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap border border-line bg-canvas/60 p-3 font-mono text-[9.5px] leading-4 text-lavender-pale">
-                                                  {evidence.excerpt}
-                                                </pre>
-                                              </div>
-                                            </details>
+                                            <div className="mt-3 border-t border-line pt-3">
+                                              <p className="font-pixel text-[6.5px] text-lavender">
+                                                RAW PARALLEL EXTRACT
+                                              </p>
+                                              <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap border border-line bg-canvas/60 p-3 font-mono text-[9.5px] leading-4 text-lavender-pale">
+                                                {evidence.excerpt}
+                                              </pre>
+                                            </div>
                                           </li>
                                         ))}
                                       </ul>
@@ -828,6 +1100,14 @@ export function Dashboard() {
           </div>
         )}
       </main>
+      <DemoGate
+        open={gateOpen}
+        busy={walkthroughBusy}
+        error={gateOpen ? error : null}
+        onWalkthrough={() => void runWalkthrough()}
+        onSelfServe={chooseSelfServe}
+      />
+      <DemoCoach open={coachOpen} onDismiss={() => setCoachOpen(false)} />
     </div>
   );
 }
@@ -836,12 +1116,14 @@ function ProductionsHome({
   productions,
   isLoading,
   onCreate,
-  onOpen
+  onOpen,
+  onRemove
 }: {
   productions: ProductionSummary[];
   isLoading: boolean;
   onCreate: () => void;
   onOpen: (productionId: string) => void;
+  onRemove: (production: ProductionSummary) => Promise<void>;
 }) {
   const [sortBy, setSortBy] = useState<
     'newest' | 'title' | 'cases' | 'open' | 'escalated'
@@ -937,7 +1219,7 @@ function ProductionsHome({
         ) : (
           <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {sortedProductions.map((production) => (
-              <li key={production.id}>
+              <li key={production.id} className="relative">
                 <button
                   type="button"
                   onClick={() => onOpen(production.id)}
@@ -978,6 +1260,17 @@ function ProductionsHome({
                     ))}
                   </dl>
                 </button>
+                <button
+                  type="button"
+                  data-testid="delete-production"
+                  aria-label="Remove from desk"
+                  onClick={() => {
+                    void onRemove(production);
+                  }}
+                  className="absolute bottom-3 right-3 border-2 border-transparent px-1.5 py-1 text-muted transition hover:border-line hover:bg-white hover:text-accent focus-visible:outline-2 focus-visible:outline-cyan-pop"
+                >
+                  <Trash2 className="size-3.5" aria-hidden />
+                </button>
               </li>
             ))}
           </ul>
@@ -990,10 +1283,12 @@ function ProductionsHome({
 function ProductionSettings({
   production,
   onSaved,
+  onDeleted,
   onError
 }: {
   production: ProductionSummary;
   onSaved: () => Promise<void>;
+  onDeleted: (production: ProductionSummary) => Promise<void>;
   onError: (message: string | null) => void;
 }) {
   const [title, setTitle] = useState(production.title);
@@ -1002,6 +1297,13 @@ function ProductionSettings({
   const [icon, setIcon] = useState<string>(production.icon ?? 'clapperboard');
   const [ignoreKeywords, setIgnoreKeywords] = useState(
     (production.ignore_keywords ?? []).join('\n')
+  );
+  const [roster, setRoster] = useState<ProductionMemberInput[]>(
+    (production.roster ?? []).map((member) => ({
+      name: member.name,
+      role: member.role,
+      email: member.email ?? undefined
+    }))
   );
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
@@ -1064,7 +1366,8 @@ function ProductionSettings({
           ignore_keywords: ignoreKeywords
             .split('\n')
             .map((keyword) => keyword.trim())
-            .filter(Boolean)
+            .filter(Boolean),
+          roster: roster.filter((member) => member.name.trim())
         },
         API_BASE_URL
       );
@@ -1251,6 +1554,73 @@ function ProductionSettings({
             </p>
           </div>
 
+          <div>
+            <p className="font-pixel text-[8px] tracking-[0.16px] text-line-strong">ROSTER</p>
+            <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
+              Real people on this production. Research pulls clearance always, production for
+              brands, and legal for likeness, quotes, and music.
+            </p>
+            <div className="mt-2 space-y-2">
+              {roster.map((member, index) => (
+                <div key={`${member.role}-${index}`} className="flex gap-2">
+                  <input
+                    value={member.name}
+                    aria-label={`Settings roster name ${index + 1}`}
+                    onChange={(event) =>
+                      setRoster((current) =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, name: event.target.value } : item
+                        )
+                      )
+                    }
+                    className="min-w-0 flex-1 border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink"
+                  />
+                  <select
+                    aria-label={`Settings roster role ${index + 1}`}
+                    value={member.role}
+                    onChange={(event) =>
+                      setRoster((current) =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index
+                            ? { ...item, role: event.target.value as WorkspaceRole }
+                            : item
+                        )
+                      )
+                    }
+                    className="border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink"
+                  >
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    aria-label={`Remove roster member ${index + 1}`}
+                    onClick={() =>
+                      setRoster((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                    }
+                    className="border-2 border-ink px-2 text-[10px] text-ink"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            {roster.length < 5 ? (
+              <button
+                type="button"
+                className="mt-2 text-[11px] font-bold text-cyan-pop"
+                onClick={() =>
+                  setRoster((current) => [...current, { name: '', role: 'clearance' }])
+                }
+              >
+                Add teammate
+              </button>
+            ) : null}
+          </div>
+
           <div className="flex justify-end">
             <PrimaryButton disabled={isSaving || !title.trim()}>
               {isSaving ? (
@@ -1263,6 +1633,24 @@ function ProductionSettings({
             </PrimaryButton>
           </div>
         </form>
+      </Panel>
+
+      <Panel glow={false}>
+        <PixelLabel>REMOVE</PixelLabel>
+        <p className="mt-2 text-[11px] leading-5 text-lavender-soft">
+          Take this production off the desk. Use this to clear leftover test or walkthrough history.
+        </p>
+        <button
+          type="button"
+          data-testid="delete-production-settings"
+          onClick={() => {
+            void onDeleted(production);
+          }}
+          className="mt-3 inline-flex items-center gap-1.5 border-2 border-ink bg-white px-2.5 py-1.5 font-display text-[9px] text-ink shadow-press transition hover:bg-danger-bg hover:text-accent"
+        >
+          <Trash2 className="size-3.5" aria-hidden />
+          Remove production
+        </button>
       </Panel>
     </div>
   );

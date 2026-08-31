@@ -8,6 +8,42 @@ from .analysis import Evidence, EvidenceSelection
 from .productions import FindingComment
 
 
+class ThreadAuthorKind(StrEnum):
+    AGENT = "agent"
+    HUMAN = "human"
+
+
+class ToolCallProvider(StrEnum):
+    VERTEX = "vertex"
+    PARALLEL = "parallel"
+
+
+class ToolCallEvent(BaseModel):
+    id: str
+    case_id: str
+    provider: ToolCallProvider
+    method: str = Field(min_length=1, max_length=80)
+    agent_name: str = Field(min_length=1, max_length=40)
+    ok: bool
+    fixture: bool = False
+    summary: str = Field(min_length=1, max_length=400)
+    lead: str | None = None
+    duration_ms: int = Field(default=0, ge=0)
+    started_at: datetime
+
+
+class CaseThreadMessage(BaseModel):
+    id: str
+    case_id: str
+    author_kind: ThreadAuthorKind
+    body: str = Field(min_length=1, max_length=4_000)
+    agent_name: str | None = None
+    member_id: str | None = None
+    finding_id: str | None = None
+    mentions: list[str] = Field(default_factory=list)
+    created_at: datetime
+
+
 class ReviewerStatus(StrEnum):
     PENDING = "pending"
     ACCEPTED = "accepted"
@@ -36,6 +72,7 @@ class Finding(BaseModel):
     assignee: str | None = None
     due_date: str | None = None
     comments: list[FindingComment] = Field(default_factory=list)
+    stakeholder_ids: list[str] = Field(default_factory=list)
 
     @model_validator(mode="before")
     @classmethod
@@ -66,3 +103,5 @@ class Case(BaseModel):
     production_id: str | None = None
     title: str = ""
     notes: str = ""
+    thread: list[CaseThreadMessage] = Field(default_factory=list)
+    tool_calls: list[ToolCallEvent] = Field(default_factory=list)

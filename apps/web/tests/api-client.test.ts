@@ -2,6 +2,8 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   createCase,
   createCaseFromFile,
+  deleteCase,
+  deleteProduction,
   deleteProductionIcon,
   getCase,
   listAssets,
@@ -275,6 +277,31 @@ describe('updateProduction', () => {
         { method: 'DELETE' }
       ]);
     });
+  });
+});
+
+describe('deleteCase', () => {
+  it('accepts a 204 No Content response without parsing a body', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(deleteCase('case-1', 'http://api.test', fetcher)).resolves.toBeUndefined();
+
+    expect(fetcher).toHaveBeenCalledWith('http://api.test/api/cases/case-1', { method: 'DELETE' });
+  });
+});
+
+describe('deleteProduction', () => {
+  it('accepts a 204 No Content response without parsing a body', async () => {
+    const fetcher = vi.fn().mockResolvedValue(new Response(null, { status: 204 }));
+
+    await expect(
+      deleteProduction('production-1', 'http://api.test', fetcher)
+    ).resolves.toBeUndefined();
+
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://api.test/api/productions/production-1',
+      { method: 'DELETE' }
+    );
   });
 });
 

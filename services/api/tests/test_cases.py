@@ -13,11 +13,16 @@ from app.routes import cases_router
 
 class FailingAgentService:
     async def analyze(
-        self, case_id: str, script_text: str, ignored_keywords: Sequence[str] = ()
+        self,
+        case_id: str,
+        script_text: str,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[object] = (),
     ) -> list[Finding]:
         del case_id
         del script_text
         del ignored_keywords
+        del roster
         raise AnalysisProviderError("secret provider detail")
 
 
@@ -26,11 +31,16 @@ class ClosableAgentService:
         self.closed = False
 
     async def analyze(
-        self, case_id: str, script_text: str, ignored_keywords: Sequence[str] = ()
+        self,
+        case_id: str,
+        script_text: str,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[object] = (),
     ) -> list[Finding]:
         del case_id
         del script_text
         del ignored_keywords
+        del roster
         return []
 
     async def aclose(self) -> None:

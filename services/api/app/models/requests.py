@@ -1,7 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 
 from .cases import ReviewerStatus
-from .productions import IgnoredKeyword, ProductionStatus, normalize_ignore_keywords
+from .productions import IgnoredKeyword, ProductionStatus, WorkspaceRole, normalize_ignore_keywords
 
 ALLOWED_ASSET_CONTENT_TYPE = "text/plain"
 MAX_ASSET_BYTES = 256 * 1024
@@ -31,11 +31,25 @@ class CreateCaseRequest(BaseModel):
 
 class UpdateFindingRequest(BaseModel):
     reviewer_status: ReviewerStatus
+    actor_member_id: str | None = None
 
 
 class UpdateFindingMetaRequest(BaseModel):
     assignee: str | None = None
     due_date: str | None = None
+    actor_member_id: str | None = None
+
+
+class ProductionMemberInput(BaseModel):
+    name: str = Field(min_length=1, max_length=120)
+    role: WorkspaceRole
+    email: str | None = Field(default=None, max_length=254)
+
+
+class CreateThreadMessageRequest(BaseModel):
+    member_id: str = Field(min_length=1, max_length=80)
+    body: str = Field(min_length=1, max_length=4_000)
+    finding_id: str | None = None
 
 
 class CreateFindingCommentRequest(BaseModel):
@@ -48,6 +62,7 @@ class CreateProductionRequest(BaseModel):
     studio: str = ""
     status: ProductionStatus = ProductionStatus.DEVELOPMENT
     icon: str = "clapperboard"
+    roster: list[ProductionMemberInput] = Field(default_factory=list, max_length=5)
 
 
 class UpdateProductionRequest(BaseModel):
@@ -56,6 +71,7 @@ class UpdateProductionRequest(BaseModel):
     status: ProductionStatus | None = None
     icon: str | None = None
     ignore_keywords: list[IgnoredKeyword] | None = Field(default=None, max_length=50)
+    roster: list[ProductionMemberInput] | None = Field(default=None, max_length=5)
 
     @field_validator("ignore_keywords")
     @classmethod

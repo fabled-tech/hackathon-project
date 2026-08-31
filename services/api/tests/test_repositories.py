@@ -14,6 +14,8 @@ from app.models import (
     Production,
     ReviewerStatus,
     StoredAsset,
+    ToolCallEvent,
+    ToolCallProvider,
 )
 from app.repositories.assets import CloudStorageAssetRepository as CloudStorageAssetRepositoryImpl
 from app.repositories.cases import (
@@ -1278,6 +1280,65 @@ def test_firestore_finding_status_update_raises_for_missing_finding_in_transacti
         repository.update_finding_status("case-1", "finding-1", ReviewerStatus.DISMISSED)
 
     assert firestore.transactions[0].reads == [("cases", "case-1")]
+
+
+@pytest.mark.parametrize(
+    "repository_factory",
+    [
+        InMemoryCaseRepository,
+        lambda: fake_case_repository(FakeFirestoreClient()),
+    ],
+    ids=["in-memory", "firestore"],
+)
+def test_case_repositories_round_trip_tool_calls(
+    repository_factory: Callable[[], Any],
+) -> None:
+    repository = repository_factory()
+    started_at = datetime(2026, 8, 30, tzinfo=UTC)
+    case = Case(
+        id="case-tool-calls",
+        script_text="A Nimbus Soda can sits on the table.",
+        created_at=started_at,
+        findings=[],
+        tool_calls=[
+            ToolCallEvent(
+                id="call-identify",
+                case_id="case-tool-calls",
+                provider=ToolCallProvider.VERTEX,
+                method="identify_material",
+                agent_name="Intake",
+                ok=True,
+                fixture=True,
+                summary="Vertex Gemini detected 1 lead(s).",
+                duration_ms=12,
+                started_at=started_at,
+            ),
+            ToolCallEvent(
+                id="call-search",
+                case_id="case-tool-calls",
+                provider=ToolCallProvider.PARALLEL,
+                method="search",
+                agent_name="Research",
+                ok=True,
+                fixture=True,
+                summary="Parallel Search returned 1 URL(s) for Nimbus Soda.",
+                lead="Nimbus Soda",
+                duration_ms=40,
+                started_at=started_at,
+            ),
+        ],
+    )
+
+    created = repository.create(case)
+    loaded = repository.get(case.id)
+
+    assert created.tool_calls == case.tool_calls
+    assert [event.method for event in loaded.tool_calls] == [
+        "identify_material",
+        "search",
+    ]
+    assert loaded.tool_calls[0].provider is ToolCallProvider.VERTEX
+    assert loaded.tool_calls[1].summary.startswith("Parallel Search")
 
 
 def test_in_memory_case_repository_deletes_a_disposable_case() -> None:

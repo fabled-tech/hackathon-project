@@ -23,6 +23,17 @@ class ThreeLeadGemini:
             for index in range(1, 4)
         ]
 
+    async def plan_queries(self, signal: GeminiSignal) -> list[str]:
+        return [
+            f"{signal.detected_item} official source",
+            f"{signal.detected_item} origin attribution",
+        ]
+
+    async def brief_stakeholders(
+        self, signal: GeminiSignal, extracted: list[SearchResult]
+    ) -> str:
+        return f"Brief for {signal.detected_item} from {len(extracted)} extracted page(s)."
+
     async def curate_evidence(
         self, signal: GeminiSignal, candidates: list[SearchResult]
     ) -> EvidenceCurationDecision:
@@ -38,7 +49,13 @@ class YieldingParallel:
         self.max_active = 0
         self.sessions: set[str] = set()
 
-    async def search(self, signal: GeminiSignal, session_id: str) -> list[SearchResult]:
+    async def search(
+        self,
+        signal: GeminiSignal,
+        session_id: str,
+        objective: str | None = None,
+    ) -> list[SearchResult]:
+        del objective
         self.sessions.add(session_id)
         self.active += 1
         self.max_active = max(self.max_active, self.active)
@@ -77,9 +94,15 @@ class UnknownUrlGemini(ThreeLeadGemini):
 
 
 class EmptyParallel:
-    async def search(self, signal: GeminiSignal, session_id: str) -> list[SearchResult]:
+    async def search(
+        self,
+        signal: GeminiSignal,
+        session_id: str,
+        objective: str | None = None,
+    ) -> list[SearchResult]:
         del signal
         del session_id
+        del objective
         return []
 
     async def extract(

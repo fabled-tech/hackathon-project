@@ -1,4 +1,11 @@
 import { expect, test, type Page } from '@playwright/test';
+import { DEMO_TWO_LEAD_SCRIPT } from '../../apps/web/lib/demo-mode';
+
+test.beforeEach(async ({ page }) => {
+  await page.addInitScript(() => {
+    window.localStorage.setItem('rightsrader.demo.choice', 'self-serve');
+  });
+});
 
 async function openCaseWorkspace(page: Page) {
   const title = `E2E Production ${Date.now()} ${Math.random().toString(16).slice(2)}`;
@@ -547,9 +554,101 @@ test('opens full case and finding details from the production overview', async (
     'The script names a fictional beverage brand'
   );
   await expect(details).toContainText('HUMAN-READABLE SUMMARY');
-  await expect(details).toContainText('VIEW RAW PARALLEL EXTRACT');
-  await details.getByText('VIEW RAW PARALLEL EXTRACT').click();
-  await expect(details).toContainText('RAW PROVIDER RETURN');
+  await expect(details).toContainText('RAW PARALLEL EXTRACT');
   await expect(details).toContainText('Mock search fixture');
   await expect(details.getByRole('link')).toHaveAttribute('href', /nimbus-soda/);
+});
+
+test('runs a roster desk thread with stakeholder research and a human reply', async ({
+  page
+}) => {
+  const title = `Desk Production ${Date.now()} ${Math.random().toString(16).slice(2)}`;
+  const response = await page.request.post('http://127.0.0.1:8000/api/productions', {
+    data: {
+      title,
+      studio: 'RightsRadar Test Unit',
+      roster: [
+        { name: 'Jordan', role: 'clearance' },
+        { name: 'Alex', role: 'production' },
+        { name: 'Maya', role: 'legal' }
+      ]
+    }
+  });
+  expect(response.ok()).toBeTruthy();
+  await page.goto('/');
+  await page.getByRole('button', { name: new RegExp(title) }).first().click();
+  await page.getByRole('navigation').getByRole('button', { name: 'New case' }).click();
+  await page.getByLabel('Script text').fill(
+    'MARA opens a can of Nimbus Soda. "Time keeps the reel turning," she says.'
+  );
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  await expect(page.getByTestId('agent-pipeline')).toContainText('COMPLETE');
+  await expect(page.getByTestId('judge-log')).toBeVisible();
+
+  const desk = page.getByTestId('case-desk');
+  await expect(desk).toBeVisible();
+  await expect(desk).toContainText('Intake');
+  await expect(desk).toContainText('Research');
+  await expect(desk).toContainText('Curation');
+  await expect(desk).toContainText('Alex');
+  await expect(desk).toContainText('Jordan');
+  await expect(desk).toContainText('Parallel Search');
+  await expect(desk.getByTestId('tool-call-chip').filter({ hasText: 'plan_queries' })).toHaveCount(2);
+  await expect(desk.getByTestId('tool-call-chip').filter({ hasText: 'brief_stakeholders' })).toHaveCount(
+    2
+  );
+
+  await page.getByLabel('Speak as').selectOption({ label: 'Jordan (clearance)' });
+  await page.getByLabel('Desk reply').fill('Studio-owned brand. I can dismiss Nimbus.');
+  await page.getByRole('button', { name: 'Post to desk' }).click();
+  await expect(desk).toContainText('Studio-owned brand');
+
+  await desk.getByRole('button', { name: 'Escalate Time keeps the reel turning' }).click();
+  await expect(page.getByTestId('finding-card').filter({ hasText: 'Time keeps the reel turning' })).toContainText(
+    'Escalated'
+  );
+});
+
+test('creates a production, analyzes the two-lane demo script, and shows tool-call chips', async ({
+  page
+}) => {
+  await page.goto('/');
+  await page.getByLabel('New production').click();
+  await page.getByPlaceholder('Production title').fill(`Two Lane ${Date.now()}`);
+  await expect(page.getByLabel('Roster name 1')).toHaveValue('Jordan');
+  await expect(page.getByLabel('Roster name 2')).toHaveValue('Alex');
+  await expect(page.getByLabel('Roster name 3')).toHaveValue('Maya');
+  await page.getByRole('button', { name: 'Create' }).click();
+  await page.getByRole('navigation').getByRole('button', { name: 'New case' }).click();
+  await page.getByLabel('Script text').fill(DEMO_TWO_LEAD_SCRIPT.script);
+  const caseResponse = page.waitForResponse(
+    (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
+  );
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+  const created = await (await caseResponse).json();
+  const methods = (created.tool_calls ?? []).map((call: { method: string }) => call.method);
+  expect(methods.filter((method: string) => method === 'identify_material').length).toBeGreaterThanOrEqual(
+    1
+  );
+  expect(methods.filter((method: string) => method === 'plan_queries').length).toBeGreaterThanOrEqual(
+    2
+  );
+  expect(methods.filter((method: string) => method === 'search').length).toBeGreaterThanOrEqual(4);
+  expect(methods.filter((method: string) => method === 'extract').length).toBeGreaterThanOrEqual(2);
+  expect(
+    methods.filter((method: string) => method === 'brief_stakeholders').length
+  ).toBeGreaterThanOrEqual(2);
+  expect(
+    methods.filter((method: string) => method === 'curate_evidence').length
+  ).toBeGreaterThanOrEqual(2);
+  expect((created.tool_calls ?? []).every((call: { fixture?: boolean }) => call.fixture)).toBe(true);
+
+  await expect(page.getByTestId('case-desk')).toBeVisible();
+  await expect(page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' })).toBeVisible();
+  await expect(
+    page.getByTestId('finding-card').filter({ hasText: 'Time keeps the reel turning' })
+  ).toBeVisible();
+  await expect(page.getByTestId('tool-call-chip').filter({ hasText: 'plan_queries' })).toHaveCount(2);
+  await expect(page.getByTestId('tool-call-chip').filter({ hasText: 'search' })).toHaveCount(4);
+  await expect(page.getByText('example.com').first()).toBeVisible();
 });

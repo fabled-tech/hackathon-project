@@ -4,6 +4,12 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field, StringConstraints, field_validator
 
+
+class WorkspaceRole(StrEnum):
+    PRODUCTION = "production"
+    CLEARANCE = "clearance"
+    LEGAL = "legal"
+
 IgnoredKeyword = Annotated[
     str,
     StringConstraints(strip_whitespace=True, min_length=1, max_length=100),
@@ -30,6 +36,13 @@ class ProductionStatus(StrEnum):
     RELEASED = "released"
 
 
+class ProductionMember(BaseModel):
+    id: str
+    name: str = Field(min_length=1, max_length=120)
+    role: WorkspaceRole
+    email: str | None = Field(default=None, max_length=254)
+
+
 class Production(BaseModel):
     id: str
     title: str
@@ -39,6 +52,7 @@ class Production(BaseModel):
     icon_version: str | None = None
     icon_content_type: str | None = None
     ignore_keywords: list[IgnoredKeyword] = Field(default_factory=list, max_length=50)
+    roster: list[ProductionMember] = Field(default_factory=list, max_length=5)
     created_at: datetime
 
     @field_validator("ignore_keywords")
