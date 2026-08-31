@@ -51,7 +51,7 @@ export function DemoGate({
             <Clapperboard className="size-4" aria-hidden />
             <span className="mt-2 block font-display text-[11px]">Walk The Matrix homage</span>
             <span className="mt-1 block text-[10.5px] leading-4">
-              Opens the greenscreen homage: The Matrix plus “There is no spoon.”
+              Step through Intake → Research → Curation on The Matrix plus “There is no spoon.”
             </span>
           </button>
           <button

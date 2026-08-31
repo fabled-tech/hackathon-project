@@ -47,25 +47,40 @@ test('production overview shows user Inbox instead of nested findings', async ({
   await expect(page.getByTestId('production-case-details')).toHaveCount(0);
 });
 
-test('choosing walkthrough lands on the case desk', async ({ page }) => {
+test('walkthrough reveals pipeline stages on each Next press', async ({ page }) => {
   test.setTimeout(60_000);
   await page.goto('/');
   await page.getByTestId('demo-walkthrough').click();
-  await expect(page.getByTestId('case-desk')).toBeVisible({ timeout: 45_000 });
+
+  await expect(page.getByTestId('user-input-section')).toBeVisible({ timeout: 45_000 });
   await expect(page.getByTestId('demo-gate')).toHaveCount(0);
-  await expect(page.getByTestId('demo-control')).toBeVisible();
+  await expect(page.getByTestId('demo-coach-overlay')).toBeVisible();
+  await expect(page.getByTestId('agent-pipeline')).toHaveAttribute('data-reveal-stage', 'ready');
+  await expect(page.getByTestId('agent-pipeline')).toContainText('READY');
+  await expect(page.getByTestId('finding-card')).toHaveCount(0);
+  await expect(page.getByTestId('demo-coach')).toContainText('STEP 1 / 5');
+  await expect(page.getByTestId('demo-coach')).toContainText('Matrix script is filed');
+
+  await page.getByTestId('demo-coach-next').click();
+  await expect(page.getByTestId('demo-coach')).toContainText('STEP 2 / 5');
+  await expect(page.getByTestId('agent-pipeline')).toHaveAttribute('data-reveal-stage', 'intake');
+  await expect(page.getByTestId('case-desk')).toBeVisible();
+  await expect(page.getByText('Detected').first()).toBeVisible();
+  await expect(page.getByTestId('finding-card')).toHaveCount(0);
+
+  await page.getByTestId('demo-coach-next').click();
+  await expect(page.getByTestId('agent-pipeline')).toHaveAttribute('data-reveal-stage', 'research');
+  await expect(page.getByTestId('tool-call-chip').filter({ hasText: 'plan_queries' }).first()).toBeVisible();
+
+  await page.getByTestId('demo-coach-next').click();
+  await expect(page.getByTestId('agent-pipeline')).toHaveAttribute('data-reveal-stage', 'curation');
   await expect(page.getByTestId('finding-card').filter({ hasText: 'The Matrix' })).toBeVisible();
   await expect(
     page.getByTestId('finding-card').filter({ hasText: 'There is no spoon' })
   ).toBeVisible();
-  await expect(page.getByTestId('tool-call-chip').filter({ hasText: 'plan_queries' })).toHaveCount(2);
-  await expect(page.getByText('example.com').first()).toBeVisible();
-  await expect(page.getByTestId('demo-coach-overlay')).toBeVisible();
-  await expect(page.getByTestId('demo-coach-spotlight')).toBeVisible();
-  await expect(page.getByTestId('demo-coach')).toContainText('STEP 1 / 5');
-  await expect(page.getByTestId('demo-coach')).toContainText('Who sits on this file');
-  await expect(page.getByTestId('agent-avatar').first()).toBeVisible();
-  await expect(page.getByTestId('human-avatar').first()).toBeVisible();
+
   await page.getByTestId('demo-coach-next').click();
-  await expect(page.getByTestId('demo-coach')).toContainText('STEP 2 / 5');
+  await expect(page.getByTestId('agent-pipeline')).toHaveAttribute('data-reveal-stage', 'human');
+  await expect(page.getByTestId('demo-coach')).toContainText('Your turn');
+  await expect(page.getByTestId('human-avatar').first()).toBeVisible();
 });

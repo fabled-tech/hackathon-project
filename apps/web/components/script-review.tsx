@@ -34,6 +34,11 @@ import {
   UserRound
 } from 'lucide-react';
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import {
+  caseForDemoReveal,
+  workflowStatusForDemoReveal,
+  type DemoRevealStage
+} from '@/lib/demo-reveal';
 
 const SAMPLE_SCRIPT =
   'EXT. NEON SKYWALK — MIDNIGHT\n\nMARA skates through the rain, kicks a Nimbus Soda can into her palm, and smirks. "Time keeps the reel turning," she says as a drone camera dives past.';
@@ -193,10 +198,13 @@ function threadHasAgent(thread: CaseThreadMessage[] | undefined, name: string): 
 
 function AgentPipeline({
   status,
-  result
+  result,
+  revealStage
 }: {
   status: AgentWorkflowStatus;
   result: Case | null;
+  /** When set (demo walkthrough), light stages one-by-one instead of all-complete. */
+  revealStage?: DemoRevealStage | null;
 }) {
   const findings = result?.findings ?? [];
   const thread = result?.thread ?? [];
@@ -206,27 +214,44 @@ function AgentPipeline({
   const curatedSources = findings.filter(
     (finding) => finding.evidence?.primary
   ).length;
+  const revealIndex =
+    revealStage === 'intake'
+      ? 0
+      : revealStage === 'research'
+        ? 1
+        : revealStage === 'curation' || revealStage === 'human'
+          ? 2
+          : -1;
   const stages = [
     {
       name: 'Gemini Intake',
       description: 'Vertex Gemini detects clearance leads.',
       icon: <Sparkles className="size-3.5" aria-hidden />,
       output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`,
-      done: threadHasAgent(thread, 'Intake')
+      done:
+        revealStage != null
+          ? revealIndex >= 0
+          : threadHasAgent(thread, 'Intake') || status === 'complete'
     },
     {
       name: 'Parallel Research',
       description: 'Vertex plan/brief plus Parallel Search xN and Extract.',
       icon: <Globe2 className="size-3.5" aria-hidden />,
       output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`,
-      done: threadHasAgent(thread, 'Research')
+      done:
+        revealStage != null
+          ? revealIndex >= 1
+          : threadHasAgent(thread, 'Research') || status === 'complete'
     },
     {
       name: 'Gemini Curation',
       description: 'Vertex Gemini cites only extracted URLs.',
       icon: <FileSearch className="size-3.5" aria-hidden />,
       output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`,
-      done: threadHasAgent(thread, 'Curation')
+      done:
+        revealStage != null
+          ? revealIndex >= 2
+          : threadHasAgent(thread, 'Curation') || status === 'complete'
     }
   ];
 
@@ -235,6 +260,7 @@ function AgentPipeline({
       className="mt-4 border-2 border-line bg-panel p-4"
       aria-label="Case agent pipeline"
       data-testid="agent-pipeline"
+      data-reveal-stage={revealStage ?? undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -269,24 +295,29 @@ function AgentPipeline({
       </div>
 
       <ol className="mt-4 grid gap-2 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
-        {stages.map((stage, index) => (
+        {stages.map((stage, index) => {
+            const isCurrent =
+              revealStage != null && revealIndex === index && status === 'running';
+            return (
             <li key={stage.name} className="contents">
               <div
                 className={`border-2 p-3 transition ${
-                  status === 'running'
-                    ? 'animate-pulse border-cyan-pop/70 bg-cyan-pop/5'
-                    : status === 'complete'
-                      ? 'border-brand/70 bg-brand/5'
+                  stage.done
+                    ? 'border-brand/70 bg-brand/5'
+                    : isCurrent
+                      ? 'animate-pulse border-cyan-pop/70 bg-cyan-pop/5'
                       : status === 'failed'
                         ? 'border-accent/70 bg-danger-bg'
                         : 'border-line bg-canvas/20'
                 }`}
+                data-pipeline-stage={stage.name}
+                data-pipeline-done={stage.done ? 'true' : 'false'}
               >
                 <div className="flex items-center gap-2">
                   <span className="flex size-7 items-center justify-center border border-line bg-canvas text-cyan-pop">
-                    {status === 'complete' || stage.done ? (
+                    {stage.done ? (
                       <Check className="size-3.5 text-brand" aria-hidden />
-                    ) : status === 'running' ? (
+                    ) : isCurrent ? (
                       <Loader2 className="size-3.5 animate-spin" aria-hidden />
                     ) : (
                       stage.icon
@@ -297,7 +328,7 @@ function AgentPipeline({
                 <p className="mt-2 text-[9.5px] leading-4 text-lavender-soft">
                   {stage.description}
                 </p>
-                {status === 'complete' ? (
+                {stage.done ? (
                   <p className="mt-2 font-pixel text-[7px] leading-3 text-brand">
                     {stage.output}
                   </p>
@@ -310,9 +341,10 @@ function AgentPipeline({
                 />
               ) : null}
             </li>
-          ))}
-      </ol>
-    </section>
+            );
+          })}
+        </ol>
+      </section>
   );
 }
 
@@ -781,7 +813,8 @@ export function ScriptReview({
   onCaseCreated,
   onCaseUpdated,
   initialCase = null,
-  focusTour = false
+  focusTour = false,
+  demoWalkthrough = null
 }: {
   productionId?: string;
   roster?: ProductionMember[];
@@ -790,8 +823,15 @@ export function ScriptReview({
   onCaseUpdated?: (caseResult: Case) => void;
   initialCase?: Case | null;
   focusTour?: boolean;
+  /** Staged Matrix (or other) walkthrough — parent advances revealStage on each coach Next. */
+  demoWalkthrough?: {
+    fullCase: Case;
+    stage: DemoRevealStage;
+  } | null;
 } = {}) {
-  const [scriptText, setScriptText] = useState(initialCase?.script_text ?? SAMPLE_SCRIPT);
+  const [scriptText, setScriptText] = useState(
+    demoWalkthrough?.fullCase.script_text ?? initialCase?.script_text ?? SAMPLE_SCRIPT
+  );
   const [caseResult, setCaseResult] = useState<Case | null>(initialCase);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -802,6 +842,22 @@ export function ScriptReview({
   const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
   const [agentWorkflowStatus, setAgentWorkflowStatus] =
     useState<AgentWorkflowStatus>(initialCase ? 'complete' : 'idle');
+  const displayCase = demoWalkthrough
+    ? caseForDemoReveal(demoWalkthrough.fullCase, demoWalkthrough.stage)
+    : caseResult;
+  const workingCase = demoWalkthrough?.fullCase ?? caseResult;
+  const displayWorkflowStatus: AgentWorkflowStatus = demoWalkthrough
+    ? workflowStatusForDemoReveal(demoWalkthrough.stage)
+    : agentWorkflowStatus;
+  const pipelineCase = demoWalkthrough
+    ? demoWalkthrough.stage === 'ready'
+      ? null
+      : demoWalkthrough.fullCase
+    : caseResult;
+  const filedTitle =
+    demoWalkthrough?.fullCase.title ?? displayCase?.title ?? caseResult?.title;
+  const showWalkthroughChrome = Boolean(demoWalkthrough);
+  const showDeskColumns = Boolean(displayCase || showWalkthroughChrome);
   const [isLoadingRecentCases, setIsLoadingRecentCases] = useState(false);
   const [isLoadingCaseId, setIsLoadingCaseId] = useState<string | null>(null);
   const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
@@ -984,7 +1040,7 @@ export function ScriptReview({
   }
 
   async function changeStatus(finding: Finding, reviewerStatus: ReviewerStatus) {
-    if (!caseResult) return;
+    if (!workingCase) return;
     if (roster.length > 0 && !actingMemberId) {
       setError('Pick who you Speak as before dismissing or escalating in the desk thread.');
       return;
@@ -993,14 +1049,14 @@ export function ScriptReview({
     setError(null);
     try {
       await updateFindingStatus(
-        caseResult.id,
+        workingCase.id,
         finding.id,
         reviewerStatus,
         API_BASE_URL,
         fetch,
         actingMemberId || null
       );
-      const nextCase = await getCase(caseResult.id, API_BASE_URL);
+      const nextCase = await getCase(workingCase.id, API_BASE_URL);
       setCaseResult(nextCase);
       onCaseUpdated?.(nextCase);
       if (stampBurstTimer.current) {
@@ -1029,16 +1085,17 @@ export function ScriptReview({
   }
 
   async function postDeskReply() {
-    if (!caseResult || !actingMemberId || !deskReply.trim()) return;
+    if (!workingCase || !actingMemberId || !deskReply.trim()) return;
     setIsReplying(true);
     setError(null);
     try {
       const nextCase = await postThreadMessage(
-        caseResult.id,
+        workingCase.id,
         { member_id: actingMemberId, body: deskReply.trim() },
         API_BASE_URL
       );
       setCaseResult(nextCase);
+      onCaseUpdated?.(nextCase);
       setDeskReply('');
     } catch {
       setError('The desk reply could not be posted. Please try again.');
@@ -1056,10 +1113,10 @@ export function ScriptReview({
             <h1 className="mt-1 font-display text-xl text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4] sm:text-2xl">
               Case workspace
             </h1>
-            {focusTour ? (
+            {focusTour || showWalkthroughChrome ? (
               <p className="mt-1 max-w-2xl text-[11px] leading-4 text-paper">
-                Walkthrough: one highlighted step at a time. Lime frame is the beat. Dark mask hides
-                the rest.
+                Walkthrough: press <strong>Run next stage</strong> to advance Intake → Research →
+                Curation. Lime frame is the beat.
               </p>
             ) : (
               <p className="mt-1 max-w-2xl text-[11px] leading-4 text-lavender-soft">
@@ -1072,9 +1129,9 @@ export function ScriptReview({
 
         <div
           className={`grid items-start gap-4 ${
-            caseResult && !focusTour
+            displayCase && !focusTour && !showWalkthroughChrome
               ? 'xl:grid-cols-[minmax(0,1fr)_21rem]'
-              : !caseResult
+              : !displayCase && !showWalkthroughChrome
                 ? 'lg:grid-cols-[minmax(0,1fr)_20rem]'
                 : ''
           }`}
@@ -1082,17 +1139,17 @@ export function ScriptReview({
           <div className="min-w-0 space-y-4">
             <div className="animate-fade-up min-w-0" data-testid="user-input-section">
               <PixelLabel>
-                {caseResult ? '00 · Your input' : '01 · Intake & desk'}
+                {displayCase || showWalkthroughChrome ? '00 · Your input' : '01 · Intake & desk'}
               </PixelLabel>
               <div className="mt-2 space-y-3">
                 <Panel>
-                  {caseResult ? (
+                  {displayCase || showWalkthroughChrome ? (
                     <div className="mb-3 border-2 border-brand/50 bg-brand/10 px-3 py-2">
                       <p className="font-pixel text-[8px] tracking-[0.16px] text-brand">
                         FILED SCENE · WHAT THE AGENTS READ
                       </p>
-                      {caseResult.title ? (
-                        <p className="mt-1 font-display text-sm text-paper">{caseResult.title}</p>
+                      {filedTitle ? (
+                        <p className="mt-1 font-display text-sm text-paper">{filedTitle}</p>
                       ) : null}
                     </div>
                   ) : (
@@ -1108,7 +1165,7 @@ export function ScriptReview({
                   )}
 
                   <aside
-                    className={`${caseResult ? 'mt-0' : 'mt-4'} border border-warn-line bg-warn-bg p-3.5 text-[11px] leading-[17px] text-lavender-soft`}
+                    className={`${displayCase || showWalkthroughChrome ? 'mt-0' : 'mt-4'} border border-warn-line bg-warn-bg p-3.5 text-[11px] leading-[17px] text-lavender-soft`}
                     aria-label="Legal disclaimer"
                   >
                     <p>
@@ -1127,16 +1184,19 @@ export function ScriptReview({
                       htmlFor="script-text"
                       className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
                     >
-                      {caseResult ? 'Script the agents analyzed' : 'Script text'}
+                      {displayCase || showWalkthroughChrome
+                        ? 'Script the agents analyzed'
+                        : 'Script text'}
                     </label>
                     <textarea
                       id="script-text"
                       name="script-text"
                       value={scriptText}
                       onChange={(event) => setScriptText(event.target.value)}
-                      rows={caseResult ? 6 : 8}
+                      rows={displayCase || showWalkthroughChrome ? 6 : 8}
                       maxLength={20_000}
                       required
+                      readOnly={showWalkthroughChrome}
                       placeholder="Paste a script excerpt to scan for rights-clearance research leads…"
                       className="mt-2.5 block w-full resize-y border-2 border-ink bg-white px-2.5 py-2.5 text-[11px] leading-[17px] text-ink-soft transition placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-cyan-pop"
                     />
@@ -1144,17 +1204,23 @@ export function ScriptReview({
                       <span className="font-pixel text-[8px] tabular-nums text-muted">
                         {scriptText.length.toLocaleString()} / 20,000
                       </span>
-                      <PrimaryButton disabled={isSubmitting || scriptText.trim().length === 0}>
-                        {isSubmitting ? (
-                          <>
-                            <Spinner /> Analyzing…
-                          </>
-                        ) : caseResult ? (
-                          '▶ Re-analyze script'
-                        ) : (
-                          '▶ Analyze script'
-                        )}
-                      </PrimaryButton>
+                      {showWalkthroughChrome ? (
+                        <span className="font-pixel text-[8px] text-cyan-pop">
+                          USE RUN NEXT STAGE
+                        </span>
+                      ) : (
+                        <PrimaryButton disabled={isSubmitting || scriptText.trim().length === 0}>
+                          {isSubmitting ? (
+                            <>
+                              <Spinner /> Analyzing…
+                            </>
+                          ) : displayCase ? (
+                            '▶ Re-analyze script'
+                          ) : (
+                            '▶ Analyze script'
+                          )}
+                        </PrimaryButton>
+                      )}
                     </div>
                   </form>
 
@@ -1205,35 +1271,45 @@ export function ScriptReview({
                   ) : null}
                 </Panel>
 
-                {caseResult ? (
-                  <AgentPipeline status={agentWorkflowStatus} result={caseResult} />
-                ) : (
-                  <AgentPipeline status={agentWorkflowStatus} result={caseResult} />
-                )}
+                <AgentPipeline
+                  status={displayWorkflowStatus}
+                  result={pipelineCase}
+                  revealStage={demoWalkthrough?.stage ?? null}
+                />
               </div>
             </div>
 
-            {caseResult ? (
+            {showDeskColumns ? (
               <div
                 className={`grid items-start gap-4 ${
-                  caseResult ? 'lg:grid-cols-[minmax(20rem,1fr)_minmax(18rem,1fr)]' : ''
+                  showDeskColumns ? 'lg:grid-cols-[minmax(20rem,1fr)_minmax(18rem,1fr)]' : ''
                 }`}
               >
                 <div className="animate-fade-up min-w-0">
                   <PixelLabel>01 · Case desk</PixelLabel>
                   <div className="mt-2">
-                    <CaseDesk
-                      result={caseResult}
-                      roster={roster}
-                      actingMemberId={actingMemberId}
-                      onActingMemberId={setActingMemberId}
-                      reply={deskReply}
-                      onReplyChange={setDeskReply}
-                      onReply={() => void postDeskReply()}
-                      isReplying={isReplying}
-                      onChangeStatus={changeStatus}
-                      updatingFindingId={updatingFindingId}
-                    />
+                    {displayCase ? (
+                      <CaseDesk
+                        result={displayCase}
+                        roster={roster}
+                        actingMemberId={actingMemberId}
+                        onActingMemberId={setActingMemberId}
+                        reply={deskReply}
+                        onReplyChange={setDeskReply}
+                        onReply={() => void postDeskReply()}
+                        isReplying={isReplying}
+                        onChangeStatus={changeStatus}
+                        updatingFindingId={updatingFindingId}
+                      />
+                    ) : (
+                      <Panel>
+                        <p className="font-pixel text-[8px] text-cyan-pop">WAITING FOR INTAKE</p>
+                        <p className="mt-2 text-[11px] leading-4 text-lavender-soft">
+                          Press <strong>Run next stage</strong> to let Gemini Intake post the first
+                          desk message.
+                        </p>
+                      </Panel>
+                    )}
                   </div>
                 </div>
 
@@ -1247,7 +1323,7 @@ export function ScriptReview({
               </p>
             ) : null}
 
-            {caseResult ? (
+            {showDeskColumns ? (
               <div className="animate-fade-up min-w-0 space-y-4">
                 <div data-testid="demo-coach-findings">
                   <PixelLabel>02 · Findings</PixelLabel>
@@ -1263,19 +1339,23 @@ export function ScriptReview({
                           </h2>
                         </div>
                         <span className="border border-ink bg-white px-2 py-1 font-pixel text-[8.5px] text-ink">
-                          {caseResult.findings.length}{' '}
-                          {caseResult.findings.length === 1 ? 'FINDING' : 'FINDINGS'}
+                          {displayCase?.findings.length ?? 0}{' '}
+                          {(displayCase?.findings.length ?? 0) === 1 ? 'FINDING' : 'FINDINGS'}
                         </span>
                       </div>
 
                       <div className="mt-4 space-y-4">
-                        {caseResult.findings.length === 0 ? (
+                        {!displayCase || displayCase.findings.length === 0 ? (
                           <p className="text-[11.5px] leading-[17.83px] text-lavender-soft">
-                            No deterministic research leads were found in this excerpt. That is not
-                            a clearance conclusion.
+                            {showWalkthroughChrome &&
+                            demoWalkthrough &&
+                            demoWalkthrough.stage !== 'curation' &&
+                            demoWalkthrough.stage !== 'human'
+                              ? 'Findings unlock after Gemini Curation. Keep pressing Run next stage.'
+                              : 'No deterministic research leads were found in this excerpt. That is not a clearance conclusion.'}
                           </p>
                         ) : (
-                          caseResult.findings.map((finding, findingIndex) => {
+                          displayCase.findings.map((finding, findingIndex) => {
                             const isEscalated = finding.reviewer_status === 'escalated';
                             const isDismissed = finding.reviewer_status === 'dismissed';
                             const justStamped = stampBurstId === finding.id;
@@ -1488,7 +1568,7 @@ export function ScriptReview({
             </div>
             ) : null}
 
-            {caseResult && !focusTour ? (
+            {displayCase && !focusTour && !showWalkthroughChrome ? (
               <div className="animate-fade-up">
                 <PixelLabel>Recent cases</PixelLabel>
                 <div className="mt-2" data-testid="recent-cases" aria-live="polite">
@@ -1523,16 +1603,16 @@ export function ScriptReview({
             ) : null}
           </div>
 
-          {caseResult && !focusTour ? (
+          {displayCase && !focusTour && !showWalkthroughChrome ? (
             <div className="animate-fade-up xl:sticky xl:top-2 xl:max-h-[calc(100vh-1.25rem)] xl:self-start">
               <PixelLabel>
                 <span className="text-[#ffb454]">DEV · JUDGE</span>
               </PixelLabel>
               <div className="mt-2 h-[calc(100vh-5rem)] min-h-[24rem]">
-                <JudgeLogRail calls={caseResult.tool_calls ?? []} />
+                <JudgeLogRail calls={displayCase.tool_calls ?? []} />
               </div>
             </div>
-          ) : !caseResult ? (
+          ) : !displayCase && !showWalkthroughChrome ? (
           <aside className="animate-fade-up lg:sticky lg:top-4">
             <PixelLabel>04 · Cases</PixelLabel>
             <div className="mt-2">

@@ -10,29 +10,29 @@ import {
 
 export const DEMO_TOUR_STEPS = [
   {
-    target: 'demo-coach-roster',
-    title: 'Who sits on this file',
-    body: 'Jordan (clearance), Alex (production), and Maya (legal) are already in this thread. You will speak as one of them.'
+    target: 'user-input-section',
+    title: 'Matrix script is filed',
+    body: 'This is the greenscreen homage the agents will read. Press Next to run Gemini Intake — nothing is pre-played yet.'
   },
   {
-    target: 'demo-coach-stakeholders',
-    title: 'Agents already moved',
-    body: 'Intake found The Matrix and “There is no spoon.” Research pulled the owners and posted the Parallel work here — one conversation, not a chatbot.'
+    target: 'agent-pipeline',
+    title: 'Gemini Intake',
+    body: 'Intake posts two leads into the desk: The Matrix (franchise) and “There is no spoon” (quote). Watch the pipeline tick.'
+  },
+  {
+    target: 'case-desk',
+    title: 'Parallel Research',
+    body: 'Research plans queries, hits Parallel Search/Extract, and posts tool-call chips under the agent messages.'
   },
   {
     target: 'demo-coach-findings',
-    title: 'Two leads to decide',
-    body: 'Franchise homage on the left of this column, distinctive quote under it. This is the work, not the judge log.'
-  },
-  {
-    target: 'demo-coach-composer',
-    title: 'Reply as a human',
-    body: 'Pick Jordan, Alex, or Maya and post in the same thread. Dismiss and escalate land here too.'
+    title: 'Gemini Curation',
+    body: 'Curation picks primary sources and the finding cards appear. Only now is the analysis “complete” for reviewers.'
   },
   {
     target: 'demo-coach-actions',
-    title: 'Dismiss or escalate',
-    body: 'Studio-owned hits can be dismissed. Escalate anything that still needs a human call. Both post into this desk.'
+    title: 'Your turn',
+    body: 'Speak as Jordan, Alex, or Maya. Dismiss studio-owned hits or escalate anything that still needs a human call.'
   }
 ] as const;
 
@@ -42,16 +42,24 @@ function currentViewport() {
   return { width: window.innerWidth, height: window.innerHeight };
 }
 
-/** Mount only while the tour is open so step state resets without an effect. */
-export function DemoCoach({ onDismiss }: { onDismiss: () => void }) {
-  const [stepIndex, setStepIndex] = useState(0);
+/** Controlled coach — parent owns stepIndex so the pipeline can reveal with each press. */
+export function DemoCoach({
+  stepIndex,
+  onStepIndexChange,
+  onDismiss
+}: {
+  stepIndex: number;
+  onStepIndexChange: (next: number) => void;
+  onDismiss: () => void;
+}) {
+  const safeIndex = Math.min(Math.max(stepIndex, 0), DEMO_TOUR_STEPS.length - 1);
   const [pads, setPads] = useState<Pads | null>(null);
   const [cardPos, setCardPos] = useState({ top: 24, left: 24 });
   const cardRef = useRef<HTMLElement | null>(null);
 
   useLayoutEffect(() => {
     const place = () => {
-      const step = DEMO_TOUR_STEPS[stepIndex];
+      const step = DEMO_TOUR_STEPS[safeIndex];
       const target = document.querySelector(`[data-testid="${step.target}"]`);
       if (!target) {
         setPads(null);
@@ -80,10 +88,10 @@ export function DemoCoach({ onDismiss }: { onDismiss: () => void }) {
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
-  }, [stepIndex]);
+  }, [safeIndex]);
 
-  const step = DEMO_TOUR_STEPS[stepIndex];
-  const isLast = stepIndex === DEMO_TOUR_STEPS.length - 1;
+  const step = DEMO_TOUR_STEPS[safeIndex];
+  const isLast = safeIndex === DEMO_TOUR_STEPS.length - 1;
 
   return (
     <div className="fixed inset-0 z-40" data-testid="demo-coach-overlay">
@@ -116,7 +124,7 @@ export function DemoCoach({ onDismiss }: { onDismiss: () => void }) {
         style={{ top: cardPos.top, left: cardPos.left }}
       >
         <p className="font-pixel text-[8px] tracking-[0.18px] text-brand">
-          STEP {stepIndex + 1} / {DEMO_TOUR_STEPS.length}
+          STEP {safeIndex + 1} / {DEMO_TOUR_STEPS.length}
         </p>
         <h3 className="mt-2 font-display text-lg text-white">{step.title}</h3>
         <p className="mt-2 text-[12px] leading-5 text-[#e8edf4]">{step.body}</p>
@@ -137,11 +145,11 @@ export function DemoCoach({ onDismiss }: { onDismiss: () => void }) {
                 onDismiss();
                 return;
               }
-              setStepIndex((current) => current + 1);
+              onStepIndexChange(safeIndex + 1);
             }}
             className="border-2 border-ink bg-brand px-2.5 py-1.5 font-display text-[9px] text-ink shadow-press"
           >
-            {isLast ? 'Start working' : 'Next step'}
+            {isLast ? 'Start working' : 'Run next stage'}
           </button>
         </div>
       </aside>

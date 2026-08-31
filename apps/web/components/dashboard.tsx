@@ -59,6 +59,7 @@ import {
   readDemoChoice,
   writeDemoChoice
 } from '@/lib/demo-mode';
+import { DEMO_REVEAL_BY_STEP, type DemoRevealStage } from '@/lib/demo-reveal';
 import {
   inboxCasesForMember,
   pendingFindingsForMember,
@@ -282,7 +283,12 @@ export function Dashboard() {
   const [coachOpen, setCoachOpen] = useState(false);
   const [walkthroughBusy, setWalkthroughBusy] = useState(false);
   const [openedCase, setOpenedCase] = useState<Case | null>(null);
+  const [demoFullCase, setDemoFullCase] = useState<Case | null>(null);
+  const [demoStep, setDemoStep] = useState(0);
   const [memberPick, setMemberPick] = useState<string | null>(null);
+  const demoRevealStage: DemoRevealStage | null = coachOpen
+    ? (DEMO_REVEAL_BY_STEP[demoStep] ?? 'human')
+    : null;
   const workspaceRef = useRef<HTMLElement>(null);
 
   const activeProduction = productions.find((p) => p.id === activeProductionId) ?? null;
@@ -444,7 +450,10 @@ export function Dashboard() {
         await refreshProductionCases(production.id);
       }
       setActiveProductionId(production.id);
-      setOpenedCase(nextCase);
+      // Hold the finished case off-screen; coach Next reveals Intake → Research → Curation.
+      setDemoFullCase(nextCase);
+      setOpenedCase(null);
+      setDemoStep(0);
       setView({ kind: 'case' });
       setGateOpen(false);
       setCoachOpen(true);
@@ -455,6 +464,15 @@ export function Dashboard() {
       setWalkthroughBusy(false);
     }
   }, [activeProductionId, ensureFeaturedDemoCases, refreshProductionCases, refreshProductions]);
+
+  const endWalkthrough = useCallback(() => {
+    setCoachOpen(false);
+    if (demoFullCase) {
+      setOpenedCase(demoFullCase);
+      setDemoFullCase(null);
+      setDemoStep(0);
+    }
+  }, [demoFullCase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -791,20 +809,35 @@ export function Dashboard() {
           />
         ) : view.kind === 'case' || !activeProduction ? (
           <ScriptReview
-            key={`${openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`}-${activeMemberId}`}
+            key={
+              demoFullCase
+                ? `demo-${demoFullCase.id}`
+                : `${openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`}-${activeMemberId}`
+            }
             productionId={activeProduction?.id}
             roster={activeProduction?.roster ?? []}
             activeMemberId={activeMemberId}
-            initialCase={openedCase}
+            initialCase={demoFullCase ? null : openedCase}
             focusTour={coachOpen}
+            demoWalkthrough={
+              demoFullCase && demoRevealStage
+                ? { fullCase: demoFullCase, stage: demoRevealStage }
+                : null
+            }
             onCaseCreated={() => {
               void refreshProductions();
               if (activeProductionId) void refreshProductionCases(activeProductionId);
             }}
             onCaseUpdated={(nextCase) => {
+              if (demoFullCase && nextCase.id === demoFullCase.id) {
+                setDemoFullCase(nextCase);
+              }
               setProductionCases((current) =>
                 current.map((item) => (item.id === nextCase.id ? nextCase : item))
               );
+              if (openedCase?.id === nextCase.id) {
+                setOpenedCase(nextCase);
+              }
               if (activeProductionId) void refreshProductionCases(activeProductionId);
             }}
           />
@@ -1062,7 +1095,13 @@ export function Dashboard() {
         onWalkthrough={() => void runWalkthrough()}
         onSelfServe={chooseSelfServe}
       />
-      {coachOpen ? <DemoCoach onDismiss={() => setCoachOpen(false)} /> : null}
+      {coachOpen ? (
+        <DemoCoach
+          stepIndex={demoStep}
+          onStepIndexChange={setDemoStep}
+          onDismiss={endWalkthrough}
+        />
+      ) : null}
     </div>
   );
 }
