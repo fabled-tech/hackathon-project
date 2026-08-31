@@ -192,6 +192,10 @@ sidebar **Demo** control to reopen the chooser or run the homage again. Walkthro
 The Matrix rooftop homage (franchise **and** “There is no spoon”) so two Research lanes fire. It
 does not re-analyze on every later load.
 
+On the production overview, **Signed in as** defaults to clearance (**Jordan**). The **Inbox**
+lists cases with pending findings assigned to that roster user; nested Research Findings no longer
+expand on the case inventory list.
+
 **Clicks:**
 
 1. Open the app. Choose **Walk The Matrix homage**, or **I’ll work the desk myself** then
