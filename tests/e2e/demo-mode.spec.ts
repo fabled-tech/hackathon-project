@@ -1,10 +1,12 @@
 import { expect, test } from '@playwright/test';
+import { DEMO_PRODUCTION_TITLE } from '../../apps/web/lib/demo-mode';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
     window.localStorage.removeItem('rightsrader.demo.choice');
     window.localStorage.removeItem('rightsrader.demo.lastScriptId');
     window.localStorage.removeItem('rightsrader.demo.usedScriptIds');
+    window.localStorage.removeItem('rightsrader.activeMemberId');
   });
 });
 
@@ -21,6 +23,28 @@ test('choosing self-serve hides the demo gate', async ({ page }) => {
   await expect(page.getByTestId('demo-gate')).toHaveCount(0);
   await expect(page.getByText('PRODUCTION RIGHTS WORKSPACE')).toBeVisible();
   await expect(page.getByTestId('demo-control')).toBeVisible();
+});
+
+test('production overview shows user Inbox instead of nested findings', async ({ page }) => {
+  test.setTimeout(60_000);
+  await page.goto('/');
+  await page.getByTestId('demo-self-serve').click();
+
+  const demoProduction = page
+    .getByRole('button', { name: new RegExp(DEMO_PRODUCTION_TITLE) })
+    .first();
+  if ((await demoProduction.count()) > 0) {
+    await demoProduction.click();
+  } else {
+    await page.getByLabel('New production').click();
+    await page.getByPlaceholder('Production title').fill(DEMO_PRODUCTION_TITLE);
+    await page.getByPlaceholder('Studio (optional)').fill('RightsRadar Demo Unit');
+    await page.getByRole('button', { name: 'Create' }).click();
+  }
+
+  await expect(page.getByTestId('user-inbox')).toBeVisible({ timeout: 45_000 });
+  await expect(page.getByTestId('signed-in-as')).toBeVisible();
+  await expect(page.getByTestId('production-case-details')).toHaveCount(0);
 });
 
 test('choosing walkthrough lands on the case desk', async ({ page }) => {

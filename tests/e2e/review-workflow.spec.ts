@@ -1,8 +1,12 @@
 import { expect, test, type Page } from '@playwright/test';
-import { DEMO_TWO_LEAD_SCRIPT } from '../../apps/web/lib/demo-mode';
+import { DEMO_ROSTER, DEMO_TWO_LEAD_SCRIPT } from '../../apps/web/lib/demo-mode';
 
 test.beforeEach(async ({ page }) => {
   await page.addInitScript(() => {
+    window.localStorage.removeItem('rightsrader.demo.choice');
+    window.localStorage.removeItem('rightsrader.demo.lastScriptId');
+    window.localStorage.removeItem('rightsrader.demo.usedScriptIds');
+    window.localStorage.removeItem('rightsrader.activeMemberId');
     window.localStorage.setItem('rightsrader.demo.choice', 'self-serve');
   });
 });
@@ -10,7 +14,7 @@ test.beforeEach(async ({ page }) => {
 async function openCaseWorkspace(page: Page) {
   const title = `E2E Production ${Date.now()} ${Math.random().toString(16).slice(2)}`;
   const response = await page.request.post('http://127.0.0.1:8000/api/productions', {
-    data: { title, studio: 'RightsRadar Test Unit' }
+    data: { title, studio: 'RightsRadar Test Unit', roster: DEMO_ROSTER }
   });
   expect(response.ok()).toBeTruthy();
   await page.goto('/');
@@ -534,7 +538,7 @@ test('uploads a custom production icon and has no agent-run controls', async ({ 
   await expect(page.getByText('Run watch agent')).toHaveCount(0);
 });
 
-test('opens full case and finding details from the production overview', async ({ page }) => {
+test('opens a case desk and its findings from the user Inbox', async ({ page }) => {
   await openCaseWorkspace(page);
   await page
     .getByLabel('Script text')
@@ -542,21 +546,19 @@ test('opens full case and finding details from the production overview', async (
   await page.getByRole('button', { name: 'Analyze script' }).click();
   await page.getByRole('navigation').getByRole('button', { name: 'Overview' }).click();
 
-  const inventory = page.getByTestId('production-case-inventory');
-  await expect(inventory).toContainText('Nimbus Soda');
-  await inventory.getByRole('button', { name: /Untitled script review/ }).click();
+  const inbox = page.getByTestId('user-inbox');
+  await expect(inbox).toBeVisible();
+  await expect(page.getByTestId('signed-in-as')).toBeVisible();
+  await expect(page.getByTestId('all-cases-list')).toBeVisible();
 
-  const details = page.getByTestId('production-case-details');
-  await expect(details).toBeVisible();
-  await expect(details).toContainText('SOURCE MATERIAL');
-  await expect(details).toContainText('RESEARCH FINDINGS');
-  await expect(details).toContainText(
-    'The script names a fictional beverage brand'
+  const inboxCase = inbox.getByTestId('inbox-case-row').filter({ hasText: 'Nimbus Soda' });
+  await expect(inboxCase).toBeVisible();
+  await inboxCase.getByRole('button', { name: 'Open desk' }).click();
+
+  await expect(page.getByTestId('case-desk')).toBeVisible();
+  await expect(page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' })).toContainText(
+    'Pending'
   );
-  await expect(details).toContainText('HUMAN-READABLE SUMMARY');
-  await expect(details).toContainText('RAW PARALLEL EXTRACT');
-  await expect(details).toContainText('Mock search fixture');
-  await expect(details.getByRole('link')).toHaveAttribute('href', /nimbus-soda/);
 });
 
 test('runs a roster desk thread with stakeholder research and a human reply', async ({
