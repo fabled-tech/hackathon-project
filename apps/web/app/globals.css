@@ -46,6 +46,8 @@
   --shadow-press: 0 2px 0 #150a30;
 
   --animate-fade-up: fade-up 0.45s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-stamp-slam: stamp-slam 0.55s cubic-bezier(0.16, 1, 0.3, 1) both;
+  --animate-stakeholder-pop: stakeholder-pop 0.65s cubic-bezier(0.16, 1, 0.3, 1) both;
 
   @keyframes fade-up {
     from {
@@ -56,6 +58,48 @@
       opacity: 1;
       transform: translateY(0);
     }
+  }
+
+  @keyframes stamp-slam {
+    0% {
+      opacity: 0;
+      transform: scale(2.6) rotate(-22deg);
+      filter: blur(1px);
+    }
+    55% {
+      opacity: 1;
+      transform: scale(0.9) rotate(5deg);
+      filter: blur(0);
+    }
+    78% {
+      transform: scale(1.12) rotate(-3deg);
+    }
+    100% {
+      opacity: 1;
+      transform: scale(1) rotate(2deg);
+    }
+  }
+
+  @keyframes stakeholder-pop {
+    0% {
+      opacity: 0;
+      transform: translateY(8px) scale(0.96);
+    }
+    60% {
+      opacity: 1;
+      transform: translateY(-2px) scale(1.02);
+    }
+    100% {
+      opacity: 1;
+      transform: translateY(0) scale(1);
+    }
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .animate-stamp-slam,
+  .animate-stakeholder-pop {
+    animation: none !important;
   }
 }
 
