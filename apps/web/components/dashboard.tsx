@@ -60,6 +60,7 @@ import {
   readDemoChoice,
   writeDemoChoice
 } from '@/lib/demo-mode';
+import { readActiveMemberId } from '@/lib/inbox';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
@@ -283,6 +284,16 @@ export function Dashboard() {
   const workspaceRef = useRef<HTMLElement>(null);
 
   const activeProduction = productions.find((p) => p.id === activeProductionId) ?? null;
+  const [activeMemberId, setActiveMemberId] = useState('');
+
+  useEffect(() => {
+    const nextRoster = activeProduction?.roster ?? [];
+    if (nextRoster.length === 0) {
+      setActiveMemberId('');
+      return;
+    }
+    setActiveMemberId(readActiveMemberId(window.localStorage, nextRoster));
+  }, [activeProduction?.id]);
 
   const refreshProductions = useCallback(async () => {
     setError(null);
@@ -786,6 +797,7 @@ export function Dashboard() {
             key={openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`}
             productionId={activeProduction?.id}
             roster={activeProduction?.roster ?? []}
+            activeMemberId={activeMemberId}
             initialCase={openedCase}
             focusTour={coachOpen}
             onCaseCreated={() => {

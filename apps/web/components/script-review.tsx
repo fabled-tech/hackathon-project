@@ -56,10 +56,10 @@ function formatDateTime(value: string): string {
 }
 
 const STATUS_STYLES: Record<ReviewerStatus, string> = {
-  pending: 'border-ink text-ink',
-  dismissed: 'border-muted text-muted',
-  escalated: 'border-ink bg-accent-soft text-ink',
-  accepted: 'border-ink text-ink'
+  pending: 'border-ink text-ink bg-white',
+  dismissed: 'border-muted bg-lavender-pale text-muted',
+  escalated: 'border-accent bg-accent text-white shadow-[3px_3px_0_#150a30]',
+  accepted: 'border-ink bg-brand text-ink'
 };
 
 const STATUS_LABELS: Record<ReviewerStatus, string> = {
@@ -69,11 +69,22 @@ const STATUS_LABELS: Record<ReviewerStatus, string> = {
   accepted: '✓ Cleared'
 };
 
-function StatusStamp({ status }: { status: ReviewerStatus }) {
+function StatusStamp({
+  status,
+  animate = false
+}: {
+  status: ReviewerStatus;
+  animate?: boolean;
+}) {
   return (
-    <span className="inline-block rotate-2 shrink-0">
+    <span
+      className={`inline-block shrink-0 ${animate ? 'animate-stamp-slam' : 'rotate-2'}`}
+      data-testid="status-stamp"
+      data-status={status}
+      data-animate={animate ? 'true' : 'false'}
+    >
       <span
-        className={`inline-flex items-center border px-2.5 py-1 font-display text-[10px] uppercase ${
+        className={`inline-flex items-center border-2 px-2.5 py-1 font-display text-[10px] uppercase ${
           STATUS_STYLES[status] ?? STATUS_STYLES.pending
         }`}
       >
@@ -379,6 +390,58 @@ function AgentAvatar({
     >
       <Icon className={iconClass} strokeWidth={2.25} />
     </span>
+  );
+}
+
+function FindingStakeholders({
+  finding,
+  roster,
+  emphasize = false,
+  animate = false
+}: {
+  finding: Finding;
+  roster: ProductionMember[];
+  emphasize?: boolean;
+  animate?: boolean;
+}) {
+  const members = (finding.stakeholder_ids ?? [])
+    .map((id) => roster.find((member) => member.id === id))
+    .filter((member): member is ProductionMember => Boolean(member));
+  if (members.length === 0) return null;
+
+  if (emphasize) {
+    return (
+      <div
+        className={`mt-3 border-2 border-accent bg-accent-soft p-3 shadow-[4px_4px_0_#ff2e9a] ${
+          animate ? 'animate-stakeholder-pop' : ''
+        }`}
+        data-testid="research-stakeholders"
+        data-emphasized="true"
+      >
+        <p className="font-pixel text-[8px] tracking-[0.16px] text-accent-strong">
+          ESCALATED TO THESE HUMANS
+        </p>
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {members.map((member) => (
+            <li
+              key={member.id}
+              className="inline-flex items-center gap-1.5 border-2 border-ink bg-white px-2 py-1 text-ink"
+            >
+              <HumanAvatar name={member.name} size="sm" />
+              <span className="font-display text-[10px] uppercase">{member.name}</span>
+              <span className="font-pixel text-[6px] text-accent-strong">{member.role}</span>
+            </li>
+          ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <p className="mt-1 text-[10px] text-lavender-soft" data-testid="research-stakeholders">
+      Research stakeholders:{' '}
+      {members.map((member) => member.name).join(', ')}
+    </p>
   );
 }
 
@@ -714,12 +777,14 @@ function CaseDesk({
 export function ScriptReview({
   productionId,
   roster = [],
+  activeMemberId,
   onCaseCreated,
   initialCase = null,
   focusTour = false
 }: {
   productionId?: string;
   roster?: ProductionMember[];
+  activeMemberId?: string;
   onCaseCreated?: () => void;
   initialCase?: Case | null;
   focusTour?: boolean;
@@ -739,9 +804,13 @@ export function ScriptReview({
   const [isLoadingCaseId, setIsLoadingCaseId] = useState<string | null>(null);
   const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [actingMemberId, setActingMemberId] = useState(roster[0]?.id ?? '');
+  const [actingMemberId, setActingMemberId] = useState(
+    activeMemberId || roster.find((m) => m.role === 'clearance')?.id || roster[0]?.id || ''
+  );
   const [deskReply, setDeskReply] = useState('');
   const [isReplying, setIsReplying] = useState(false);
+  const [stampBurstId, setStampBurstId] = useState<string | null>(null);
+  const stampBurstTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analysisFileInputRef = useRef<HTMLInputElement>(null);
   const caseOperationGeneration = useRef(0);
@@ -750,6 +819,12 @@ export function ScriptReview({
   const uploadGeneration = useRef(0);
   const fileAnalysisGeneration = useRef(0);
   const caseLoadingGeneration = useRef(0);
+
+  useEffect(() => {
+    if (activeMemberId && roster.some((member) => member.id === activeMemberId)) {
+      setActingMemberId(activeMemberId);
+    }
+  }, [activeMemberId, roster]);
 
   useEffect(() => {
     if (roster.length > 0 && !roster.some((member) => member.id === actingMemberId)) {
@@ -926,9 +1001,24 @@ export function ScriptReview({
       );
       const nextCase = await getCase(caseResult.id, API_BASE_URL);
       setCaseResult(nextCase);
-      document
-        .querySelector('[data-testid="case-desk"]')
-        ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (stampBurstTimer.current) {
+        clearTimeout(stampBurstTimer.current);
+      }
+      setStampBurstId(finding.id);
+      stampBurstTimer.current = setTimeout(() => {
+        setStampBurstId((current) => (current === finding.id ? null : current));
+      }, 900);
+      const card = document.querySelector(
+        `[data-testid="finding-card"][data-finding-id="${finding.id}"]`
+      );
+      card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (reviewerStatus === 'escalated') {
+        window.setTimeout(() => {
+          document
+            .querySelector('[data-testid="case-desk"]')
+            ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 650);
+      }
     } catch {
       setError('The reviewer status could not be saved. Please try again.');
     } finally {
@@ -988,36 +1078,22 @@ export function ScriptReview({
           }`}
         >
           <div className="min-w-0 space-y-4">
-            {caseResult && !focusTour ? (
-              <div className="animate-fade-up">
-                <AgentPipeline status={agentWorkflowStatus} result={caseResult} />
-              </div>
-            ) : null}
-            <div
-              className={`grid items-start gap-4 ${
-                caseResult ? 'lg:grid-cols-[minmax(20rem,1fr)_minmax(18rem,1fr)]' : ''
-              }`}
-            >
-            <div className="animate-fade-up min-w-0">
-              <PixelLabel>{caseResult ? '01 · Case desk' : '01 · Intake & desk'}</PixelLabel>
+            <div className="animate-fade-up min-w-0" data-testid="user-input-section">
+              <PixelLabel>
+                {caseResult ? '00 · Your input' : '01 · Intake & desk'}
+              </PixelLabel>
               <div className="mt-2 space-y-3">
-                  {caseResult ? (
-                    <CaseDesk
-                      result={caseResult}
-                      roster={roster}
-                      actingMemberId={actingMemberId}
-                      onActingMemberId={setActingMemberId}
-                      reply={deskReply}
-                      onReplyChange={setDeskReply}
-                      onReply={() => void postDeskReply()}
-                      isReplying={isReplying}
-                      onChangeStatus={changeStatus}
-                      updatingFindingId={updatingFindingId}
-                    />
-                  ) : null}
-                {focusTour && caseResult ? null : (
                 <Panel>
-                  {!caseResult ? (
+                  {caseResult ? (
+                    <div className="mb-3 border-2 border-brand/50 bg-brand/10 px-3 py-2">
+                      <p className="font-pixel text-[8px] tracking-[0.16px] text-brand">
+                        FILED SCENE · WHAT THE AGENTS READ
+                      </p>
+                      {caseResult.title ? (
+                        <p className="mt-1 font-display text-sm text-paper">{caseResult.title}</p>
+                      ) : null}
+                    </div>
+                  ) : (
                     <>
                       <p className="font-display text-lg text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4]">
                         RightsRadar
@@ -1027,7 +1103,7 @@ export function ScriptReview({
                         decide on the same thread.
                       </p>
                     </>
-                  ) : null}
+                  )}
 
                   <aside
                     className={`${caseResult ? 'mt-0' : 'mt-4'} border border-warn-line bg-warn-bg p-3.5 text-[11px] leading-[17px] text-lavender-soft`}
@@ -1049,14 +1125,14 @@ export function ScriptReview({
                       htmlFor="script-text"
                       className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
                     >
-                      Script text
+                      {caseResult ? 'Script the agents analyzed' : 'Script text'}
                     </label>
                     <textarea
                       id="script-text"
                       name="script-text"
                       value={scriptText}
                       onChange={(event) => setScriptText(event.target.value)}
-                      rows={caseResult ? 4 : 8}
+                      rows={caseResult ? 6 : 8}
                       maxLength={20_000}
                       required
                       placeholder="Paste a script excerpt to scan for rights-clearance research leads…"
@@ -1071,6 +1147,8 @@ export function ScriptReview({
                           <>
                             <Spinner /> Analyzing…
                           </>
+                        ) : caseResult ? (
+                          '▶ Re-analyze script'
                         ) : (
                           '▶ Analyze script'
                         )}
@@ -1123,13 +1201,39 @@ export function ScriptReview({
                       </div>
                     </form>
                   ) : null}
-                  {!caseResult ? (
-                    <AgentPipeline status={agentWorkflowStatus} result={caseResult} />
-                  ) : null}
                 </Panel>
+
+                {caseResult ? (
+                  <AgentPipeline status={agentWorkflowStatus} result={caseResult} />
+                ) : (
+                  <AgentPipeline status={agentWorkflowStatus} result={caseResult} />
                 )}
               </div>
             </div>
+
+            {caseResult ? (
+              <div
+                className={`grid items-start gap-4 ${
+                  caseResult ? 'lg:grid-cols-[minmax(20rem,1fr)_minmax(18rem,1fr)]' : ''
+                }`}
+              >
+                <div className="animate-fade-up min-w-0">
+                  <PixelLabel>01 · Case desk</PixelLabel>
+                  <div className="mt-2">
+                    <CaseDesk
+                      result={caseResult}
+                      roster={roster}
+                      actingMemberId={actingMemberId}
+                      onActingMemberId={setActingMemberId}
+                      reply={deskReply}
+                      onReplyChange={setDeskReply}
+                      onReply={() => void postDeskReply()}
+                      isReplying={isReplying}
+                      onChangeStatus={changeStatus}
+                      updatingFindingId={updatingFindingId}
+                    />
+                  </div>
+                </div>
 
             {error ? (
               <p
@@ -1169,10 +1273,22 @@ export function ScriptReview({
                             a clearance conclusion.
                           </p>
                         ) : (
-                          caseResult.findings.map((finding, findingIndex) => (
+                          caseResult.findings.map((finding, findingIndex) => {
+                            const isEscalated = finding.reviewer_status === 'escalated';
+                            const isDismissed = finding.reviewer_status === 'dismissed';
+                            const justStamped = stampBurstId === finding.id;
+                            return (
                             <article
-                              className="border-2 border-ink bg-exhibit p-[18px] shadow-pop"
+                              className={`border-2 bg-exhibit p-[18px] transition ${
+                                isEscalated
+                                  ? 'border-accent shadow-[5px_5px_0_#ff2e9a]'
+                                  : isDismissed
+                                    ? 'border-muted opacity-80 shadow-none'
+                                    : 'border-ink shadow-pop'
+                              }`}
                               data-testid="finding-card"
+                              data-finding-id={finding.id}
+                              data-reviewer-status={finding.reviewer_status}
                               key={finding.id}
                             >
                               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -1181,7 +1297,11 @@ export function ScriptReview({
                                   <br />
                                   {finding.category.replace(/_/g, ' ')}
                                 </span>
-                                <StatusStamp status={finding.reviewer_status} />
+                                <StatusStamp
+                                  key={`${finding.id}-${finding.reviewer_status}-${justStamped ? 'burst' : 'idle'}`}
+                                  status={finding.reviewer_status}
+                                  animate={justStamped && finding.reviewer_status !== 'pending'}
+                                />
                               </div>
                               <h3 className="mt-2 font-display text-base leading-[21.6px] text-ink">
                                 {finding.detected_item}
@@ -1189,18 +1309,12 @@ export function ScriptReview({
                               <p className="mt-1.5 text-[11.5px] leading-[17.83px] text-ink-soft">
                                 {finding.explanation}
                               </p>
-                              {finding.stakeholder_ids?.length ? (
-                                <p
-                                  className="mt-1 text-[10px] text-lavender-soft"
-                                  data-testid="research-stakeholders"
-                                >
-                                  Research stakeholders:{' '}
-                                  {finding.stakeholder_ids
-                                    .map((id) => roster.find((member) => member.id === id)?.name)
-                                    .filter(Boolean)
-                                    .join(', ') || 'roster'}
-                                </p>
-                              ) : null}
+                              <FindingStakeholders
+                                finding={finding}
+                                roster={roster}
+                                emphasize={isEscalated}
+                                animate={justStamped && isEscalated}
+                              />
                               <div className="mt-2.5 flex flex-wrap gap-1.5">
                                 <span className="border border-ink bg-white px-2 py-0.5 text-[10.5px] font-bold text-ink">
                                   {Math.round(finding.confidence * 100)}% match
@@ -1254,7 +1368,8 @@ export function ScriptReview({
                                 </div>
                               </div>
                             </article>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     </Panel>
@@ -1369,6 +1484,7 @@ export function ScriptReview({
               </div>
             ) : null}
             </div>
+            ) : null}
 
             {caseResult && !focusTour ? (
               <div className="animate-fade-up">
