@@ -40,6 +40,24 @@ class AgentService(Protocol):
         roster: Sequence[ProductionMember] = (),
     ) -> list[Finding]: ...
 
+    async def analyze_desk(
+        self,
+        case_id: str,
+        script_text: str,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
+    ) -> AnalysisDeskResult: ...
+
+    async def analyze_file_desk(
+        self,
+        case_id: str,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
+    ) -> AnalysisDeskResult: ...
+
 
 def _contains_ignored_phrase(detected_item: str, ignored_keywords: Sequence[str]) -> bool:
     normalized_item = detected_item.casefold()

@@ -56,13 +56,9 @@ async def _analyze_desk(
     ignored_keywords: list[str],
     roster: list[ProductionMember],
 ) -> AnalysisDeskResult:
-    analyze_desk = getattr(services.agent_service, "analyze_desk", None)
-    if analyze_desk is not None:
-        return await analyze_desk(case_id, script_text, ignored_keywords, roster)
-    findings = await services.agent_service.analyze(
+    return await services.agent_service.analyze_desk(
         case_id, script_text, ignored_keywords, roster
     )
-    return AnalysisDeskResult(findings=findings, thread=[], tool_calls=[])
 
 
 async def _analyze_file_desk(
@@ -74,15 +70,9 @@ async def _analyze_file_desk(
     ignored_keywords: list[str],
     roster: list[ProductionMember],
 ) -> AnalysisDeskResult:
-    analyze_file_desk = getattr(services.agent_service, "analyze_file_desk", None)
-    if analyze_file_desk is not None:
-        return await analyze_file_desk(
-            case_id, filename, content_type, content, ignored_keywords, roster
-        )
-    findings = await services.agent_service.analyze_file(
+    return await services.agent_service.analyze_file_desk(
         case_id, filename, content_type, content, ignored_keywords, roster
     )
-    return AnalysisDeskResult(findings=findings, thread=[], tool_calls=[])
 
 
 async def _delete_asset_after_increment_failure(

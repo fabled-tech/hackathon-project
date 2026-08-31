@@ -4,6 +4,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from app.agents.service import AnalysisDeskResult
 from app.dependencies import ApplicationServices
 from app.errors import AnalysisProviderError
 from app.models import Finding
@@ -25,6 +26,42 @@ class FailingAgentService:
         del roster
         raise AnalysisProviderError("secret provider detail")
 
+    async def analyze_desk(
+        self,
+        case_id: str,
+        script_text: str,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[object] = (),
+    ) -> AnalysisDeskResult:
+        await self.analyze(case_id, script_text, ignored_keywords, roster)
+        raise AssertionError("unreachable")
+
+    async def analyze_file(
+        self,
+        case_id: str,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[object] = (),
+    ) -> list[Finding]:
+        del case_id, filename, content_type, content, ignored_keywords, roster
+        raise AnalysisProviderError("secret provider detail")
+
+    async def analyze_file_desk(
+        self,
+        case_id: str,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[object] = (),
+    ) -> AnalysisDeskResult:
+        await self.analyze_file(
+            case_id, filename, content_type, content, ignored_keywords, roster
+        )
+        raise AssertionError("unreachable")
+
 
 class ClosableAgentService:
     def __init__(self) -> None:
@@ -42,6 +79,42 @@ class ClosableAgentService:
         del ignored_keywords
         del roster
         return []
+
+    async def analyze_desk(
+        self,
+        case_id: str,
+        script_text: str,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[object] = (),
+    ) -> AnalysisDeskResult:
+        findings = await self.analyze(case_id, script_text, ignored_keywords, roster)
+        return AnalysisDeskResult(findings=findings, thread=[], tool_calls=[])
+
+    async def analyze_file(
+        self,
+        case_id: str,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[object] = (),
+    ) -> list[Finding]:
+        del case_id, filename, content_type, content, ignored_keywords, roster
+        return []
+
+    async def analyze_file_desk(
+        self,
+        case_id: str,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[object] = (),
+    ) -> AnalysisDeskResult:
+        findings = await self.analyze_file(
+            case_id, filename, content_type, content, ignored_keywords, roster
+        )
+        return AnalysisDeskResult(findings=findings, thread=[], tool_calls=[])
 
     async def aclose(self) -> None:
         self.closed = True
