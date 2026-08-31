@@ -278,25 +278,27 @@ export function Dashboard() {
   const [newStudio, setNewStudio] = useState('');
   const [newRoster, setNewRoster] = useState<ProductionMemberInput[]>(DEMO_ROSTER);
   const [error, setError] = useState<string | null>(null);
-  const [gateOpen, setGateOpen] = useState(false);
+  const [gateOpen, setGateOpen] = useState(() => !readDemoChoice());
   const [coachOpen, setCoachOpen] = useState(false);
   const [walkthroughBusy, setWalkthroughBusy] = useState(false);
   const [openedCase, setOpenedCase] = useState<Case | null>(null);
+  const [memberPick, setMemberPick] = useState<string | null>(null);
   const workspaceRef = useRef<HTMLElement>(null);
 
   const activeProduction = productions.find((p) => p.id === activeProductionId) ?? null;
   const roster = activeProduction?.roster ?? [];
-  const [activeMemberId, setActiveMemberId] = useState('');
-  const inboxCases = inboxCasesForMember(productionCases, activeMemberId);
-
-  useEffect(() => {
+  const activeMemberId = useMemo(() => {
     const nextRoster = activeProduction?.roster ?? [];
-    if (nextRoster.length === 0) {
-      setActiveMemberId('');
-      return;
+    if (nextRoster.length === 0) return '';
+    if (memberPick && nextRoster.some((member) => member.id === memberPick)) {
+      return memberPick;
     }
-    setActiveMemberId(readActiveMemberId(window.localStorage, nextRoster));
-  }, [activeProduction?.id]);
+    return readActiveMemberId(
+      typeof window === 'undefined' ? { getItem: () => null } : window.localStorage,
+      nextRoster
+    );
+  }, [activeProduction?.id, activeProduction?.roster, memberPick]);
+  const inboxCases = inboxCasesForMember(productionCases, activeMemberId);
 
   const refreshProductions = useCallback(async () => {
     setError(null);
@@ -371,34 +373,25 @@ export function Dashboard() {
     }
   }, []);
 
-  const removeCase = useCallback(
-    async (caseId: string, title: string) => {
-      if (!window.confirm(`Remove case “${title}” from this production?`)) {
-        return;
-      }
-      setError(null);
-      try {
-        await deleteCase(caseId, API_BASE_URL);
-        if (openedCase?.id === caseId) {
-          setOpenedCase(null);
-          setView({ kind: 'overview' });
-        }
-        if (activeProductionId) {
-          await refreshProductionCases(activeProductionId);
-        }
-        await refreshProductions();
-      } catch {
-        setError('Could not remove that case.');
-      }
-    },
-    [activeProductionId, openedCase?.id, refreshProductionCases, refreshProductions]
-  );
-
-  useEffect(() => {
-    if (!readDemoChoice()) {
-      setGateOpen(true);
+  async function removeCase(caseId: string, title: string) {
+    if (!window.confirm(`Remove case “${title}” from this production?`)) {
+      return;
     }
-  }, []);
+    setError(null);
+    try {
+      await deleteCase(caseId, API_BASE_URL);
+      if (openedCase?.id === caseId) {
+        setOpenedCase(null);
+        setView({ kind: 'overview' });
+      }
+      if (activeProductionId) {
+        await refreshProductionCases(activeProductionId);
+      }
+      await refreshProductions();
+    } catch {
+      setError('Could not remove that case.');
+    }
+  }
 
   const chooseSelfServe = useCallback(() => {
     writeDemoChoice('self-serve');
@@ -799,7 +792,7 @@ export function Dashboard() {
           />
         ) : view.kind === 'case' || !activeProduction ? (
           <ScriptReview
-            key={openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`}
+            key={`${openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`}-${activeMemberId}`}
             productionId={activeProduction?.id}
             roster={activeProduction?.roster ?? []}
             activeMemberId={activeMemberId}
@@ -891,7 +884,7 @@ export function Dashboard() {
                       value={activeMemberId}
                       onChange={(event) => {
                         const next = event.target.value;
-                        setActiveMemberId(next);
+                        setMemberPick(next);
                         writeActiveMemberId(window.localStorage, next);
                       }}
                       className="border-2 border-ink bg-white px-2 py-1.5 font-display text-[9px] text-ink"
@@ -1070,7 +1063,7 @@ export function Dashboard() {
         onWalkthrough={() => void runWalkthrough()}
         onSelfServe={chooseSelfServe}
       />
-      <DemoCoach open={coachOpen} onDismiss={() => setCoachOpen(false)} />
+      {coachOpen ? <DemoCoach onDismiss={() => setCoachOpen(false)} /> : null}
     </div>
   );
 }

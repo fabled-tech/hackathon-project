@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { useLayoutEffect, useRef, useState } from 'react';
 import {
   readElementRect,
   spotlightPads,
@@ -42,28 +42,14 @@ function currentViewport() {
   return { width: window.innerWidth, height: window.innerHeight };
 }
 
-export function DemoCoach({
-  open,
-  onDismiss
-}: {
-  open: boolean;
-  onDismiss: () => void;
-}) {
+/** Mount only while the tour is open so step state resets without an effect. */
+export function DemoCoach({ onDismiss }: { onDismiss: () => void }) {
   const [stepIndex, setStepIndex] = useState(0);
   const [pads, setPads] = useState<Pads | null>(null);
   const [cardPos, setCardPos] = useState({ top: 24, left: 24 });
   const cardRef = useRef<HTMLElement | null>(null);
 
-  useEffect(() => {
-    if (!open) {
-      setStepIndex(0);
-      setPads(null);
-    }
-  }, [open]);
-
   useLayoutEffect(() => {
-    if (!open) return;
-
     const place = () => {
       const step = DEMO_TOUR_STEPS[stepIndex];
       const target = document.querySelector(`[data-testid="${step.target}"]`);
@@ -94,9 +80,7 @@ export function DemoCoach({
       window.removeEventListener('resize', place);
       window.removeEventListener('scroll', place, true);
     };
-  }, [open, stepIndex]);
-
-  if (!open) return null;
+  }, [stepIndex]);
 
   const step = DEMO_TOUR_STEPS[stepIndex];
   const isLast = stepIndex === DEMO_TOUR_STEPS.length - 1;

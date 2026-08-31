@@ -8,8 +8,8 @@ from typing import Protocol
 from app.agents.curation import CurationAgent
 from app.agents.intake import IntakeAgent
 from app.agents.research import ResearchAgent
-from app.integrations import GeminiClient, ParallelSearchClient
 from app.agents.trace import ToolCallRecorder
+from app.integrations import GeminiClient, ParallelSearchClient
 from app.models import CaseThreadMessage, Finding, ProductionMember, ToolCallEvent
 from app.models.analysis import GeminiSignal
 

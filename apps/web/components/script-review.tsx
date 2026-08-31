@@ -806,9 +806,20 @@ export function ScriptReview({
   const [isLoadingCaseId, setIsLoadingCaseId] = useState<string | null>(null);
   const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [actingMemberId, setActingMemberId] = useState(
-    activeMemberId || roster.find((m) => m.role === 'clearance')?.id || roster[0]?.id || ''
-  );
+  const rosterDefaultId =
+    roster.find((member) => member.role === 'clearance')?.id || roster[0]?.id || '';
+  const [speakAsOverride, setSpeakAsOverride] = useState<string | null>(null);
+  const actingMemberId =
+    (speakAsOverride && roster.some((member) => member.id === speakAsOverride)
+      ? speakAsOverride
+      : null) ??
+    (activeMemberId && roster.some((member) => member.id === activeMemberId)
+      ? activeMemberId
+      : null) ??
+    rosterDefaultId;
+  const setActingMemberId = (memberId: string) => {
+    setSpeakAsOverride(memberId);
+  };
   const [deskReply, setDeskReply] = useState('');
   const [isReplying, setIsReplying] = useState(false);
   const [stampBurstId, setStampBurstId] = useState<string | null>(null);
@@ -821,18 +832,6 @@ export function ScriptReview({
   const uploadGeneration = useRef(0);
   const fileAnalysisGeneration = useRef(0);
   const caseLoadingGeneration = useRef(0);
-
-  useEffect(() => {
-    if (activeMemberId && roster.some((member) => member.id === activeMemberId)) {
-      setActingMemberId(activeMemberId);
-    }
-  }, [activeMemberId, roster]);
-
-  useEffect(() => {
-    if (roster.length > 0 && !roster.some((member) => member.id === actingMemberId)) {
-      setActingMemberId(roster[0]?.id ?? '');
-    }
-  }, [actingMemberId, roster]);
 
   async function submitScript(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
