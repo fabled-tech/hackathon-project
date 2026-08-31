@@ -6,14 +6,23 @@ from uuid import uuid4
 from fastapi import APIRouter, File, HTTPException, Request, Response, UploadFile, status
 from starlette.concurrency import run_in_threadpool
 
+from app.agents.messages import human_message
 from app.dependencies import ApplicationServices
 from app.file_validation import content_matches_type
-from app.models import Case, Finding, FindingComment, Production, ProductionSummary
+from app.models import (
+    Case,
+    Finding,
+    FindingComment,
+    Production,
+    ProductionMember,
+    ProductionSummary,
+)
 from app.models.requests import (
     ALLOWED_PRODUCTION_ICON_CONTENT_TYPES,
     MAX_PRODUCTION_ICON_BYTES,
     CreateFindingCommentRequest,
     CreateProductionRequest,
+    ProductionMemberInput,
     UpdateFindingMetaRequest,
     UpdateProductionRequest,
 )
@@ -32,6 +41,18 @@ def _services(request: Request) -> ApplicationServices:
     return request.app.state.services  # type: ignore[no-any-return]
 
 
+def _members_from_input(entries: list[ProductionMemberInput]) -> list[ProductionMember]:
+    return [
+        ProductionMember(
+            id=str(uuid4()),
+            name=entry.name,
+            role=entry.role,
+            email=entry.email,
+        )
+        for entry in entries
+    ]
+
+
 @router.post("", response_model=Production, status_code=status.HTTP_201_CREATED)
 def create_production(payload: CreateProductionRequest, request: Request) -> Production:
     production = Production(
@@ -40,6 +61,7 @@ def create_production(payload: CreateProductionRequest, request: Request) -> Pro
         studio=payload.studio,
         status=payload.status,
         icon=payload.icon,
+        roster=_members_from_input(payload.roster),
         created_at=datetime.now(UTC),
     )
     return _services(request).production_repository.create(production)
@@ -80,6 +102,7 @@ def update_production(
             status=payload.status,
             icon=payload.icon,
             ignore_keywords=payload.ignore_keywords,
+            roster=_members_from_input(payload.roster) if payload.roster is not None else None,
             clear_custom_icon=payload.icon is not None,
         )
     except ProductionRepositoryNotFound as error:
@@ -264,13 +287,34 @@ def update_finding_meta(
         raise HTTPException(status_code=404, detail="Production not found") from error
     _assert_case_belongs_to_production(services, production_id, case_id)
     try:
-        return services.case_repository.update_finding_meta(
+        finding = services.case_repository.update_finding_meta(
             case_id, finding_id, assignee=payload.assignee, due_date=payload.due_date
         )
     except CaseRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Case not found") from error
     except FindingNotFound as error:
         raise HTTPException(status_code=404, detail="Finding not found") from error
+    if payload.actor_member_id:
+        production = services.production_repository.get(production_id)
+        actor = next(
+            (member for member in production.roster if member.id == payload.actor_member_id),
+            None,
+        )
+        if actor is not None:
+            assignee_note = f" → {payload.assignee}" if payload.assignee else ""
+            services.case_repository.add_thread_message(
+                case_id,
+                human_message(
+                    case_id,
+                    actor.id,
+                    (
+                        f"{actor.name} ({actor.role.value}) assigned "
+                        f"{finding.detected_item}{assignee_note}."
+                    ),
+                    finding_id=finding_id,
+                ),
+            )
+    return finding
 
 
 @router.post(

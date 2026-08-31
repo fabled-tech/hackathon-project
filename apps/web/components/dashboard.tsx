@@ -1,19 +1,24 @@
 'use client';
 
 import {
+  createCase,
   createProduction,
+  deleteCase,
+  deleteProduction,
   deleteProductionIcon,
+  getCase,
   listProductionCases,
   listProductions,
   uploadProductionIcon,
   updateProduction,
   type Case,
+  type ProductionMemberInput,
   type ProductionStatus,
-  type ProductionSummary
+  type ProductionSummary,
+  type WorkspaceRole
 } from '@rightsrader/api-client';
 import {
   Briefcase,
-  ChevronRight,
   Clapperboard,
   FileSearch,
   Film,
@@ -39,9 +44,31 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  useSyncExternalStore
 } from 'react';
+import { DemoCoach } from './demo-coach';
+import { DemoGate } from './demo-gate';
 import { ScriptReview } from './script-review';
+import {
+  DEMO_MATRIX_SCRIPT,
+  DEMO_PRODUCTION_TITLE,
+  DEMO_ROSTER,
+  duplicateCaseIdsToRemove,
+  getDemoChoiceServerSnapshot,
+  missingFeaturedDemoScripts,
+  normalizeDemoScript,
+  readDemoChoice,
+  subscribeDemoChoice,
+  writeDemoChoice
+} from '@/lib/demo-mode';
+import { DEMO_REVEAL_BY_STEP, type DemoRevealStage } from '@/lib/demo-reveal';
+import {
+  inboxCasesForMember,
+  pendingFindingsForMember,
+  readActiveMemberId,
+  writeActiveMemberId
+} from '@/lib/inbox';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
@@ -235,6 +262,8 @@ function AnimatedNumber({ value }: { value: number }) {
   return <>{displayValue}</>;
 }
 
+const ROLE_OPTIONS: WorkspaceRole[] = ['clearance', 'production', 'legal'];
+
 type View =
   | { kind: 'home' }
   | { kind: 'case' }
@@ -251,23 +280,101 @@ export function Dashboard() {
   const [showNewProduction, setShowNewProduction] = useState(false);
   const [newTitle, setNewTitle] = useState('');
   const [newStudio, setNewStudio] = useState('');
+  const [newRoster, setNewRoster] = useState<ProductionMemberInput[]>(DEMO_ROSTER);
   const [error, setError] = useState<string | null>(null);
-  const [selectedProductionCaseId, setSelectedProductionCaseId] = useState<string | null>(
-    null
+  const storedDemoChoice = useSyncExternalStore(
+    subscribeDemoChoice,
+    readDemoChoice,
+    getDemoChoiceServerSnapshot
   );
+  /** Demo control / walkthrough errors can reopen the gate even after a stored choice. */
+  const [gateForcedOpen, setGateForcedOpen] = useState(false);
+  const gateOpen = gateForcedOpen || storedDemoChoice === null;
+  const [coachOpen, setCoachOpen] = useState(false);
+  const [walkthroughBusy, setWalkthroughBusy] = useState(false);
+  const [openedCase, setOpenedCase] = useState<Case | null>(null);
+  const [demoFullCase, setDemoFullCase] = useState<Case | null>(null);
+  const [demoStep, setDemoStep] = useState(0);
+  const [memberPick, setMemberPick] = useState<string | null>(null);
+  const demoRevealStage: DemoRevealStage | null = coachOpen
+    ? (DEMO_REVEAL_BY_STEP[demoStep] ?? 'human')
+    : null;
   const workspaceRef = useRef<HTMLElement>(null);
 
   const activeProduction = productions.find((p) => p.id === activeProductionId) ?? null;
+  const roster = activeProduction?.roster ?? [];
+  const activeMemberId = (() => {
+    if (roster.length === 0) return '';
+    if (memberPick && roster.some((member) => member.id === memberPick)) {
+      return memberPick;
+    }
+    return readActiveMemberId(
+      typeof window === 'undefined' ? { getItem: () => null } : window.localStorage,
+      roster
+    );
+  })();
+  const inboxCases = inboxCasesForMember(productionCases, activeMemberId);
 
   const refreshProductions = useCallback(async () => {
     setError(null);
     try {
       const list = await listProductions(API_BASE_URL);
       setProductions(list);
-      setActiveProductionId((current) => current ?? (list[0]?.id ?? null));
+      setActiveProductionId((current) => {
+        if (current && list.some((item) => item.id === current)) return current;
+        return list[0]?.id ?? null;
+      });
     } catch {
       setError('Could not load productions.');
     }
+  }, []);
+
+  const removeProduction = useCallback(
+    async (production: ProductionSummary) => {
+      if (
+        !window.confirm(
+          `Remove “${production.title}” from the desk? This does not affect other productions.`
+        )
+      ) {
+        return;
+      }
+      setError(null);
+      setProductions((current) => current.filter((item) => item.id !== production.id));
+      if (activeProductionId === production.id) {
+        setOpenedCase(null);
+        setActiveProductionId(null);
+        setView({ kind: 'home' });
+      }
+      try {
+        await deleteProduction(production.id, API_BASE_URL);
+      } catch {
+        // Older empty-204 clients threw after a successful delete; refresh is authoritative.
+      }
+      try {
+        const list = await listProductions(API_BASE_URL);
+        setProductions(list);
+        if (list.some((item) => item.id === production.id)) {
+          setError('Could not remove that production.');
+        }
+      } catch {
+        setError('Could not remove that production.');
+      }
+    },
+    [activeProductionId]
+  );
+
+  const ensureFeaturedDemoCases = useCallback(async (productionId: string, existing: Case[]) => {
+    const missing = missingFeaturedDemoScripts(existing);
+    if (missing.length === 0) {
+      return existing;
+    }
+    for (const sample of missing) {
+      await createCase(
+        { script_text: sample.script, production_id: productionId, title: sample.title },
+        API_BASE_URL
+      );
+    }
+    return listProductionCases(productionId, API_BASE_URL);
   }, []);
 
   const refreshProductionCases = useCallback(async (productionId: string) => {
@@ -280,6 +387,102 @@ export function Dashboard() {
       setIsLoadingProductionCases(false);
     }
   }, []);
+
+  async function removeCase(caseId: string, title: string) {
+    if (!window.confirm(`Remove case “${title}” from this production?`)) {
+      return;
+    }
+    setError(null);
+    try {
+      await deleteCase(caseId, API_BASE_URL);
+      if (openedCase?.id === caseId) {
+        setOpenedCase(null);
+        setView({ kind: 'overview' });
+      }
+      if (activeProductionId) {
+        await refreshProductionCases(activeProductionId);
+      }
+      await refreshProductions();
+    } catch {
+      setError('Could not remove that case.');
+    }
+  }
+
+  const chooseSelfServe = useCallback(() => {
+    writeDemoChoice('self-serve');
+    setGateForcedOpen(false);
+    setCoachOpen(false);
+  }, []);
+
+  const runWalkthrough = useCallback(async () => {
+    writeDemoChoice('walkthrough');
+    setWalkthroughBusy(true);
+    setError(null);
+    try {
+      const list = await listProductions(API_BASE_URL);
+      let production = list.find((item) => item.title === DEMO_PRODUCTION_TITLE) ?? null;
+      if (!production) {
+        production = await createProduction(
+          {
+            title: DEMO_PRODUCTION_TITLE,
+            studio: 'RightsRadar Demo Unit',
+            roster: DEMO_ROSTER
+          },
+          API_BASE_URL
+        );
+      }
+      const sample = DEMO_MATRIX_SCRIPT;
+      const existingCases = await listProductionCases(production.id, API_BASE_URL);
+      const extras = duplicateCaseIdsToRemove(existingCases);
+      if (extras.length > 0) {
+        await Promise.all(extras.map((caseId) => deleteCase(caseId, API_BASE_URL)));
+      }
+      const uniqueCases =
+        extras.length > 0
+          ? await listProductionCases(production.id, API_BASE_URL)
+          : existingCases;
+      const deskCases = await ensureFeaturedDemoCases(production.id, uniqueCases);
+      const reusable = deskCases.find(
+        (item) => normalizeDemoScript(item.script_text) === normalizeDemoScript(sample.script)
+      );
+      const nextCase = reusable
+        ? await getCase(reusable.id, API_BASE_URL)
+        : await createCase(
+            {
+              script_text: sample.script,
+              production_id: production.id,
+              title: sample.title
+            },
+            API_BASE_URL
+          );
+      await refreshProductions();
+      if (activeProductionId === production.id) {
+        await refreshProductionCases(production.id);
+      }
+      setActiveProductionId(production.id);
+      // Hold the finished case off-screen; coach Next reveals Intake → Research → Curation.
+      setDemoFullCase(nextCase);
+      setOpenedCase(null);
+      setDemoStep(0);
+      setView({ kind: 'case' });
+      setGateForcedOpen(false);
+      setCoachOpen(true);
+    } catch {
+      setError('Could not open the sample case. Use Demo to try again, or work the desk yourself.');
+      setGateForcedOpen(true);
+    } finally {
+      setWalkthroughBusy(false);
+    }
+  }, [activeProductionId, ensureFeaturedDemoCases, refreshProductionCases, refreshProductions]);
+
+  const endWalkthrough = useCallback(() => {
+    setCoachOpen(false);
+    if (demoFullCase) {
+      setOpenedCase(demoFullCase);
+      setDemoFullCase(null);
+      setDemoStep(0);
+    }
+  }, [demoFullCase]);
 
   useEffect(() => {
     let cancelled = false;
@@ -323,10 +526,21 @@ export function Dashboard() {
     let cancelled = false;
     (async () => {
       try {
-        const cases = await listProductionCases(activeProductionId, API_BASE_URL);
+        let cases = await listProductionCases(activeProductionId, API_BASE_URL);
+        if (activeProduction?.title === DEMO_PRODUCTION_TITLE) {
+          const extras = duplicateCaseIdsToRemove(cases);
+          if (extras.length > 0) {
+            await Promise.all(extras.map((caseId) => deleteCase(caseId, API_BASE_URL)));
+            cases = await listProductionCases(activeProductionId, API_BASE_URL);
+          }
+          const nextCases = await ensureFeaturedDemoCases(activeProductionId, cases);
+          if (nextCases !== cases || extras.length > 0) {
+            cases = nextCases;
+            await refreshProductions();
+          }
+        }
         if (cancelled) return;
         setProductionCases(cases);
-        setSelectedProductionCaseId(null);
       } catch {
         if (!cancelled) setError('Could not load this production’s cases and findings.');
       }
@@ -334,7 +548,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [activeProductionId]);
+  }, [activeProduction?.title, activeProductionId, ensureFeaturedDemoCases, refreshProductions]);
 
   async function submitProduction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -342,11 +556,16 @@ export function Dashboard() {
     setError(null);
     try {
       const created = await createProduction(
-        { title: newTitle.trim(), studio: newStudio.trim() },
+        {
+          title: newTitle.trim(),
+          studio: newStudio.trim(),
+          roster: newRoster.filter((member) => member.name.trim())
+        },
         API_BASE_URL
       );
       setNewTitle('');
       setNewStudio('');
+      setNewRoster(DEMO_ROSTER);
       setShowNewProduction(false);
       await refreshProductions();
       setActiveProductionId(created.id);
@@ -373,6 +592,14 @@ export function Dashboard() {
             <span className="font-display text-xl text-paper [text-shadow:3px_3px_0_#aab5c4]">
               RightsRadar
             </span>
+          </button>
+          <button
+            type="button"
+            data-testid="demo-control"
+            onClick={() => setGateForcedOpen(true)}
+            className="mt-3 w-full border-2 border-ink bg-white px-2.5 py-1.5 font-display text-[9px] text-ink shadow-press transition hover:bg-exhibit focus-visible:outline-2 focus-visible:outline-cyan-pop"
+          >
+            Demo
           </button>
         </div>
 
@@ -407,6 +634,44 @@ export function Dashboard() {
                 placeholder="Studio (optional)"
                 className="block w-full border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink focus:outline-none focus:ring-2 focus:ring-cyan-pop"
               />
+              <p className="font-pixel text-[7px] text-line-strong">ROSTER</p>
+              {newRoster.map((member, index) => (
+                <div key={`${member.role}-${index}`} className="flex gap-1">
+                  <input
+                    value={member.name}
+                    aria-label={`Roster name ${index + 1}`}
+                    onChange={(event) =>
+                      setNewRoster((current) =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, name: event.target.value } : item
+                        )
+                      )
+                    }
+                    placeholder="Name"
+                    className="min-w-0 flex-1 border-2 border-ink bg-white px-2 py-1 text-[11px] text-ink"
+                  />
+                  <select
+                    aria-label={`Roster role ${index + 1}`}
+                    value={member.role}
+                    onChange={(event) =>
+                      setNewRoster((current) =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index
+                            ? { ...item, role: event.target.value as WorkspaceRole }
+                            : item
+                        )
+                      )
+                    }
+                    className="border-2 border-ink bg-white px-1 py-1 text-[10px] text-ink"
+                  >
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              ))}
               <PrimaryButton disabled={!newTitle.trim()}>▶ Create</PrimaryButton>
             </form>
           ) : null}
@@ -422,14 +687,14 @@ export function Dashboard() {
           ) : (
             <ul className="space-y-1.5">
               {productions.map((production) => (
-                <li key={production.id}>
+                <li key={production.id} className="flex items-stretch gap-1">
                   <button
                     type="button"
                     onClick={() => {
                       setActiveProductionId(production.id);
                       setView({ kind: 'overview' });
                     }}
-                    className={`w-full border-2 px-2.5 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-cyan-pop ${
+                    className={`min-w-0 flex-1 border-2 px-2.5 py-2 text-left transition focus-visible:outline-2 focus-visible:outline-cyan-pop ${
                       production.id === activeProductionId
                         ? 'border-ink bg-white text-ink shadow-press'
                         : 'border-transparent text-lavender-soft hover:border-line hover:bg-panel'
@@ -456,6 +721,17 @@ export function Dashboard() {
                       {production.case_count ?? 0} cases · {production.open_finding_count ?? 0} open
                       · {production.escalated_finding_count ?? 0} escalated
                     </span>
+                  </button>
+                  <button
+                    type="button"
+                    data-testid="delete-production"
+                    aria-label="Remove from desk"
+                    onClick={() => {
+                      void removeProduction(production);
+                    }}
+                    className="shrink-0 self-start border-2 border-transparent px-1.5 py-2 text-muted transition hover:border-line hover:bg-panel hover:text-accent focus-visible:outline-2 focus-visible:outline-cyan-pop"
+                  >
+                    <Trash2 className="size-3.5" aria-hidden />
                   </button>
                 </li>
               ))}
@@ -491,7 +767,13 @@ export function Dashboard() {
                 <li key={item.kind}>
                   <button
                     type="button"
-                    onClick={() => setView({ kind: item.kind })}
+                    onClick={() => {
+                      if (item.kind === 'case') setOpenedCase(null);
+                      if (item.kind === 'overview' && activeProductionId) {
+                        void refreshProductionCases(activeProductionId);
+                      }
+                      setView({ kind: item.kind });
+                    }}
                     className={`flex w-full items-center gap-2 border-2 px-2.5 py-1.5 text-left font-display text-[9px] transition focus-visible:outline-2 focus-visible:outline-cyan-pop ${
                       view.kind === item.kind
                         ? 'border-ink bg-brand text-ink shadow-press'
@@ -509,7 +791,12 @@ export function Dashboard() {
       </aside>
 
       {/* Main pane */}
-      <main ref={workspaceRef} className="min-w-0 flex-1 overflow-y-auto p-6 sm:p-8">
+      <main
+        ref={workspaceRef}
+        className={`min-w-0 flex-1 overflow-y-auto ${
+          view.kind === 'case' || !activeProduction ? 'p-3 sm:p-4' : 'p-6 sm:p-8'
+        }`}
+      >
         {error ? (
           <p
             className="mb-4 flex items-start gap-2.5 border-2 border-accent bg-danger-bg px-4 py-3 text-sm font-semibold text-accent"
@@ -528,12 +815,39 @@ export function Dashboard() {
               setActiveProductionId(productionId);
               setView({ kind: 'overview' });
             }}
+            onRemove={removeProduction}
           />
         ) : view.kind === 'case' || !activeProduction ? (
           <ScriptReview
+            key={
+              demoFullCase
+                ? `demo-${demoFullCase.id}`
+                : `${openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`}-${activeMemberId}`
+            }
             productionId={activeProduction?.id}
+            roster={activeProduction?.roster ?? []}
+            activeMemberId={activeMemberId}
+            initialCase={demoFullCase ? null : openedCase}
+            focusTour={coachOpen}
+            demoWalkthrough={
+              demoFullCase && demoRevealStage
+                ? { fullCase: demoFullCase, stage: demoRevealStage }
+                : null
+            }
             onCaseCreated={() => {
               void refreshProductions();
+              if (activeProductionId) void refreshProductionCases(activeProductionId);
+            }}
+            onCaseUpdated={(nextCase) => {
+              if (demoFullCase && nextCase.id === demoFullCase.id) {
+                setDemoFullCase(nextCase);
+              }
+              setProductionCases((current) =>
+                current.map((item) => (item.id === nextCase.id ? nextCase : item))
+              );
+              if (openedCase?.id === nextCase.id) {
+                setOpenedCase(nextCase);
+              }
               if (activeProductionId) void refreshProductionCases(activeProductionId);
             }}
           />
@@ -542,6 +856,7 @@ export function Dashboard() {
             key={activeProduction.id}
             production={activeProduction}
             onSaved={refreshProductions}
+            onDeleted={removeProduction}
             onError={setError}
           />
         ) : (
@@ -592,234 +907,189 @@ export function Dashboard() {
               ))}
             </div>
 
-            <section aria-labelledby="production-cases-heading">
+            <section aria-labelledby="user-inbox-heading" data-testid="user-inbox">
               <div className="mb-3 flex flex-wrap items-end justify-between gap-3">
                 <div>
-                  <PixelLabel>CASES &amp; FINDINGS</PixelLabel>
-                  <BungeeHeading id="production-cases-heading" className="mt-1 text-xl">
-                    Production inventory
+                  <PixelLabel>INBOX</PixelLabel>
+                  <BungeeHeading id="user-inbox-heading" className="mt-1 text-xl">
+                    Needs your review
                   </BungeeHeading>
+                  <p className="mt-1 text-[11px] text-lavender-soft">
+                    Cases with pending findings assigned to you.
+                  </p>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => setView({ kind: 'case' })}
-                  className="inline-flex items-center gap-1 border-2 border-ink bg-brand px-3 py-2 font-display text-[9px] text-ink shadow-press transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-cyan-pop"
-                >
-                  New case <ChevronRight className="size-3.5" aria-hidden />
-                </button>
+                <div className="flex flex-wrap items-center gap-3">
+                  <label className="flex items-center gap-2 text-[11px] text-lavender-soft">
+                    <span className="font-pixel text-[7px] text-cyan-pop">SIGNED IN AS</span>
+                    <select
+                      data-testid="signed-in-as"
+                      value={activeMemberId}
+                      onChange={(event) => {
+                        const next = event.target.value;
+                        setMemberPick(next);
+                        writeActiveMemberId(window.localStorage, next);
+                      }}
+                      className="border-2 border-ink bg-white px-2 py-1.5 font-display text-[9px] text-ink"
+                    >
+                      {roster.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name} · {member.role}
+                        </option>
+                      ))}
+                    </select>
+                  </label>
+                  <span className="border border-ink bg-white px-2 py-1 font-pixel text-[7px] text-ink">
+                    {inboxCases.length} {inboxCases.length === 1 ? 'CASE' : 'CASES'}
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setOpenedCase(null);
+                      setView({ kind: 'case' });
+                    }}
+                    className="inline-flex items-center gap-1 border-2 border-ink bg-brand px-3 py-2 font-display text-[9px] text-ink shadow-press transition hover:brightness-105 focus-visible:outline-2 focus-visible:outline-cyan-pop"
+                  >
+                    New case
+                  </button>
+                </div>
               </div>
 
               {isLoadingProductionCases ? (
                 <Panel glow={false}>
                   <p className="flex items-center gap-2 text-[11px] text-lavender-soft">
-                    <Spinner className="size-3.5" /> Loading cases and findings…
+                    <Spinner className="size-3.5" /> Loading inbox…
                   </p>
                 </Panel>
-              ) : productionCases.length === 0 ? (
+              ) : inboxCases.length === 0 ? (
                 <Panel glow={false}>
                   <p className="text-[11.5px] leading-[17.83px] text-lavender-soft">
-                    This production has no cases yet. Create one from script text, a PDF, DOCX, or
-                    image.
+                    Nothing assigned to you right now. New cases appear here when agents attach you
+                    as a stakeholder and a finding is still pending.
                   </p>
                 </Panel>
               ) : (
-                <ul className="space-y-4" data-testid="production-case-inventory">
-                  {productionCases.map((productionCase, caseIndex) => (
-                    <li
-                      key={productionCase.id}
-                      className={`border-2 bg-panel transition ${
-                        selectedProductionCaseId === productionCase.id
-                          ? 'border-cyan-pop shadow-[4px_4px_0_#00e5ff]'
-                          : 'border-line hover:border-cyan-pop'
-                      }`}
-                    >
-                      <button
-                        type="button"
-                        onClick={() =>
-                          setSelectedProductionCaseId((current) =>
-                            current === productionCase.id ? null : productionCase.id
-                          )
-                        }
-                        aria-expanded={selectedProductionCaseId === productionCase.id}
-                        aria-controls={`case-details-${productionCase.id}`}
-                        className="block w-full p-5 text-left focus-visible:outline-2 focus-visible:outline-offset-[-4px] focus-visible:outline-cyan-pop"
+                <ul className="space-y-3">
+                  {inboxCases.map((inboxCase, index) => {
+                    const mine = pendingFindingsForMember(inboxCase, activeMemberId);
+                    return (
+                      <li
+                        key={inboxCase.id}
+                        data-testid="inbox-case-row"
+                        className="border-2 border-line bg-panel p-5 transition hover:border-cyan-pop"
                       >
                         <div className="flex flex-wrap items-start justify-between gap-3">
                           <div className="min-w-0">
                             <p className="font-pixel text-[7px] text-cyan-pop">
-                              CASE {String(productionCases.length - caseIndex).padStart(2, '0')}
+                              CASE {String(inboxCases.length - index).padStart(2, '0')}
                             </p>
                             <h3 className="mt-2 font-display text-sm text-paper">
-                              {productionCase.title || 'Untitled script review'}
+                              {inboxCase.title || 'Untitled script review'}
                             </h3>
                             <p className="mt-1 font-pixel text-[7px] text-lavender">
-                              {new Date(productionCase.created_at).toLocaleString()} ·{' '}
-                              {productionCase.asset_count ?? 0} attached{' '}
-                              {(productionCase.asset_count ?? 0) === 1 ? 'asset' : 'assets'}
+                              {new Date(inboxCase.created_at).toLocaleString()} · {mine.length}{' '}
+                              pending for you
                             </p>
                           </div>
-                          <span className="flex items-center gap-2">
-                            <span className="border border-ink bg-white px-2 py-1 font-pixel text-[7px] text-ink">
-                              {productionCase.findings.length}{' '}
-                              {productionCase.findings.length === 1 ? 'FINDING' : 'FINDINGS'}
-                            </span>
-                            <ChevronRight
-                              className={`size-4 text-cyan-pop transition ${
-                                selectedProductionCaseId === productionCase.id ? 'rotate-90' : ''
-                              }`}
-                              aria-hidden
-                            />
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setOpenedCase(inboxCase);
+                              setView({ kind: 'case' });
+                            }}
+                            className="inline-flex items-center gap-1 border-2 border-ink bg-brand px-3 py-2 font-display text-[9px] text-ink shadow-press"
+                          >
+                            Open desk
+                          </button>
                         </div>
-
-                        <p className="mt-4 line-clamp-3 border-l-2 border-brand pl-3 text-[11px] leading-[17px] text-lavender-soft">
-                          {productionCase.script_text}
+                        <p className="mt-4 line-clamp-2 border-l-2 border-brand pl-3 text-[11px] leading-[17px] text-lavender-soft">
+                          {inboxCase.script_text}
                         </p>
-                        <p className="mt-3 font-pixel text-[7px] text-brand">
-                          {selectedProductionCaseId === productionCase.id
-                            ? 'HIDE CASE DETAILS'
-                            : 'VIEW CASE DETAILS'}
-                        </p>
-                      </button>
+                        <ul className="mt-3 flex flex-wrap gap-2">
+                          {mine.map((finding) => (
+                            <li
+                              key={finding.id}
+                              className="border border-cyan-pop px-2 py-1 font-pixel text-[7px] text-cyan-pop"
+                            >
+                              {finding.detected_item}
+                            </li>
+                          ))}
+                        </ul>
+                        <div className="mt-3 flex justify-end">
+                          <button
+                            type="button"
+                            data-testid="delete-case"
+                            aria-label="Remove case"
+                            onClick={() =>
+                              void removeCase(
+                                inboxCase.id,
+                                inboxCase.title || 'Untitled script review'
+                              )
+                            }
+                            className="inline-flex items-center gap-1.5 px-2 py-1 font-display text-[9px] text-muted hover:text-accent"
+                          >
+                            Remove case
+                          </button>
+                        </div>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </section>
 
-                      {selectedProductionCaseId === productionCase.id ? (
-                        <div
-                          id={`case-details-${productionCase.id}`}
-                          className="border-t-2 border-line bg-canvas/20 p-5"
-                          data-testid="production-case-details"
+            <section
+              aria-labelledby="all-cases-heading"
+              data-testid="all-cases-list"
+              className="mt-8"
+            >
+              <PixelLabel>ALL CASES</PixelLabel>
+              <BungeeHeading id="all-cases-heading" className="mt-1 text-lg">
+                Production cases
+              </BungeeHeading>
+              {productionCases.length === 0 ? (
+                <p className="mt-3 text-[11px] text-lavender-soft">No cases in this production.</p>
+              ) : (
+                <ul className="mt-3 space-y-2">
+                  {productionCases.map((productionCase) => (
+                    <li
+                      key={productionCase.id}
+                      className="flex flex-wrap items-center justify-between gap-3 border-2 border-line bg-panel px-4 py-3"
+                    >
+                      <div className="min-w-0">
+                        <h3 className="truncate font-display text-[11px] text-paper">
+                          {productionCase.title || 'Untitled script review'}
+                        </h3>
+                        <p className="mt-1 font-pixel text-[7px] text-lavender">
+                          {productionCase.findings.length}{' '}
+                          {productionCase.findings.length === 1 ? 'FINDING' : 'FINDINGS'}
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setOpenedCase(productionCase);
+                            setView({ kind: 'case' });
+                          }}
+                          className="inline-flex items-center gap-1 border-2 border-ink bg-brand px-3 py-2 font-display text-[9px] text-ink shadow-press"
                         >
-                          <div>
-                            <PixelLabel>SOURCE MATERIAL</PixelLabel>
-                            <pre className="mt-2 max-h-64 overflow-auto whitespace-pre-wrap border border-line bg-canvas/40 p-4 font-mono text-[10.5px] leading-[17px] text-lavender-soft">
-                              {productionCase.script_text}
-                            </pre>
-                          </div>
-
-                          <div className="mt-5">
-                            <PixelLabel>RESEARCH FINDINGS</PixelLabel>
-                            {productionCase.findings.length === 0 ? (
-                              <p className="mt-2 text-[10.5px] italic text-lavender-soft">
-                                No research leads were found in this case.
-                              </p>
-                            ) : (
-                              <ul className="mt-3 space-y-3">
-                                {productionCase.findings.map((finding) => (
-                                  <li
-                                    key={finding.id}
-                                    className="border border-line bg-panel p-4"
-                                  >
-                                    <div className="flex flex-wrap items-center justify-between gap-2">
-                                      <span className="font-pixel text-[7px] uppercase text-lavender">
-                                        {finding.category.replace(/_/g, ' ')}
-                                      </span>
-                                      <span
-                                        className={`border px-1.5 py-0.5 font-pixel text-[7px] ${
-                                          finding.reviewer_status === 'escalated'
-                                            ? 'border-accent text-accent'
-                                            : finding.reviewer_status === 'dismissed'
-                                              ? 'border-lavender text-lavender'
-                                              : finding.reviewer_status === 'accepted'
-                                                ? 'border-brand text-brand'
-                                                : 'border-cyan-pop text-cyan-pop'
-                                        }`}
-                                      >
-                                        {finding.reviewer_status.toUpperCase()}
-                                      </span>
-                                    </div>
-                                    <h4 className="mt-2 font-display text-[11px] text-paper">
-                                      {finding.detected_item}
-                                    </h4>
-                                    <p className="mt-2 text-[10.5px] leading-[17px] text-lavender-soft">
-                                      {finding.explanation}
-                                    </p>
-                                    <p className="mt-3 font-pixel text-[7px] text-lavender">
-                                      {Math.round(finding.confidence * 100)}% CONFIDENCE ·{' '}
-                                      {finding.source_urls.length}{' '}
-                                      {finding.source_urls.length === 1
-                                        ? 'WEB SOURCE'
-                                        : 'WEB SOURCES'}
-                                    </p>
-
-                                    {finding.evidence?.rationale ? (
-                                      <p className="mt-3 border-l-2 border-brand pl-3 text-[10.5px] leading-[17px] text-paper">
-                                        <strong className="text-brand">Why this evidence:</strong>{' '}
-                                        {finding.evidence.rationale}
-                                      </p>
-                                    ) : null}
-
-                                    {finding.supporting_evidence.length > 0 ? (
-                                      <ul className="mt-3 space-y-2">
-                                        {finding.supporting_evidence.map((evidence) => (
-                                          <li
-                                            key={evidence.source.url}
-                                            className="border border-line bg-canvas/30 p-3"
-                                          >
-                                            <div className="flex flex-wrap items-start justify-between gap-2">
-                                              <a
-                                                href={evidence.source.url}
-                                                target="_blank"
-                                                rel="noreferrer"
-                                                className="inline-flex items-center gap-1 font-display text-[8px] text-cyan-pop underline-offset-2 hover:underline"
-                                              >
-                                                {evidence.source.title}
-                                                <ChevronRight
-                                                  className="size-3"
-                                                  aria-hidden
-                                                />
-                                              </a>
-                                              {finding.evidence?.primary?.source.url ===
-                                              evidence.source.url ? (
-                                                <span className="border border-brand px-1.5 py-0.5 font-pixel text-[6px] text-brand">
-                                                  PRIMARY
-                                                </span>
-                                              ) : (
-                                                <span className="border border-lavender px-1.5 py-0.5 font-pixel text-[6px] text-lavender">
-                                                  ALTERNATIVE
-                                                </span>
-                                              )}
-                                            </div>
-
-                                            <div className="mt-3 border-l-2 border-cyan-pop pl-3">
-                                              <p className="font-pixel text-[6.5px] text-cyan-pop">
-                                                HUMAN-READABLE SUMMARY
-                                              </p>
-                                              <p className="mt-1.5 text-[10.5px] leading-[17px] text-paper">
-                                                {finding.evidence?.primary?.source.url ===
-                                                  evidence.source.url &&
-                                                finding.evidence.rationale
-                                                  ? finding.evidence.rationale
-                                                  : `Parallel returned this as an additional source for “${finding.detected_item}.” Review it alongside the primary evidence before making a clearance decision.`}
-                                              </p>
-                                            </div>
-
-                                            <details className="mt-3 border-t border-line pt-3">
-                                              <summary className="cursor-pointer font-pixel text-[7px] text-brand marker:text-cyan-pop">
-                                                VIEW RAW PARALLEL EXTRACT
-                                              </summary>
-                                              <div className="mt-3">
-                                                <p className="font-pixel text-[6.5px] text-lavender">
-                                                  RAW PROVIDER RETURN
-                                                </p>
-                                                <pre className="mt-2 max-h-80 overflow-auto whitespace-pre-wrap border border-line bg-canvas/60 p-3 font-mono text-[9.5px] leading-4 text-lavender-pale">
-                                                  {evidence.excerpt}
-                                                </pre>
-                                              </div>
-                                            </details>
-                                          </li>
-                                        ))}
-                                      </ul>
-                                    ) : (
-                                      <p className="mt-3 text-[9.5px] italic text-lavender-soft">
-                                        No web source was verified for this finding.
-                                      </p>
-                                    )}
-                                  </li>
-                                ))}
-                              </ul>
-                            )}
-                          </div>
-                        </div>
-                      ) : null}
+                          Open desk
+                        </button>
+                        <button
+                          type="button"
+                          data-testid="delete-case"
+                          aria-label="Remove case"
+                          onClick={() =>
+                            void removeCase(
+                              productionCase.id,
+                              productionCase.title || 'Untitled script review'
+                            )
+                          }
+                          className="inline-flex items-center gap-1.5 px-2 py-1 font-display text-[9px] text-muted hover:text-accent"
+                        >
+                          Remove
+                        </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
@@ -828,6 +1098,20 @@ export function Dashboard() {
           </div>
         )}
       </main>
+      <DemoGate
+        open={gateOpen}
+        busy={walkthroughBusy}
+        error={gateOpen ? error : null}
+        onWalkthrough={() => void runWalkthrough()}
+        onSelfServe={chooseSelfServe}
+      />
+      {coachOpen ? (
+        <DemoCoach
+          stepIndex={demoStep}
+          onStepIndexChange={setDemoStep}
+          onDismiss={endWalkthrough}
+        />
+      ) : null}
     </div>
   );
 }
@@ -836,12 +1120,14 @@ function ProductionsHome({
   productions,
   isLoading,
   onCreate,
-  onOpen
+  onOpen,
+  onRemove
 }: {
   productions: ProductionSummary[];
   isLoading: boolean;
   onCreate: () => void;
   onOpen: (productionId: string) => void;
+  onRemove: (production: ProductionSummary) => Promise<void>;
 }) {
   const [sortBy, setSortBy] = useState<
     'newest' | 'title' | 'cases' | 'open' | 'escalated'
@@ -937,7 +1223,7 @@ function ProductionsHome({
         ) : (
           <ul className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {sortedProductions.map((production) => (
-              <li key={production.id}>
+              <li key={production.id} className="relative">
                 <button
                   type="button"
                   onClick={() => onOpen(production.id)}
@@ -978,6 +1264,17 @@ function ProductionsHome({
                     ))}
                   </dl>
                 </button>
+                <button
+                  type="button"
+                  data-testid="delete-production"
+                  aria-label="Remove from desk"
+                  onClick={() => {
+                    void onRemove(production);
+                  }}
+                  className="absolute bottom-3 right-3 border-2 border-transparent px-1.5 py-1 text-muted transition hover:border-line hover:bg-white hover:text-accent focus-visible:outline-2 focus-visible:outline-cyan-pop"
+                >
+                  <Trash2 className="size-3.5" aria-hidden />
+                </button>
               </li>
             ))}
           </ul>
@@ -990,10 +1287,12 @@ function ProductionsHome({
 function ProductionSettings({
   production,
   onSaved,
+  onDeleted,
   onError
 }: {
   production: ProductionSummary;
   onSaved: () => Promise<void>;
+  onDeleted: (production: ProductionSummary) => Promise<void>;
   onError: (message: string | null) => void;
 }) {
   const [title, setTitle] = useState(production.title);
@@ -1002,6 +1301,13 @@ function ProductionSettings({
   const [icon, setIcon] = useState<string>(production.icon ?? 'clapperboard');
   const [ignoreKeywords, setIgnoreKeywords] = useState(
     (production.ignore_keywords ?? []).join('\n')
+  );
+  const [roster, setRoster] = useState<ProductionMemberInput[]>(
+    (production.roster ?? []).map((member) => ({
+      name: member.name,
+      role: member.role,
+      email: member.email ?? undefined
+    }))
   );
   const [isSaving, setIsSaving] = useState(false);
   const [isUploadingIcon, setIsUploadingIcon] = useState(false);
@@ -1064,7 +1370,8 @@ function ProductionSettings({
           ignore_keywords: ignoreKeywords
             .split('\n')
             .map((keyword) => keyword.trim())
-            .filter(Boolean)
+            .filter(Boolean),
+          roster: roster.filter((member) => member.name.trim())
         },
         API_BASE_URL
       );
@@ -1251,6 +1558,73 @@ function ProductionSettings({
             </p>
           </div>
 
+          <div>
+            <p className="font-pixel text-[8px] tracking-[0.16px] text-line-strong">ROSTER</p>
+            <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
+              Real people on this production. Research pulls clearance always, production for
+              brands, and legal for likeness, quotes, and music.
+            </p>
+            <div className="mt-2 space-y-2">
+              {roster.map((member, index) => (
+                <div key={`${member.role}-${index}`} className="flex gap-2">
+                  <input
+                    value={member.name}
+                    aria-label={`Settings roster name ${index + 1}`}
+                    onChange={(event) =>
+                      setRoster((current) =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index ? { ...item, name: event.target.value } : item
+                        )
+                      )
+                    }
+                    className="min-w-0 flex-1 border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink"
+                  />
+                  <select
+                    aria-label={`Settings roster role ${index + 1}`}
+                    value={member.role}
+                    onChange={(event) =>
+                      setRoster((current) =>
+                        current.map((item, itemIndex) =>
+                          itemIndex === index
+                            ? { ...item, role: event.target.value as WorkspaceRole }
+                            : item
+                        )
+                      )
+                    }
+                    className="border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink"
+                  >
+                    {ROLE_OPTIONS.map((role) => (
+                      <option key={role} value={role}>
+                        {role}
+                      </option>
+                    ))}
+                  </select>
+                  <button
+                    type="button"
+                    aria-label={`Remove roster member ${index + 1}`}
+                    onClick={() =>
+                      setRoster((current) => current.filter((_, itemIndex) => itemIndex !== index))
+                    }
+                    className="border-2 border-ink px-2 text-[10px] text-ink"
+                  >
+                    Remove
+                  </button>
+                </div>
+              ))}
+            </div>
+            {roster.length < 5 ? (
+              <button
+                type="button"
+                className="mt-2 text-[11px] font-bold text-cyan-pop"
+                onClick={() =>
+                  setRoster((current) => [...current, { name: '', role: 'clearance' }])
+                }
+              >
+                Add teammate
+              </button>
+            ) : null}
+          </div>
+
           <div className="flex justify-end">
             <PrimaryButton disabled={isSaving || !title.trim()}>
               {isSaving ? (
@@ -1263,6 +1637,24 @@ function ProductionSettings({
             </PrimaryButton>
           </div>
         </form>
+      </Panel>
+
+      <Panel glow={false}>
+        <PixelLabel>REMOVE</PixelLabel>
+        <p className="mt-2 text-[11px] leading-5 text-lavender-soft">
+          Take this production off the desk. Use this to clear leftover test or walkthrough history.
+        </p>
+        <button
+          type="button"
+          data-testid="delete-production-settings"
+          onClick={() => {
+            void onDeleted(production);
+          }}
+          className="mt-3 inline-flex items-center gap-1.5 border-2 border-ink bg-white px-2.5 py-1.5 font-display text-[9px] text-ink shadow-press transition hover:bg-danger-bg hover:text-accent"
+        >
+          <Trash2 className="size-3.5" aria-hidden />
+          Remove production
+        </button>
       </Panel>
     </div>
   );

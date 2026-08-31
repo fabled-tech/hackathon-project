@@ -324,18 +324,26 @@ def render_list_assets(operation: OperationSpec) -> str:
 
 def render_update_finding_status(operation: OperationSpec) -> str:
     _require_json_body(operation)
-    if len(operation.json_body_fields) != 1:
-        raise RuntimeError("Expected exactly one finding-status request field")
+    if not operation.json_body_fields:
+        raise RuntimeError("Expected at least one finding-status request field")
     field = operation.json_body_fields[0]
+    extras = [item for item in operation.json_body_fields[1:] if item.name == "actor_member_id"]
+    extra_arg = ""
+    extra_body = ""
+    extra_fetcher_comma = ""
+    if extras:
+        extra_arg = "  actorMemberId?: string | null,\n"
+        extra_body = ", ...(actorMemberId ? { actor_member_id: actorMemberId } : {})"
+        extra_fetcher_comma = ","
     return f"""export function updateFindingStatus(
 {_render_parameters(operation.path_parameters)}  {field.argument_name}: {field.type},
   baseUrl: string,
-  fetcher: ApiFetcher = fetch
-): Promise<{operation.response_type}> {{
+  fetcher: ApiFetcher = fetch{extra_fetcher_comma}
+{extra_arg}): Promise<{operation.response_type}> {{
   return request<{operation.response_type}>({_render_path(operation)}, baseUrl, {{
     method: '{operation.method}',
     headers: {{ 'Content-Type': 'application/json' }},
-    body: JSON.stringify({{ {field.name}: {field.argument_name} }})
+    body: JSON.stringify({{ {field.name}: {field.argument_name}{extra_body} }})
   }}, fetcher);
 }}"""
 
@@ -422,6 +430,9 @@ def generate() -> str:
         ),
         "list_cases": _operation_by_id(schema, "list_cases_api_cases_get"),
         "get_case": _operation_by_id(schema, "get_case_api_cases__case_id__get"),
+        "delete_case": _operation_by_id(
+            schema, "delete_case_api_cases__case_id__delete"
+        ),
         "upload_asset": _operation_by_id(
             schema, "upload_asset_api_cases__case_id__assets_post"
         ),
@@ -430,6 +441,9 @@ def generate() -> str:
         ),
         "update_finding": _operation_by_id(
             schema, "update_finding_api_cases__case_id__findings__finding_id__patch"
+        ),
+        "post_thread_message": _operation_by_id(
+            schema, "post_thread_message_api_cases__case_id__thread_post"
         ),
         "create_production": _operation_by_id(
             schema, "create_production_api_productions_post"
@@ -487,7 +501,14 @@ async function request<T>(
   if (!response.ok) {{
     throw new Error(`API request failed (${{response.status}})`);
   }}
-  return (await response.json()) as T;
+  if (response.status === 204) {{
+    return undefined as T;
+  }}
+  const text = await response.text();
+  if (!text) {{
+    return undefined as T;
+  }}
+  return JSON.parse(text) as T;
 }}
 
 {render_create_case(operations["create_case"])}
@@ -496,6 +517,8 @@ async function request<T>(
 
 {render_get_case(operations["get_case"])}
 
+{render_delete("deleteCase", operations["delete_case"])}
+
 {render_list_cases(operations["list_cases"])}
 
 {render_upload("uploadAsset", operations["upload_asset"])}
@@ -503,6 +526,8 @@ async function request<T>(
 {render_list_assets(operations["list_assets"])}
 
 {render_update_finding_status(operations["update_finding"])}
+
+{render_post_payload_with_path("postThreadMessage", operations["post_thread_message"])}
 
 {render_json_payload("createProduction", operations["create_production"])}
 

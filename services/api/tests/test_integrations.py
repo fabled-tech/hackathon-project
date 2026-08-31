@@ -298,6 +298,112 @@ def test_vertex_curation_wraps_malformed_json_without_exposing_it() -> None:
     assert "secret malformed provider output" not in str(error.value)
 
 
+def test_vertex_plan_queries_uses_schema_and_temperature_zero() -> None:
+    from app.models.analysis import SearchObjectivePlan
+
+    fake = FakeGenAIClient(
+        '{"objectives":["Example Brand trademark register","Example Brand official site"]}'
+    )
+    client = VertexGeminiClient(
+        "project", "global", "gemini-2.5-flash", client=fake
+    )
+    signal = GeminiSignal(
+        category="brand_reference",
+        detected_item="Example Brand",
+        explanation="A named brand.",
+        confidence=0.8,
+    )
+
+    objectives = asyncio.run(client.plan_queries(signal))
+
+    assert objectives == [
+        "Example Brand trademark register",
+        "Example Brand official site",
+    ]
+    config = fake.aio.models.calls[0]["config"]
+    assert config.response_mime_type == "application/json"
+    assert config.response_schema is SearchObjectivePlan
+    assert config.temperature == 0
+
+
+def test_vertex_brief_stakeholders_uses_extracted_text_only() -> None:
+    from app.models.analysis import StakeholderBrief
+
+    fake = FakeGenAIClient(
+        '{"brief":"The official page describes Example Brand as a beverage. '
+        'No other origin is stated in the excerpt."}'
+    )
+    client = VertexGeminiClient(
+        "project", "global", "gemini-2.5-flash", client=fake
+    )
+    signal = GeminiSignal(
+        category="brand_reference",
+        detected_item="Example Brand",
+        explanation="A named brand.",
+        confidence=0.8,
+    )
+    extracted = [
+        SearchResult(
+            source=Source(title="Official", url="https://source.test/known"),
+            excerpt="Example Brand is a beverage sold at kiosks.",
+        )
+    ]
+
+    brief = asyncio.run(client.brief_stakeholders(signal, extracted))
+
+    assert "beverage" in brief
+    prompt = str(fake.aio.models.calls[0]["contents"])
+    assert "Example Brand is a beverage sold at kiosks." in prompt
+    assert "https://invented.test" not in prompt
+    config = fake.aio.models.calls[0]["config"]
+    assert config.response_schema is StakeholderBrief
+    assert config.temperature == 0
+
+
+def test_parallel_search_sends_planned_objective() -> None:
+    requests: list[dict[str, object]] = []
+
+    async def scenario() -> list[SearchResult]:
+        async def handler(request: httpx.Request) -> httpx.Response:
+            payload = json.loads(request.content)
+            requests.append(payload)
+            return httpx.Response(
+                200,
+                json={
+                    "results": [
+                        {
+                            "url": "https://source.test/a",
+                            "title": "A",
+                            "excerpts": ["A"],
+                        }
+                    ]
+                },
+            )
+
+        http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
+        client = ParallelSearchHttpClient(
+            "secret-test-key", "gemini-2.5-flash", http_client=http
+        )
+        signal = GeminiSignal(
+            category="brand_reference",
+            detected_item="Example Brand",
+            explanation="A named brand.",
+            confidence=0.8,
+            context_excerpt="An Example Brand can is visible in the scene.",
+        )
+        results = await client.search(
+            signal, "rightsrader:case-1:0", "Example Brand trademark register"
+        )
+        await http.aclose()
+        return results
+
+    results = asyncio.run(scenario())
+
+    assert [item.source.url for item in results] == ["https://source.test/a"]
+    assert "Example Brand trademark register" in str(requests[0]["objective"])
+    assert requests[0]["session_id"] == "rightsrader:case-1:0"
+
+
 def test_vertex_client_closes_its_async_transport() -> None:
     fake = FakeGenAIClient("[]")
     client = VertexGeminiClient(

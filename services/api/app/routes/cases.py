@@ -12,10 +12,20 @@ from fastapi import APIRouter, File, HTTPException, Query, Request, UploadFile, 
 from lxml.etree import XMLSyntaxError  # type: ignore[import-untyped]
 from starlette.concurrency import run_in_threadpool
 
+from app.agents.messages import human_message
+from app.agents.service import AnalysisDeskResult
 from app.dependencies import ApplicationServices
 from app.errors import AnalysisUnavailableError
 from app.file_validation import content_matches_type
-from app.models import Asset, AssetUpload, Case, CaseSummary, Finding, StoredAsset
+from app.models import (
+    Asset,
+    AssetUpload,
+    Case,
+    CaseSummary,
+    Finding,
+    ProductionMember,
+    StoredAsset,
+)
 from app.models.requests import (
     ALLOWED_ANALYSIS_FILE_CONTENT_TYPES,
     ALLOWED_ASSET_CONTENT_TYPE,
@@ -24,6 +34,7 @@ from app.models.requests import (
     MAX_ASSET_BYTES,
     MAX_EXTRACTED_DOCUMENT_CHARS,
     CreateCaseRequest,
+    CreateThreadMessageRequest,
     UpdateFindingRequest,
 )
 from app.repositories import CaseRepositoryNotFound, FindingNotFound, ProductionRepositoryNotFound
@@ -36,6 +47,32 @@ MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
 
 def _services(request: Request) -> ApplicationServices:
     return request.app.state.services  # type: ignore[no-any-return]
+
+
+async def _analyze_desk(
+    services: ApplicationServices,
+    case_id: str,
+    script_text: str,
+    ignored_keywords: list[str],
+    roster: list[ProductionMember],
+) -> AnalysisDeskResult:
+    return await services.agent_service.analyze_desk(
+        case_id, script_text, ignored_keywords, roster
+    )
+
+
+async def _analyze_file_desk(
+    services: ApplicationServices,
+    case_id: str,
+    filename: str,
+    content_type: str,
+    content: bytes,
+    ignored_keywords: list[str],
+    roster: list[ProductionMember],
+) -> AnalysisDeskResult:
+    return await services.agent_service.analyze_file_desk(
+        case_id, filename, content_type, content, ignored_keywords, roster
+    )
 
 
 async def _delete_asset_after_increment_failure(
@@ -86,6 +123,7 @@ async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
     case_id = str(uuid4())
     services = _services(request)
     ignored_keywords: list[str] = []
+    roster: list[ProductionMember] = []
     if payload.production_id is not None:
         try:
             production = await run_in_threadpool(
@@ -94,9 +132,10 @@ async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
         except ProductionRepositoryNotFound as error:
             raise HTTPException(status_code=404, detail="Production not found") from error
         ignored_keywords = production.ignore_keywords
+        roster = production.roster
     try:
-        findings = await services.agent_service.analyze(
-            case_id, payload.script_text, ignored_keywords
+        desk = await _analyze_desk(
+            services, case_id, payload.script_text, ignored_keywords, roster
         )
     except AnalysisUnavailableError as error:
         logger.warning("Case analysis failed during %s.", error.operation)
@@ -108,9 +147,11 @@ async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
         id=case_id,
         script_text=payload.script_text,
         created_at=datetime.now(UTC),
-        findings=findings,
+        findings=desk.findings,
         production_id=payload.production_id,
         title=payload.title,
+        thread=desk.thread,
+        tool_calls=desk.tool_calls,
     )
     return await run_in_threadpool(services.case_repository.create, case)
 
@@ -153,17 +194,19 @@ async def create_case_from_file(
     try:
         if content_type == DOCX_CONTENT_TYPE:
             source_text = await run_in_threadpool(_extract_docx_text, content)
-            findings = await services.agent_service.analyze(
-                case_id, source_text, production.ignore_keywords
+            desk = await _analyze_desk(
+                services, case_id, source_text, production.ignore_keywords, production.roster
             )
             case_text = source_text[:20_000]
         else:
-            findings = await services.agent_service.analyze_file(
+            desk = await _analyze_file_desk(
+                services,
                 case_id,
                 filename,
                 content_type,
                 content,
                 production.ignore_keywords,
+                production.roster,
             )
             case_text = f"Uploaded {content_type} production file: {filename}"
     except AnalysisUnavailableError as error:
@@ -177,9 +220,11 @@ async def create_case_from_file(
         id=case_id,
         script_text=case_text,
         created_at=datetime.now(UTC),
-        findings=findings,
+        findings=desk.findings,
         production_id=production_id,
         title=filename,
+        thread=desk.thread,
+        tool_calls=desk.tool_calls,
     )
     await run_in_threadpool(services.case_repository.create, case)
     asset: StoredAsset | None = None
@@ -216,6 +261,21 @@ def get_case(case_id: str, request: Request) -> Case:
         return _services(request).case_repository.get(case_id)
     except CaseRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Case not found") from error
+
+
+@router.delete("/{case_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_case(case_id: str, request: Request) -> None:
+    services = _services(request)
+    try:
+        services.case_repository.get(case_id)
+    except CaseRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Case not found") from error
+    for asset in services.asset_repository.list_for_case(case_id):
+        try:
+            services.asset_repository.delete(asset)
+        except Exception:
+            logger.warning("Asset cleanup failed while deleting case %s.", case_id)
+    services.case_repository.delete(case_id)
 
 
 @router.post("/{case_id}/assets", response_model=Asset, status_code=status.HTTP_201_CREATED)
@@ -276,15 +336,94 @@ def list_assets(case_id: str, request: Request) -> list[Asset]:
     ]
 
 
+@router.post("/{case_id}/thread", response_model=Case, status_code=status.HTTP_201_CREATED)
+def post_thread_message(
+    case_id: str, payload: CreateThreadMessageRequest, request: Request
+) -> Case:
+    services = _services(request)
+    try:
+        case = services.case_repository.get(case_id)
+    except CaseRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Case not found") from error
+    if payload.finding_id and not any(
+        finding.id == payload.finding_id for finding in case.findings
+    ):
+        raise HTTPException(status_code=404, detail="Finding not found")
+    member_id = payload.member_id
+    if case.production_id:
+        try:
+            production = services.production_repository.get(case.production_id)
+        except ProductionRepositoryNotFound as error:
+            raise HTTPException(status_code=404, detail="Production not found") from error
+        if not any(member.id == member_id for member in production.roster):
+            raise HTTPException(status_code=422, detail="Member is not on this production roster")
+    try:
+        return services.case_repository.add_thread_message(
+            case_id,
+            human_message(
+                case_id,
+                member_id,
+                payload.body,
+                finding_id=payload.finding_id,
+            ),
+        )
+    except CaseRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Case not found") from error
+
+
 @router.patch("/{case_id}/findings/{finding_id}", response_model=Finding)
 def update_finding(
     case_id: str, finding_id: str, payload: UpdateFindingRequest, request: Request
 ) -> Finding:
+    services = _services(request)
     try:
-        return _services(request).case_repository.update_finding_status(
+        finding = services.case_repository.update_finding_status(
             case_id, finding_id, payload.reviewer_status
         )
     except CaseRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Case not found") from error
     except FindingNotFound as error:
         raise HTTPException(status_code=404, detail="Finding not found") from error
+    if payload.actor_member_id:
+        case = services.case_repository.get(case_id)
+        actor_name = payload.actor_member_id
+        actor_role = "reviewer"
+        if case.production_id:
+            try:
+                production = services.production_repository.get(case.production_id)
+            except ProductionRepositoryNotFound:
+                production = None
+            if production is not None:
+                actor = next(
+                    (
+                        member
+                        for member in production.roster
+                        if member.id == payload.actor_member_id
+                    ),
+                    None,
+                )
+                if actor is not None:
+                    actor_name = actor.name
+                    actor_role = actor.role.value
+        action = (
+            "escalated"
+            if payload.reviewer_status.value == "escalated"
+            else (
+                "dismissed"
+                if payload.reviewer_status.value == "dismissed"
+                else payload.reviewer_status.value
+            )
+        )
+        services.case_repository.add_thread_message(
+            case_id,
+            human_message(
+                case_id,
+                payload.actor_member_id,
+                (
+                    f"{actor_name} ({actor_role}) {action} {finding.detected_item} "
+                    "in the case desk thread."
+                ),
+                finding_id=finding_id,
+            ),
+        )
+    return finding

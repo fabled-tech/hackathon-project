@@ -1,3 +1,3 @@
-from .service import AgentService, RightsClearanceAgentService
+from .service import AgentService, AnalysisDeskResult, RightsClearanceAgentService
 
-__all__ = ["AgentService", "RightsClearanceAgentService"]
+__all__ = ["AgentService", "AnalysisDeskResult", "RightsClearanceAgentService"]

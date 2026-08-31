@@ -1,25 +1,33 @@
 import asyncio
 import re
 from collections.abc import Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
-from uuid import uuid4
 
-from app.errors import EvidenceCurationError
+from app.agents.curation import CurationAgent
+from app.agents.intake import IntakeAgent
+from app.agents.research import ResearchAgent
+from app.agents.trace import ToolCallRecorder
 from app.integrations import GeminiClient, ParallelSearchClient
-from app.models import (
-    Evidence,
-    EvidenceCurationDecision,
-    EvidenceSelection,
-    Finding,
-    ReviewerStatus,
-)
+from app.models import CaseThreadMessage, Finding, ProductionMember, ToolCallEvent
 from app.models.analysis import GeminiSignal
+
+
+@dataclass(frozen=True)
+class AnalysisDeskResult:
+    findings: list[Finding]
+    thread: list[CaseThreadMessage]
+    tool_calls: list[ToolCallEvent]
 
 
 class AgentService(Protocol):
     async def analyze(
-        self, case_id: str, script_text: str, ignored_keywords: Sequence[str] = ()
+        self,
+        case_id: str,
+        script_text: str,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
     ) -> list[Finding]: ...
 
     async def analyze_file(
@@ -29,7 +37,26 @@ class AgentService(Protocol):
         content_type: str,
         content: bytes,
         ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
     ) -> list[Finding]: ...
+
+    async def analyze_desk(
+        self,
+        case_id: str,
+        script_text: str,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
+    ) -> AnalysisDeskResult: ...
+
+    async def analyze_file_desk(
+        self,
+        case_id: str,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
+    ) -> AnalysisDeskResult: ...
 
 
 def _contains_ignored_phrase(detected_item: str, ignored_keywords: Sequence[str]) -> bool:
@@ -57,6 +84,9 @@ class RightsClearanceAgentService:
         self._gemini = gemini
         self._parallel_search = parallel_search
         self._max_concurrency = max_concurrency
+        self._intake = IntakeAgent(gemini)
+        self._curation = CurationAgent(gemini)
+        self._research = ResearchAgent(gemini, parallel_search, self._curation)
 
     async def aclose(self) -> None:
         for provider in (self._gemini, self._parallel_search):
@@ -65,13 +95,14 @@ class RightsClearanceAgentService:
                 await close()
 
     async def analyze(
-        self, case_id: str, script_text: str, ignored_keywords: Sequence[str] = ()
+        self,
+        case_id: str,
+        script_text: str,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
     ) -> list[Finding]:
-        retrieved_at = datetime.now(UTC)
-        signals = await self._gemini.identify_material(script_text)
-        return await self._research_signals(
-            case_id, signals, ignored_keywords, retrieved_at
-        )
+        result = await self.analyze_desk(case_id, script_text, ignored_keywords, roster)
+        return result.findings
 
     async def analyze_file(
         self,
@@ -80,13 +111,41 @@ class RightsClearanceAgentService:
         content_type: str,
         content: bytes,
         ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
     ) -> list[Finding]:
-        retrieved_at = datetime.now(UTC)
-        signals = await self._gemini.identify_material_from_file(
-            filename, content_type, content
+        result = await self.analyze_file_desk(
+            case_id, filename, content_type, content, ignored_keywords, roster
+        )
+        return result.findings
+
+    async def analyze_desk(
+        self,
+        case_id: str,
+        script_text: str,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
+    ) -> AnalysisDeskResult:
+        recorder = ToolCallRecorder(case_id, fixture=_is_fixture(self._gemini))
+        signals = await self._intake.detect_text(script_text, recorder)
+        return await self._research_signals(
+            case_id, signals, ignored_keywords, roster, recorder
+        )
+
+    async def analyze_file_desk(
+        self,
+        case_id: str,
+        filename: str,
+        content_type: str,
+        content: bytes,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
+    ) -> AnalysisDeskResult:
+        recorder = ToolCallRecorder(case_id, fixture=_is_fixture(self._gemini))
+        signals = await self._intake.detect_file(
+            filename, content_type, content, recorder
         )
         return await self._research_signals(
-            case_id, signals, ignored_keywords, retrieved_at
+            case_id, signals, ignored_keywords, roster, recorder
         )
 
     async def _research_signals(
@@ -94,8 +153,11 @@ class RightsClearanceAgentService:
         case_id: str,
         signals: list[GeminiSignal],
         ignored_keywords: Sequence[str],
-        retrieved_at: datetime,
-    ) -> list[Finding]:
+        roster: Sequence[ProductionMember],
+        recorder: ToolCallRecorder,
+    ) -> AnalysisDeskResult:
+        retrieved_at = datetime.now(UTC)
+        thread = [self._intake.announce(case_id, signals)]
         indexed_signals = [
             (index, signal)
             for index, signal in enumerate(signals)
@@ -103,60 +165,24 @@ class RightsClearanceAgentService:
         ]
         semaphore = asyncio.Semaphore(self._max_concurrency)
 
-        async def analyze_signal(index: int, signal: GeminiSignal) -> Finding:
+        async def analyze_signal(
+            index: int, signal: GeminiSignal
+        ) -> tuple[Finding, list[CaseThreadMessage]]:
             async with semaphore:
-                return await self._analyze_signal(case_id, index, signal, retrieved_at)
+                return await self._research.research_lead(
+                    case_id, index, signal, retrieved_at, roster, recorder
+                )
 
-        return list(
-            await asyncio.gather(
-                *(analyze_signal(index, signal) for index, signal in indexed_signals)
-            )
+        researched = await asyncio.gather(
+            *(analyze_signal(index, signal) for index, signal in indexed_signals)
+        )
+        findings = [finding for finding, _messages in researched]
+        for _finding, messages in researched:
+            thread.extend(messages)
+        return AnalysisDeskResult(
+            findings=findings, thread=thread, tool_calls=list(recorder.events)
         )
 
-    async def _analyze_signal(
-        self,
-        case_id: str,
-        index: int,
-        signal: GeminiSignal,
-        retrieved_at: datetime,
-    ) -> Finding:
-        session_id = f"rightsrader:{case_id}:{index}"
-        search_results = await self._parallel_search.search(signal, session_id)
-        extracted_results = (
-            await self._parallel_search.extract(signal, search_results, session_id)
-            if search_results
-            else []
-        )
-        decision = (
-            await self._gemini.curate_evidence(signal, extracted_results)
-            if extracted_results
-            else EvidenceCurationDecision(primary_url=None, rationale=None)
-        )
-        evidence = [
-            Evidence(excerpt=result.excerpt, source=result.source)
-            for result in extracted_results
-        ]
-        by_url = {item.source.url: item for item in evidence}
-        primary = by_url.get(decision.primary_url) if decision.primary_url else None
-        if decision.primary_url is not None and primary is None:
-            raise EvidenceCurationError("Gemini selected an unknown evidence URL")
-        if (primary is None) != (decision.rationale is None):
-            raise EvidenceCurationError("Gemini returned an incomplete evidence decision")
-        selection = EvidenceSelection(
-            primary=primary,
-            rationale=decision.rationale,
-            alternatives=[item for item in evidence if item is not primary],
-        )
-        return Finding(
-            id=str(uuid4()),
-            case_id=case_id,
-            category=signal.category,
-            detected_item=signal.detected_item,
-            explanation=signal.explanation,
-            confidence=signal.confidence,
-            supporting_evidence=evidence,
-            source_urls=[result.source.url for result in extracted_results],
-            retrieved_at=retrieved_at,
-            reviewer_status=ReviewerStatus.PENDING,
-            evidence=selection,
-        )
+
+def _is_fixture(provider: object) -> bool:
+    return type(provider).__name__.startswith("Mock")

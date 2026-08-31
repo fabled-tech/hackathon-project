@@ -6,17 +6,22 @@ import {
   getCase,
   listAssets,
   listCases,
+  postThreadMessage,
   type Asset,
   type Case,
   type CaseSummary,
+  type CaseThreadMessage,
   type Finding,
+  type ProductionMember,
   type ReviewerStatus,
+  type ToolCallEvent,
   uploadAsset,
   updateFindingStatus
 } from '@rightsrader/api-client';
 import {
   ArrowRight,
   ArrowUpRight,
+  Bot,
   Check,
   CircleAlert,
   FileSearch,
@@ -24,9 +29,16 @@ import {
   FileUp,
   Globe2,
   Loader2,
-  Sparkles
+  Radar,
+  Sparkles,
+  UserRound
 } from 'lucide-react';
-import { type FormEvent, type ReactNode, useRef, useState } from 'react';
+import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import {
+  caseForDemoReveal,
+  workflowStatusForDemoReveal,
+  type DemoRevealStage
+} from '@/lib/demo-reveal';
 
 const SAMPLE_SCRIPT =
   'EXT. NEON SKYWALK — MIDNIGHT\n\nMARA skates through the rain, kicks a Nimbus Soda can into her palm, and smirks. "Time keeps the reel turning," she says as a drone camera dives past.';
@@ -49,10 +61,10 @@ function formatDateTime(value: string): string {
 }
 
 const STATUS_STYLES: Record<ReviewerStatus, string> = {
-  pending: 'border-ink text-ink',
-  dismissed: 'border-muted text-muted',
-  escalated: 'border-ink bg-accent-soft text-ink',
-  accepted: 'border-ink text-ink'
+  pending: 'border-ink text-ink bg-white',
+  dismissed: 'border-muted bg-lavender-pale text-muted',
+  escalated: 'border-accent bg-accent text-white shadow-[3px_3px_0_#150a30]',
+  accepted: 'border-ink bg-brand text-ink'
 };
 
 const STATUS_LABELS: Record<ReviewerStatus, string> = {
@@ -62,11 +74,22 @@ const STATUS_LABELS: Record<ReviewerStatus, string> = {
   accepted: '✓ Cleared'
 };
 
-function StatusStamp({ status }: { status: ReviewerStatus }) {
+function StatusStamp({
+  status,
+  animate = false
+}: {
+  status: ReviewerStatus;
+  animate?: boolean;
+}) {
   return (
-    <span className="inline-block rotate-2 shrink-0">
+    <span
+      className={`inline-block shrink-0 ${animate ? 'animate-stamp-slam' : 'rotate-2'}`}
+      data-testid="status-stamp"
+      data-status={status}
+      data-animate={animate ? 'true' : 'false'}
+    >
       <span
-        className={`inline-flex items-center border px-2.5 py-1 font-display text-[10px] uppercase ${
+        className={`inline-flex items-center border-2 px-2.5 py-1 font-display text-[10px] uppercase ${
           STATUS_STYLES[status] ?? STATUS_STYLES.pending
         }`}
       >
@@ -96,7 +119,9 @@ function Panel({ children }: { children: ReactNode }) {
 
 function PixelLabel({ children }: { children: ReactNode }) {
   return (
-    <p className="font-pixel text-[9.5px] leading-relaxed text-lavender">{children}</p>
+    <p className="font-pixel text-[11px] leading-relaxed tracking-[0.14em] text-cyan-pop [text-shadow:0_0_12px_rgb(0_229_255/0.45)]">
+      {children}
+    </p>
   );
 }
 
@@ -167,38 +192,66 @@ function EscalateButton({
 
 type AgentWorkflowStatus = 'idle' | 'running' | 'complete' | 'failed';
 
+function threadHasAgent(thread: CaseThreadMessage[] | undefined, name: string): boolean {
+  return (thread ?? []).some((message) => message.agent_name === name);
+}
+
 function AgentPipeline({
   status,
-  result
+  result,
+  revealStage
 }: {
   status: AgentWorkflowStatus;
   result: Case | null;
+  /** When set (demo walkthrough), light stages one-by-one instead of all-complete. */
+  revealStage?: DemoRevealStage | null;
 }) {
   const findings = result?.findings ?? [];
+  const thread = result?.thread ?? [];
   const citedSources = new Set(
     findings.flatMap((finding) => finding.source_urls)
   ).size;
   const curatedSources = findings.filter(
     (finding) => finding.evidence?.primary
   ).length;
+  const revealIndex =
+    revealStage === 'intake'
+      ? 0
+      : revealStage === 'research'
+        ? 1
+        : revealStage === 'curation' || revealStage === 'human'
+          ? 2
+          : -1;
   const stages = [
     {
       name: 'Gemini Intake',
-      description: 'Detects clearance leads in text, documents, and imagery.',
+      description: 'Vertex Gemini detects clearance leads.',
       icon: <Sparkles className="size-3.5" aria-hidden />,
-      output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`
+      output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`,
+      done:
+        revealStage != null
+          ? revealIndex >= 0
+          : threadHasAgent(thread, 'Intake') || status === 'complete'
     },
     {
       name: 'Parallel Research',
-      description: 'Searches and extracts relevant public web sources.',
+      description: 'Vertex plan/brief plus Parallel Search xN and Extract.',
       icon: <Globe2 className="size-3.5" aria-hidden />,
-      output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`
+      output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`,
+      done:
+        revealStage != null
+          ? revealIndex >= 1
+          : threadHasAgent(thread, 'Research') || status === 'complete'
     },
     {
       name: 'Gemini Curation',
-      description: 'Selects grounded evidence and rejects unsupported citations.',
+      description: 'Vertex Gemini cites only extracted URLs.',
       icon: <FileSearch className="size-3.5" aria-hidden />,
-      output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`
+      output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`,
+      done:
+        revealStage != null
+          ? revealIndex >= 2
+          : threadHasAgent(thread, 'Curation') || status === 'complete'
     }
   ];
 
@@ -207,6 +260,7 @@ function AgentPipeline({
       className="mt-4 border-2 border-line bg-panel p-4"
       aria-label="Case agent pipeline"
       data-testid="agent-pipeline"
+      data-reveal-stage={revealStage ?? undefined}
     >
       <div className="flex flex-wrap items-center justify-between gap-2">
         <div>
@@ -214,8 +268,8 @@ function AgentPipeline({
             CASE AGENT PIPELINE
           </p>
           <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
-            Gemini and Parallel collaborate inside this case request. No separate run history is
-            stored.
+            Named agents post into the case desk. Tool-call chips sit under agent messages so
+            judges can count Vertex vs Parallel live.
           </p>
         </div>
         <span
@@ -241,24 +295,29 @@ function AgentPipeline({
       </div>
 
       <ol className="mt-4 grid gap-2 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
-        {stages.map((stage, index) => (
+        {stages.map((stage, index) => {
+            const isCurrent =
+              revealStage != null && revealIndex === index && status === 'running';
+            return (
             <li key={stage.name} className="contents">
               <div
                 className={`border-2 p-3 transition ${
-                  status === 'running'
-                    ? 'animate-pulse border-cyan-pop/70 bg-cyan-pop/5'
-                    : status === 'complete'
-                      ? 'border-brand/70 bg-brand/5'
+                  stage.done
+                    ? 'border-brand/70 bg-brand/5'
+                    : isCurrent
+                      ? 'animate-pulse border-cyan-pop/70 bg-cyan-pop/5'
                       : status === 'failed'
                         ? 'border-accent/70 bg-danger-bg'
                         : 'border-line bg-canvas/20'
                 }`}
+                data-pipeline-stage={stage.name}
+                data-pipeline-done={stage.done ? 'true' : 'false'}
               >
                 <div className="flex items-center gap-2">
                   <span className="flex size-7 items-center justify-center border border-line bg-canvas text-cyan-pop">
-                    {status === 'complete' ? (
+                    {stage.done ? (
                       <Check className="size-3.5 text-brand" aria-hidden />
-                    ) : status === 'running' ? (
+                    ) : isCurrent ? (
                       <Loader2 className="size-3.5 animate-spin" aria-hidden />
                     ) : (
                       stage.icon
@@ -269,7 +328,7 @@ function AgentPipeline({
                 <p className="mt-2 text-[9.5px] leading-4 text-lavender-soft">
                   {stage.description}
                 </p>
-                {status === 'complete' ? (
+                {stage.done ? (
                   <p className="mt-2 font-pixel text-[7px] leading-3 text-brand">
                     {stage.output}
                   </p>
@@ -282,18 +341,498 @@ function AgentPipeline({
                 />
               ) : null}
             </li>
+            );
+          })}
+        </ol>
+      </section>
+  );
+}
+
+function memberById(
+  roster: ProductionMember[],
+  memberId: string | null | undefined
+): ProductionMember | undefined {
+  return roster.find((member) => member.id === memberId);
+}
+
+function humanInitials(name: string): string {
+  const parts = name.trim().split(/\s+/).filter(Boolean);
+  if (parts.length >= 2) {
+    return `${parts[0]!.charAt(0)}${parts[1]!.charAt(0)}`.toUpperCase();
+  }
+  return name.trim().slice(0, 2).toUpperCase() || '?';
+}
+
+function humanAvatarTone(name: string): string {
+  const tones = [
+    'bg-brand text-ink border-ink',
+    'bg-[#7ee787] text-ink border-ink',
+    'bg-[#ffb454] text-ink border-ink',
+    'bg-accent-soft text-ink border-accent',
+    'bg-[#79c0ff] text-ink border-ink'
+  ] as const;
+  let hash = 0;
+  for (const char of name) {
+    hash = (hash + char.charCodeAt(0) * 17) % tones.length;
+  }
+  return tones[hash]!;
+}
+
+function HumanAvatar({
+  name,
+  size = 'md'
+}: {
+  name: string;
+  size?: 'sm' | 'md';
+}) {
+  const dim = size === 'sm' ? 'size-6 text-[8px]' : 'size-9 text-[10px]';
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center border-2 font-display ${dim} ${humanAvatarTone(name)}`}
+      data-testid="human-avatar"
+      title={`${name} · human`}
+      aria-hidden
+    >
+      {humanInitials(name)}
+    </span>
+  );
+}
+
+function AgentAvatar({
+  agentName,
+  size = 'md'
+}: {
+  agentName: string;
+  size?: 'sm' | 'md';
+}) {
+  const dim = size === 'sm' ? 'size-6' : 'size-9';
+  const iconClass = size === 'sm' ? 'size-3.5' : 'size-4';
+  const normalized = agentName.trim().toLowerCase();
+  let Icon = Bot;
+  if (normalized === 'intake') Icon = Sparkles;
+  if (normalized === 'research') Icon = Radar;
+  if (normalized === 'curation') Icon = FileSearch;
+  return (
+    <span
+      className={`inline-flex shrink-0 items-center justify-center border-2 border-cyan-pop bg-[#0b1220] text-cyan-pop ${dim}`}
+      data-testid="agent-avatar"
+      data-agent={agentName}
+      title={`${agentName} · agent`}
+      aria-hidden
+    >
+      <Icon className={iconClass} strokeWidth={2.25} />
+    </span>
+  );
+}
+
+function FindingStakeholders({
+  finding,
+  roster,
+  emphasize = false,
+  animate = false
+}: {
+  finding: Finding;
+  roster: ProductionMember[];
+  emphasize?: boolean;
+  animate?: boolean;
+}) {
+  const members = (finding.stakeholder_ids ?? [])
+    .map((id) => roster.find((member) => member.id === id))
+    .filter((member): member is ProductionMember => Boolean(member));
+  if (members.length === 0) return null;
+
+  if (emphasize) {
+    return (
+      <div
+        className={`mt-3 border-2 border-accent bg-accent-soft p-3 shadow-[4px_4px_0_#ff2e9a] ${
+          animate ? 'animate-stakeholder-pop' : ''
+        }`}
+        data-testid="research-stakeholders"
+        data-emphasized="true"
+      >
+        <p className="font-pixel text-[8px] tracking-[0.16px] text-accent-strong">
+          ESCALATED TO THESE HUMANS
+        </p>
+        <ul className="mt-2 flex flex-wrap gap-2">
+          {members.map((member) => (
+            <li
+              key={member.id}
+              className="inline-flex items-center gap-1.5 border-2 border-ink bg-white px-2 py-1 text-ink"
+            >
+              <HumanAvatar name={member.name} size="sm" />
+              <span className="font-display text-[10px] uppercase">{member.name}</span>
+              <span className="font-pixel text-[6px] text-accent-strong">{member.role}</span>
+            </li>
           ))}
+        </ul>
+      </div>
+    );
+  }
+
+  return (
+    <p className="mt-1 text-[10px] text-lavender-soft" data-testid="research-stakeholders">
+      Research stakeholders:{' '}
+      {members.map((member) => member.name).join(', ')}
+    </p>
+  );
+}
+
+function assignToolCallChips(
+  thread: CaseThreadMessage[],
+  toolCalls: ToolCallEvent[]
+): Map<string, ToolCallEvent[]> {
+  const assigned = new Set<string>();
+  const byMessage = new Map<string, ToolCallEvent[]>();
+
+  for (const message of thread) {
+    const matched = toolCalls.filter((call) => {
+      if (assigned.has(call.id)) return false;
+      if (message.author_kind !== 'agent') return false;
+      if (call.agent_name !== message.agent_name) return false;
+      if (call.lead) return message.body.includes(call.lead);
+      return message.agent_name === 'Intake';
+    });
+    for (const call of matched) assigned.add(call.id);
+    byMessage.set(message.id, matched);
+  }
+
+  for (const call of toolCalls) {
+    if (assigned.has(call.id)) continue;
+    const host =
+      [...thread]
+        .reverse()
+        .find((message) => message.author_kind === 'agent' && message.agent_name === call.agent_name) ??
+      thread.find((message) => message.author_kind === 'agent');
+    if (!host) continue;
+    byMessage.set(host.id, [...(byMessage.get(host.id) ?? []), call]);
+  }
+  return byMessage;
+}
+
+function ToolCallChips({ calls }: { calls: ToolCallEvent[] }) {
+  if (calls.length === 0) return null;
+  return (
+    <ul className="mt-2 flex flex-wrap gap-1" data-testid="tool-call-chips">
+      {calls.map((call) => (
+        <li
+          key={call.id}
+          className="border border-[#3d4f66] bg-[#0b1220] px-1.5 py-0.5 font-mono text-[9px] text-[#9ecbff]"
+          data-testid="tool-call-chip"
+          data-provider={call.provider}
+          data-method={call.method}
+        >
+          <span className="text-[#ffb454]">{call.provider.toUpperCase()}</span>{' '}
+          {call.method}
+          {call.fixture ? ' · fixture' : ''}
+          <span className={call.ok ? ' text-[#7ee787]' : ' text-[#ff7b72]'}>
+            {call.ok ? ' OK' : ' FAIL'}
+          </span>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function JudgeLogRail({ calls }: { calls: ToolCallEvent[] }) {
+  const vertexCount = calls.filter((call) => call.provider === 'vertex').length;
+  const parallelCount = calls.filter((call) => call.provider === 'parallel').length;
+  return (
+    <aside
+      className="flex h-full min-h-[24rem] flex-col border-2 border-[#3d4f66] bg-[#0b1220] text-[#c9d1d9] shadow-[4px_4px_0_#ffb454]"
+      data-testid="judge-log"
+      aria-label="Judge and development tool-call log"
+    >
+      <div className="border-b border-[#3d4f66] px-3 py-2.5">
+        <p className="font-mono text-[10px] font-semibold tracking-wide text-[#ffb454]">
+          DEV / JUDGE LOG
+        </p>
+        <p className="mt-1 font-mono text-[10px] leading-4 text-[#8b949e]">
+          Not the clearance desk — Vertex + Parallel call trace for judges. No secrets. Mock runs
+          mark <span className="text-[#d2a8ff]">fixture</span>.
+        </p>
+        <p className="mt-2 font-mono text-[10px] text-[#7ee787]">
+          {calls.length} calls · vertex={vertexCount} · parallel={parallelCount}
+        </p>
+      </div>
+      {calls.length === 0 ? (
+        <p className="px-3 py-4 font-mono text-[11px] text-[#8b949e]">
+          Waiting for tool calls after analyze…
+        </p>
+      ) : (
+        <ol className="min-h-0 flex-1 space-y-2 overflow-y-auto px-2 py-2 font-mono text-[11px] leading-4">
+          {calls.map((call, index) => (
+            <li
+              key={call.id}
+              className="border border-[#30363d] bg-[#161b22] px-2 py-1.5"
+              data-provider={call.provider}
+              data-method={call.method}
+            >
+              <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+                <span className="tabular-nums text-[#8b949e]">
+                  {String(index + 1).padStart(2, '0')}
+                </span>
+                <span className="font-semibold text-[#ffb454]">
+                  {call.provider.toUpperCase()}
+                </span>
+                <span className="text-[#79c0ff]">{call.method}</span>
+                <span className={call.ok ? 'text-[#7ee787]' : 'text-[#ff7b72]'}>
+                  {call.ok ? 'OK' : 'FAIL'}
+                </span>
+                <span className="tabular-nums text-[#8b949e]">{call.duration_ms}ms</span>
+                {call.fixture ? <span className="text-[#d2a8ff]">fixture</span> : null}
+              </div>
+              <p className="mt-1 text-[#c9d1d9]">
+                <span className="text-[#8b949e]">{call.agent_name}</span>
+                {call.lead ? <span className="text-[#8b949e]"> · {call.lead}</span> : null}
+              </p>
+              <p className="mt-0.5 whitespace-pre-wrap text-[#9ecbff]">{call.summary}</p>
+            </li>
+          ))}
+        </ol>
+      )}
+    </aside>
+  );
+}
+
+function CaseDesk({
+  result,
+  roster,
+  actingMemberId,
+  onActingMemberId,
+  reply,
+  onReplyChange,
+  onReply,
+  isReplying,
+  onChangeStatus,
+  updatingFindingId
+}: {
+  result: Case;
+  roster: ProductionMember[];
+  actingMemberId: string;
+  onActingMemberId: (id: string) => void;
+  reply: string;
+  onReplyChange: (value: string) => void;
+  onReply: () => void;
+  isReplying: boolean;
+  onChangeStatus: (finding: Finding, status: ReviewerStatus) => void;
+  updatingFindingId: string | null;
+}) {
+  const thread = result.thread ?? [];
+  const chipsByMessage = assignToolCallChips(thread, result.tool_calls ?? []);
+  const actingMember = memberById(roster, actingMemberId);
+  const threadEndRef = useRef<HTMLLIElement | null>(null);
+  useEffect(() => {
+    threadEndRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+  }, [thread.length]);
+  return (
+    <section
+      className="flex h-full min-h-0 flex-col border-2 border-line bg-panel p-4"
+      data-testid="case-desk"
+    >
+      <p className="font-pixel text-[8px] tracking-[0.16px] text-cyan-pop">
+        CASE DESK · GROUP THREAD
+      </p>
+      <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
+        This is the group chat. Agents and roster humans post here. Dismiss / Escalate posts as
+        whoever you Speak as — same thread, not a separate queue.
+      </p>
+      {roster.length > 0 ? (
+        <ul
+          className="mt-3 flex flex-wrap gap-1.5"
+          data-testid="demo-coach-roster"
+        >
+          {roster.map((member) => (
+            <li
+              key={member.id}
+              className="inline-flex items-center gap-1.5 border border-line bg-canvas/40 py-1 pl-1 pr-2 font-pixel text-[7px] text-lavender"
+            >
+              <HumanAvatar name={member.name} size="sm" />
+              {member.name} · {member.role}
+            </li>
+          ))}
+        </ul>
+      ) : null}
+      <div className="mt-3 min-h-0 flex-1" data-testid="demo-coach-stakeholders">
+      <ol
+        className="max-h-[min(34rem,calc(100vh-16rem))] space-y-2 overflow-y-auto pr-1"
+        data-testid="case-thread"
+      >
+        {thread.map((message, index) => {
+          const human = memberById(roster, message.member_id);
+          const isAgent = message.author_kind === 'agent';
+          const agentName = message.agent_name ?? 'Agent';
+          const humanName = human?.name ?? 'Teammate';
+          const author = isAgent
+            ? agentName
+            : human
+              ? `${human.name} (${human.role})`
+              : 'Teammate';
+          const finding = result.findings.find((item) => item.id === message.finding_id);
+          const isLatest = index === thread.length - 1;
+          return (
+            <li
+              key={message.id}
+              ref={isLatest ? threadEndRef : undefined}
+              className={`border p-2.5 ${
+                message.author_kind === 'human'
+                  ? 'border-brand bg-brand/10'
+                  : 'border-line bg-canvas/30'
+              }`}
+              data-author-kind={message.author_kind}
+            >
+              <div className="flex items-start gap-2.5">
+                {isAgent ? (
+                  <AgentAvatar agentName={agentName} />
+                ) : human ? (
+                  <HumanAvatar name={humanName} />
+                ) : (
+                  <span
+                    className="inline-flex size-9 shrink-0 items-center justify-center border-2 border-brand bg-brand text-ink"
+                    data-testid="human-avatar"
+                    aria-hidden
+                  >
+                    <UserRound className="size-4" strokeWidth={2.25} />
+                  </span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <div className="flex flex-wrap items-center gap-1.5">
+                    <p
+                      className={`font-pixel text-[7px] uppercase tracking-[0.16px] ${
+                        isAgent ? 'text-cyan-pop' : 'text-brand'
+                      }`}
+                    >
+                      {author}
+                    </p>
+                    <span
+                      className={`border px-1 py-0.5 font-pixel text-[6px] tracking-[0.12em] ${
+                        isAgent
+                          ? 'border-cyan-pop/60 text-cyan-pop'
+                          : 'border-brand/70 text-brand'
+                      }`}
+                    >
+                      {isAgent ? 'AGENT' : 'HUMAN'}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[10.5px] leading-4 text-paper">{message.body}</p>
+                  <ToolCallChips calls={chipsByMessage.get(message.id) ?? []} />
+                  {finding ? (
+                    <p className="mt-1 text-[9px] text-lavender-soft">
+                      On {finding.detected_item}
+                      {finding.stakeholder_ids?.length
+                        ? ` · ${finding.stakeholder_ids
+                            .map((id) => memberById(roster, id)?.name)
+                            .filter(Boolean)
+                            .join(', ')}`
+                        : ''}
+                    </p>
+                  ) : null}
+                </div>
+              </div>
+            </li>
+          );
+        })}
       </ol>
+      </div>
+      {roster.length > 0 ? (
+        <>
+        <form
+          className="mt-3 space-y-2 border-t border-line pt-3"
+          data-testid="demo-coach-composer"
+          onSubmit={(event) => {
+            event.preventDefault();
+            onReply();
+          }}
+        >
+          <label className="block font-pixel text-[7px] text-line-strong" htmlFor="act-as-member">
+            Speak as
+          </label>
+          <div className="flex items-center gap-2">
+            {actingMember ? <HumanAvatar name={actingMember.name} size="sm" /> : null}
+            <select
+              id="act-as-member"
+              value={actingMemberId}
+              onChange={(event) => onActingMemberId(event.target.value)}
+              className="block w-full border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink"
+            >
+              {roster.map((member) => (
+                <option key={member.id} value={member.id}>
+                  {member.name} ({member.role})
+                </option>
+              ))}
+            </select>
+          </div>
+          <textarea
+            aria-label="Desk reply"
+            value={reply}
+            onChange={(event) => onReplyChange(event.target.value)}
+            rows={2}
+            className="block w-full border-2 border-ink bg-white px-2 py-1.5 text-[11px] text-ink"
+            placeholder="Reply in the desk thread…"
+          />
+          <PrimaryButton disabled={isReplying || reply.trim().length === 0}>
+            {isReplying ? 'Posting…' : 'Post to desk'}
+          </PrimaryButton>
+        </form>
+        <div className="mt-2 space-y-1.5" data-testid="demo-coach-actions">
+          <p className="font-pixel text-[7px] text-line-strong">
+            ACTIONS POST INTO THIS THREAD
+          </p>
+          <div className="flex flex-wrap gap-2">
+            {result.findings.map((finding) => (
+              <span key={finding.id} className="flex gap-1">
+                <SecondaryButton
+                  disabled={updatingFindingId === finding.id}
+                  onClick={() => onChangeStatus(finding, 'dismissed')}
+                >
+                  Dismiss {finding.detected_item}
+                </SecondaryButton>
+                <EscalateButton
+                  disabled={updatingFindingId === finding.id}
+                  onClick={() => onChangeStatus(finding, 'escalated')}
+                >
+                  Escalate {finding.detected_item}
+                </EscalateButton>
+              </span>
+            ))}
+          </div>
+        </div>
+        </>
+      ) : (
+        <p className="mt-3 text-[10px] text-lavender-soft">
+          Add roster members on the production to speak in this thread.
+        </p>
+      )}
     </section>
   );
 }
 
 export function ScriptReview({
   productionId,
-  onCaseCreated
-}: { productionId?: string; onCaseCreated?: () => void } = {}) {
-  const [scriptText, setScriptText] = useState(SAMPLE_SCRIPT);
-  const [caseResult, setCaseResult] = useState<Case | null>(null);
+  roster = [],
+  activeMemberId,
+  onCaseCreated,
+  onCaseUpdated,
+  initialCase = null,
+  focusTour = false,
+  demoWalkthrough = null
+}: {
+  productionId?: string;
+  roster?: ProductionMember[];
+  activeMemberId?: string;
+  onCaseCreated?: () => void;
+  onCaseUpdated?: (caseResult: Case) => void;
+  initialCase?: Case | null;
+  focusTour?: boolean;
+  /** Staged Matrix (or other) walkthrough — parent advances revealStage on each coach Next. */
+  demoWalkthrough?: {
+    fullCase: Case;
+    stage: DemoRevealStage;
+  } | null;
+} = {}) {
+  const [scriptText, setScriptText] = useState(
+    demoWalkthrough?.fullCase.script_text ?? initialCase?.script_text ?? SAMPLE_SCRIPT
+  );
+  const [caseResult, setCaseResult] = useState<Case | null>(initialCase);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analysisFile, setAnalysisFile] = useState<File | null>(null);
@@ -302,15 +841,49 @@ export function ScriptReview({
   const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
   const [agentWorkflowStatus, setAgentWorkflowStatus] =
-    useState<AgentWorkflowStatus>('idle');
+    useState<AgentWorkflowStatus>(initialCase ? 'complete' : 'idle');
+  const displayCase = demoWalkthrough
+    ? caseForDemoReveal(demoWalkthrough.fullCase, demoWalkthrough.stage)
+    : caseResult;
+  const workingCase = demoWalkthrough?.fullCase ?? caseResult;
+  const displayWorkflowStatus: AgentWorkflowStatus = demoWalkthrough
+    ? workflowStatusForDemoReveal(demoWalkthrough.stage)
+    : agentWorkflowStatus;
+  const pipelineCase = demoWalkthrough
+    ? demoWalkthrough.stage === 'ready'
+      ? null
+      : demoWalkthrough.fullCase
+    : caseResult;
+  const filedTitle =
+    demoWalkthrough?.fullCase.title ?? displayCase?.title ?? caseResult?.title;
+  const showWalkthroughChrome = Boolean(demoWalkthrough);
+  const showDeskColumns = Boolean(displayCase || showWalkthroughChrome);
   const [isLoadingRecentCases, setIsLoadingRecentCases] = useState(false);
   const [isLoadingCaseId, setIsLoadingCaseId] = useState<string | null>(null);
   const [updatingFindingId, setUpdatingFindingId] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const rosterDefaultId =
+    roster.find((member) => member.role === 'clearance')?.id || roster[0]?.id || '';
+  const [speakAsOverride, setSpeakAsOverride] = useState<string | null>(null);
+  const actingMemberId =
+    (speakAsOverride && roster.some((member) => member.id === speakAsOverride)
+      ? speakAsOverride
+      : null) ??
+    (activeMemberId && roster.some((member) => member.id === activeMemberId)
+      ? activeMemberId
+      : null) ??
+    rosterDefaultId;
+  const setActingMemberId = (memberId: string) => {
+    setSpeakAsOverride(memberId);
+  };
+  const [deskReply, setDeskReply] = useState('');
+  const [isReplying, setIsReplying] = useState(false);
+  const [stampBurstId, setStampBurstId] = useState<string | null>(null);
+  const stampBurstTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const analysisFileInputRef = useRef<HTMLInputElement>(null);
   const caseOperationGeneration = useRef(0);
-  const activeCaseIdRef = useRef<string | null>(null);
+  const activeCaseIdRef = useRef<string | null>(initialCase?.id ?? null);
   const submissionGeneration = useRef(0);
   const uploadGeneration = useRef(0);
   const fileAnalysisGeneration = useRef(0);
@@ -467,26 +1040,43 @@ export function ScriptReview({
   }
 
   async function changeStatus(finding: Finding, reviewerStatus: ReviewerStatus) {
-    if (!caseResult) return;
+    if (!workingCase) return;
+    if (roster.length > 0 && !actingMemberId) {
+      setError('Pick who you Speak as before dismissing or escalating in the desk thread.');
+      return;
+    }
     setUpdatingFindingId(finding.id);
     setError(null);
     try {
-      const updatedFinding = await updateFindingStatus(
-        caseResult.id,
+      await updateFindingStatus(
+        workingCase.id,
         finding.id,
         reviewerStatus,
-        API_BASE_URL
+        API_BASE_URL,
+        fetch,
+        actingMemberId || null
       );
-      setCaseResult((current) =>
-        current
-          ? {
-              ...current,
-              findings: current.findings.map((candidate) =>
-                candidate.id === updatedFinding.id ? updatedFinding : candidate
-              )
-            }
-          : current
+      const nextCase = await getCase(workingCase.id, API_BASE_URL);
+      setCaseResult(nextCase);
+      onCaseUpdated?.(nextCase);
+      if (stampBurstTimer.current) {
+        clearTimeout(stampBurstTimer.current);
+      }
+      setStampBurstId(finding.id);
+      stampBurstTimer.current = setTimeout(() => {
+        setStampBurstId((current) => (current === finding.id ? null : current));
+      }, 900);
+      const card = document.querySelector(
+        `[data-testid="finding-card"][data-finding-id="${finding.id}"]`
       );
+      card?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+      if (reviewerStatus === 'escalated') {
+        window.setTimeout(() => {
+          document
+            .querySelector('[data-testid="case-desk"]')
+            ?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }, 650);
+      }
     } catch {
       setError('The reviewer status could not be saved. Please try again.');
     } finally {
@@ -494,35 +1084,88 @@ export function ScriptReview({
     }
   }
 
+  async function postDeskReply() {
+    if (!workingCase || !actingMemberId || !deskReply.trim()) return;
+    setIsReplying(true);
+    setError(null);
+    try {
+      const nextCase = await postThreadMessage(
+        workingCase.id,
+        { member_id: actingMemberId, body: deskReply.trim() },
+        API_BASE_URL
+      );
+      setCaseResult(nextCase);
+      onCaseUpdated?.(nextCase);
+      setDeskReply('');
+    } catch {
+      setError('The desk reply could not be posted. Please try again.');
+    } finally {
+      setIsReplying(false);
+    }
+  }
+
   return (
-    <div className="min-h-screen">
-      <main className="mx-auto max-w-6xl px-5 pb-24 pt-12 sm:px-8 sm:pt-14">
-        <div className="pb-10">
-          <PixelLabel>Rights clearance research</PixelLabel>
-          <h1 className="mt-3 font-display text-2xl text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4] sm:text-3xl">
-            RightsRadar
-          </h1>
-          <p className="mt-3 max-w-md text-[11.5px] leading-[17.83px] text-lavender-soft">
-            Surface potential research leads for brands, quotations, characters, franchises, and
-            likenesses, then let a human reviewer decide what needs follow-up.
-          </p>
+    <div className="w-full">
+      <main className="w-full pb-10 pt-1">
+        <div className="flex flex-wrap items-end justify-between gap-3 pb-4">
+          <div>
+            <PixelLabel>Rights clearance desk</PixelLabel>
+            <h1 className="mt-1 font-display text-xl text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4] sm:text-2xl">
+              Case workspace
+            </h1>
+            {focusTour || showWalkthroughChrome ? (
+              <p className="mt-1 max-w-2xl text-[11px] leading-4 text-paper">
+                Walkthrough: press <strong>Run next stage</strong> to advance Intake → Research →
+                Curation. Lime frame is the beat.
+              </p>
+            ) : (
+              <p className="mt-1 max-w-2xl text-[11px] leading-4 text-lavender-soft">
+                Left: file the scene and work the desk. Center: findings. Right: judge/dev tool log
+                (kept visually separate from the purple clearance UI).
+              </p>
+            )}
+          </div>
         </div>
 
-        <div className="grid items-start gap-10 lg:grid-cols-[minmax(0,1fr)_22rem]">
-          <div className="space-y-10">
-            <div className="animate-fade-up">
-              <PixelLabel>01: Material Checking</PixelLabel>
-              <div className="mt-3">
+        <div
+          className={`grid items-start gap-4 ${
+            displayCase && !focusTour && !showWalkthroughChrome
+              ? 'xl:grid-cols-[minmax(0,1fr)_21rem]'
+              : !displayCase && !showWalkthroughChrome
+                ? 'lg:grid-cols-[minmax(0,1fr)_20rem]'
+                : ''
+          }`}
+        >
+          <div className="min-w-0 space-y-4">
+            <div className="animate-fade-up min-w-0" data-testid="user-input-section">
+              <PixelLabel>
+                {displayCase || showWalkthroughChrome ? '00 · Your input' : '01 · Intake & desk'}
+              </PixelLabel>
+              <div className="mt-2 space-y-3">
                 <Panel>
-                  <p className="font-display text-xl text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4]">
-                    RightsRadar
-                  </p>
-                  <p className="mt-2 max-w-xs text-[11.5px] leading-[17.83px] text-lavender-soft">
-                    Paste a scene or upload a production file. We&apos;ll surface what needs rights
-                    research before release.
-                  </p>
+                  {displayCase || showWalkthroughChrome ? (
+                    <div className="mb-3 border-2 border-brand/50 bg-brand/10 px-3 py-2">
+                      <p className="font-pixel text-[8px] tracking-[0.16px] text-brand">
+                        FILED SCENE · WHAT THE AGENTS READ
+                      </p>
+                      {filedTitle ? (
+                        <p className="mt-1 font-display text-sm text-paper">{filedTitle}</p>
+                      ) : null}
+                    </div>
+                  ) : (
+                    <>
+                      <p className="font-display text-lg text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4]">
+                        RightsRadar
+                      </p>
+                      <p className="mt-1 max-w-md text-[11px] leading-4 text-lavender-soft">
+                        Paste a scene or upload a production file. Agents post into the desk; humans
+                        decide on the same thread.
+                      </p>
+                    </>
+                  )}
+
                   <aside
-                    className="mt-4 border border-warn-line bg-warn-bg p-3.5 text-[11px] leading-[17px] text-lavender-soft"
+                    className={`${displayCase || showWalkthroughChrome ? 'mt-0' : 'mt-4'} border border-warn-line bg-warn-bg p-3.5 text-[11px] leading-[17px] text-lavender-soft`}
                     aria-label="Legal disclaimer"
                   >
                     <p>
@@ -535,22 +1178,25 @@ export function ScriptReview({
 
                   <form
                     onSubmit={submitScript}
-                    className="mt-4 border-2 border-ink bg-exhibit px-[18px] pb-[18px] pt-6 shadow-card"
+                    className="mt-3 border-2 border-ink bg-exhibit px-[18px] pb-[18px] pt-6 shadow-card"
                   >
                     <label
                       htmlFor="script-text"
                       className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
                     >
-                      ▸ STEP 1 / Script text
+                      {displayCase || showWalkthroughChrome
+                        ? 'Script the agents analyzed'
+                        : 'Script text'}
                     </label>
                     <textarea
                       id="script-text"
                       name="script-text"
                       value={scriptText}
                       onChange={(event) => setScriptText(event.target.value)}
-                      rows={8}
+                      rows={displayCase || showWalkthroughChrome ? 6 : 8}
                       maxLength={20_000}
                       required
+                      readOnly={showWalkthroughChrome}
                       placeholder="Paste a script excerpt to scan for rights-clearance research leads…"
                       className="mt-2.5 block w-full resize-y border-2 border-ink bg-white px-2.5 py-2.5 text-[11px] leading-[17px] text-ink-soft transition placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-cyan-pop"
                     />
@@ -558,22 +1204,30 @@ export function ScriptReview({
                       <span className="font-pixel text-[8px] tabular-nums text-muted">
                         {scriptText.length.toLocaleString()} / 20,000
                       </span>
-                      <PrimaryButton disabled={isSubmitting || scriptText.trim().length === 0}>
-                        {isSubmitting ? (
-                          <>
-                            <Spinner /> Analyzing…
-                          </>
-                        ) : (
-                          '▶ Analyze script'
-                        )}
-                      </PrimaryButton>
+                      {showWalkthroughChrome ? (
+                        <span className="font-pixel text-[8px] text-cyan-pop">
+                          USE RUN NEXT STAGE
+                        </span>
+                      ) : (
+                        <PrimaryButton disabled={isSubmitting || scriptText.trim().length === 0}>
+                          {isSubmitting ? (
+                            <>
+                              <Spinner /> Analyzing…
+                            </>
+                          ) : displayCase ? (
+                            '▶ Re-analyze script'
+                          ) : (
+                            '▶ Analyze script'
+                          )}
+                        </PrimaryButton>
+                      )}
                     </div>
                   </form>
 
                   {productionId ? (
                     <form
                       onSubmit={submitAnalysisFile}
-                      className="mt-4 border-2 border-ink bg-exhibit p-[18px] shadow-card"
+                      className="mt-3 border-2 border-ink bg-exhibit p-[18px] shadow-card"
                     >
                       <label
                         htmlFor="analysis-file"
@@ -615,10 +1269,49 @@ export function ScriptReview({
                       </div>
                     </form>
                   ) : null}
-                  <AgentPipeline status={agentWorkflowStatus} result={caseResult} />
                 </Panel>
+
+                <AgentPipeline
+                  status={displayWorkflowStatus}
+                  result={pipelineCase}
+                  revealStage={demoWalkthrough?.stage ?? null}
+                />
               </div>
             </div>
+
+            {showDeskColumns ? (
+              <div
+                className={`grid items-start gap-4 ${
+                  showDeskColumns ? 'lg:grid-cols-[minmax(20rem,1fr)_minmax(18rem,1fr)]' : ''
+                }`}
+              >
+                <div className="animate-fade-up min-w-0">
+                  <PixelLabel>01 · Case desk</PixelLabel>
+                  <div className="mt-2">
+                    {displayCase ? (
+                      <CaseDesk
+                        result={displayCase}
+                        roster={roster}
+                        actingMemberId={actingMemberId}
+                        onActingMemberId={setActingMemberId}
+                        reply={deskReply}
+                        onReplyChange={setDeskReply}
+                        onReply={() => void postDeskReply()}
+                        isReplying={isReplying}
+                        onChangeStatus={changeStatus}
+                        updatingFindingId={updatingFindingId}
+                      />
+                    ) : (
+                      <Panel>
+                        <p className="font-pixel text-[8px] text-cyan-pop">WAITING FOR INTAKE</p>
+                        <p className="mt-2 text-[11px] leading-4 text-lavender-soft">
+                          Press <strong>Run next stage</strong> to let Gemini Intake post the first
+                          desk message.
+                        </p>
+                      </Panel>
+                    )}
+                  </div>
+                </div>
 
             {error ? (
               <p
@@ -630,11 +1323,11 @@ export function ScriptReview({
               </p>
             ) : null}
 
-            {caseResult ? (
-              <>
-                <div className="animate-fade-up">
-                  <PixelLabel>02: Searching</PixelLabel>
-                  <div className="mt-3">
+            {showDeskColumns ? (
+              <div className="animate-fade-up min-w-0 space-y-4">
+                <div data-testid="demo-coach-findings">
+                  <PixelLabel>02 · Findings</PixelLabel>
+                  <div className="mt-2">
                     <Panel>
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div>
@@ -646,22 +1339,38 @@ export function ScriptReview({
                           </h2>
                         </div>
                         <span className="border border-ink bg-white px-2 py-1 font-pixel text-[8.5px] text-ink">
-                          {caseResult.findings.length}{' '}
-                          {caseResult.findings.length === 1 ? 'FINDING' : 'FINDINGS'}
+                          {displayCase?.findings.length ?? 0}{' '}
+                          {(displayCase?.findings.length ?? 0) === 1 ? 'FINDING' : 'FINDINGS'}
                         </span>
                       </div>
 
                       <div className="mt-4 space-y-4">
-                        {caseResult.findings.length === 0 ? (
+                        {!displayCase || displayCase.findings.length === 0 ? (
                           <p className="text-[11.5px] leading-[17.83px] text-lavender-soft">
-                            No deterministic research leads were found in this excerpt. That is not
-                            a clearance conclusion.
+                            {showWalkthroughChrome &&
+                            demoWalkthrough &&
+                            demoWalkthrough.stage !== 'curation' &&
+                            demoWalkthrough.stage !== 'human'
+                              ? 'Findings unlock after Gemini Curation. Keep pressing Run next stage.'
+                              : 'No deterministic research leads were found in this excerpt. That is not a clearance conclusion.'}
                           </p>
                         ) : (
-                          caseResult.findings.map((finding, findingIndex) => (
+                          displayCase.findings.map((finding, findingIndex) => {
+                            const isEscalated = finding.reviewer_status === 'escalated';
+                            const isDismissed = finding.reviewer_status === 'dismissed';
+                            const justStamped = stampBurstId === finding.id;
+                            return (
                             <article
-                              className="border-2 border-ink bg-exhibit p-[18px] shadow-pop"
+                              className={`border-2 bg-exhibit p-[18px] transition ${
+                                isEscalated
+                                  ? 'border-accent shadow-[5px_5px_0_#ff2e9a]'
+                                  : isDismissed
+                                    ? 'border-muted opacity-80 shadow-none'
+                                    : 'border-ink shadow-pop'
+                              }`}
                               data-testid="finding-card"
+                              data-finding-id={finding.id}
+                              data-reviewer-status={finding.reviewer_status}
                               key={finding.id}
                             >
                               <div className="flex flex-wrap items-start justify-between gap-3">
@@ -670,7 +1379,11 @@ export function ScriptReview({
                                   <br />
                                   {finding.category.replace(/_/g, ' ')}
                                 </span>
-                                <StatusStamp status={finding.reviewer_status} />
+                                <StatusStamp
+                                  key={`${finding.id}-${finding.reviewer_status}-${justStamped ? 'burst' : 'idle'}`}
+                                  status={finding.reviewer_status}
+                                  animate={justStamped && finding.reviewer_status !== 'pending'}
+                                />
                               </div>
                               <h3 className="mt-2 font-display text-base leading-[21.6px] text-ink">
                                 {finding.detected_item}
@@ -678,6 +1391,12 @@ export function ScriptReview({
                               <p className="mt-1.5 text-[11.5px] leading-[17.83px] text-ink-soft">
                                 {finding.explanation}
                               </p>
+                              <FindingStakeholders
+                                finding={finding}
+                                roster={roster}
+                                emphasize={isEscalated}
+                                animate={justStamped && isEscalated}
+                              />
                               <div className="mt-2.5 flex flex-wrap gap-1.5">
                                 <span className="border border-ink bg-white px-2 py-0.5 text-[10.5px] font-bold text-ink">
                                   {Math.round(finding.confidence * 100)}% match
@@ -726,21 +1445,23 @@ export function ScriptReview({
                                     {updatingFindingId === finding.id ? (
                                       <Spinner className="size-3.5" />
                                     ) : null}
-                                    Escalate ⚡
+                                    Escalate in desk ⚡
                                   </EscalateButton>
                                 </div>
                               </div>
                             </article>
-                          ))
+                            );
+                          })
                         )}
                       </div>
                     </Panel>
                   </div>
                 </div>
 
-                <div className="animate-fade-up">
-                  <PixelLabel>03: Tracklist</PixelLabel>
-                  <div className="mt-3">
+                {focusTour ? null : (
+                <div>
+                  <PixelLabel>03 · Attachments</PixelLabel>
+                  <div className="mt-2">
                     <Panel>
                       <p className="font-pixel text-[8px] tracking-[0.16px] text-line-strong">
                         STEP 3 / PRODUCTION NOTES
@@ -841,18 +1562,65 @@ export function ScriptReview({
                     </Panel>
                   </div>
                 </div>
-              </>
+                )}
+              </div>
+            ) : null}
+            </div>
+            ) : null}
+
+            {displayCase && !focusTour && !showWalkthroughChrome ? (
+              <div className="animate-fade-up">
+                <PixelLabel>Recent cases</PixelLabel>
+                <div className="mt-2" data-testid="recent-cases" aria-live="polite">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <SecondaryButton disabled={isLoadingRecentCases} onClick={refreshRecentCases}>
+                      {isLoadingRecentCases ? (
+                        <>
+                          <Spinner className="size-3.5" /> Loading…
+                        </>
+                      ) : (
+                        '↻ Refresh'
+                      )}
+                    </SecondaryButton>
+                    {recentCases.length === 0 ? (
+                      <span className="text-[11px] text-lavender-soft">No recent cases yet.</span>
+                    ) : (
+                      recentCases.slice(0, 6).map((recentCase) => (
+                        <button
+                          key={recentCase.id}
+                          type="button"
+                          disabled={isLoadingCaseId === recentCase.id}
+                          onClick={() => reopenCase(recentCase.id)}
+                          className="max-w-[14rem] truncate border border-ink bg-white px-2 py-1.5 text-left font-display text-[9px] text-ink shadow-press hover:bg-exhibit disabled:opacity-60"
+                        >
+                          {recentCase.script_excerpt}
+                        </button>
+                      ))
+                    )}
+                  </div>
+                </div>
+              </div>
             ) : null}
           </div>
 
-          <aside className="animate-fade-up lg:sticky lg:top-8">
-            <PixelLabel>04: Dashboard</PixelLabel>
-            <div className="mt-3">
+          {displayCase && !focusTour && !showWalkthroughChrome ? (
+            <div className="animate-fade-up xl:sticky xl:top-2 xl:max-h-[calc(100vh-1.25rem)] xl:self-start">
+              <PixelLabel>
+                <span className="text-[#ffb454]">DEV · JUDGE</span>
+              </PixelLabel>
+              <div className="mt-2 h-[calc(100vh-5rem)] min-h-[24rem]">
+                <JudgeLogRail calls={displayCase.tool_calls ?? []} />
+              </div>
+            </div>
+          ) : !displayCase && !showWalkthroughChrome ? (
+          <aside className="animate-fade-up lg:sticky lg:top-4">
+            <PixelLabel>04 · Cases</PixelLabel>
+            <div className="mt-2">
               <Panel>
-                <h2 className="font-display text-base text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4]">
+                <h2 className="font-display text-base text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4]">
                   Your cases
                 </h2>
-                <p className="mt-1.5 text-[11.5px] leading-[17.83px] text-lavender-soft">
+                <p className="mt-1.5 text-[11px] leading-4 text-lavender-soft">
                   Newest cut first.
                 </p>
                 <div className="mt-3">
@@ -917,6 +1685,7 @@ export function ScriptReview({
               </Panel>
             </div>
           </aside>
+          ) : null}
         </div>
       </main>
     </div>

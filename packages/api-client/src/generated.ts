@@ -30,6 +30,8 @@ export interface Case {
   production_id?: string | null;
   title?: string;
   notes?: string;
+  thread?: CaseThreadMessage[];
+  tool_calls?: ToolCallEvent[];
 }
 
 export interface CaseSummary {
@@ -38,6 +40,18 @@ export interface CaseSummary {
   script_excerpt: string;
   finding_count: number;
   asset_count: number;
+}
+
+export interface CaseThreadMessage {
+  id: string;
+  case_id: string;
+  author_kind: ThreadAuthorKind;
+  body: string;
+  agent_name?: string | null;
+  member_id?: string | null;
+  finding_id?: string | null;
+  mentions?: string[];
+  created_at: string;
 }
 
 export interface CreateCaseRequest {
@@ -56,6 +70,13 @@ export interface CreateProductionRequest {
   studio?: string;
   status?: ProductionStatus;
   icon?: string;
+  roster?: ProductionMemberInput[];
+}
+
+export interface CreateThreadMessageRequest {
+  member_id: string;
+  body: string;
+  finding_id?: string | null;
 }
 
 export interface Evidence {
@@ -84,6 +105,7 @@ export interface Finding {
   assignee?: string | null;
   due_date?: string | null;
   comments?: FindingComment[];
+  stakeholder_ids?: string[];
 }
 
 export interface FindingComment {
@@ -106,7 +128,21 @@ export interface Production {
   icon_version?: string | null;
   icon_content_type?: string | null;
   ignore_keywords?: string[];
+  roster?: ProductionMember[];
   created_at: string;
+}
+
+export interface ProductionMember {
+  id: string;
+  name: string;
+  role: WorkspaceRole;
+  email?: string | null;
+}
+
+export interface ProductionMemberInput {
+  name: string;
+  role: WorkspaceRole;
+  email?: string | null;
 }
 
 export type ProductionStatus = "development" | "pre_production" | "shooting" | "post" | "released";
@@ -120,6 +156,7 @@ export interface ProductionSummary {
   icon_version?: string | null;
   icon_content_type?: string | null;
   ignore_keywords?: string[];
+  roster?: ProductionMember[];
   created_at: string;
   case_count?: number;
   open_finding_count?: number;
@@ -133,13 +170,33 @@ export interface Source {
   url: string;
 }
 
+export type ThreadAuthorKind = "agent" | "human";
+
+export interface ToolCallEvent {
+  id: string;
+  case_id: string;
+  provider: ToolCallProvider;
+  method: string;
+  agent_name: string;
+  ok: boolean;
+  fixture?: boolean;
+  summary: string;
+  lead?: string | null;
+  duration_ms?: number;
+  started_at: string;
+}
+
+export type ToolCallProvider = "vertex" | "parallel";
+
 export interface UpdateFindingMetaRequest {
   assignee?: string | null;
   due_date?: string | null;
+  actor_member_id?: string | null;
 }
 
 export interface UpdateFindingRequest {
   reviewer_status: ReviewerStatus;
+  actor_member_id?: string | null;
 }
 
 export interface UpdateProductionRequest {
@@ -148,6 +205,7 @@ export interface UpdateProductionRequest {
   status?: ProductionStatus | null;
   icon?: string | null;
   ignore_keywords?: string[] | null;
+  roster?: ProductionMemberInput[] | null;
 }
 
 export interface ValidationError {
@@ -157,6 +215,8 @@ export interface ValidationError {
   input?: unknown;
   ctx?: Record<string, unknown>;
 }
+
+export type WorkspaceRole = "production" | "clearance" | "legal";
 
 export type ApiFetcher = (input: RequestInfo | URL, init?: RequestInit) => Promise<Response>;
 
@@ -174,7 +234,14 @@ async function request<T>(
   if (!response.ok) {
     throw new Error(`API request failed (${response.status})`);
   }
-  return (await response.json()) as T;
+  if (response.status === 204) {
+    return undefined as T;
+  }
+  const text = await response.text();
+  if (!text) {
+    return undefined as T;
+  }
+  return JSON.parse(text) as T;
 }
 
 export function createCase(
@@ -211,6 +278,14 @@ export function getCase(
   fetcher: ApiFetcher = fetch
 ): Promise<Case> {
   return request<Case>('/api/cases/' + encodeURIComponent(caseId), baseUrl, { method: 'GET' }, fetcher);
+}
+
+export function deleteCase(
+  caseId: string,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<void> {
+  return request<void>('/api/cases/' + encodeURIComponent(caseId), baseUrl, { method: 'DELETE' }, fetcher);
 }
 
 export function listCases(
@@ -260,12 +335,26 @@ export function updateFindingStatus(
   findingId: string,
   reviewerStatus: ReviewerStatus,
   baseUrl: string,
-  fetcher: ApiFetcher = fetch
+  fetcher: ApiFetcher = fetch,
+  actorMemberId?: string | null,
 ): Promise<Finding> {
   return request<Finding>('/api/cases/' + encodeURIComponent(caseId) + '/findings/' + encodeURIComponent(findingId), baseUrl, {
     method: 'PATCH',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ reviewer_status: reviewerStatus })
+    body: JSON.stringify({ reviewer_status: reviewerStatus, ...(actorMemberId ? { actor_member_id: actorMemberId } : {}) })
+  }, fetcher);
+}
+
+export function postThreadMessage(
+  caseId: string,
+  payload: CreateThreadMessageRequest,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<Case> {
+  return request<Case>('/api/cases/' + encodeURIComponent(caseId) + '/thread', baseUrl, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
   }, fetcher);
 }
 

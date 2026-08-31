@@ -5,6 +5,7 @@ from typing import Any, Protocol
 from app.models import (
     Case,
     Production,
+    ProductionMember,
     ProductionStatus,
     ProductionSummary,
     ReviewerStatus,
@@ -31,6 +32,7 @@ class ProductionRepository(Protocol):
         status: ProductionStatus | None = None,
         icon: str | None = None,
         ignore_keywords: "builtins.list[str] | None" = None,
+        roster: "builtins.list[ProductionMember] | None" = None,
         clear_custom_icon: bool = False,
     ) -> Production: ...
 
@@ -75,6 +77,7 @@ def summarize_production(production: Production, cases: list[Case]) -> Productio
                 "icon_version",
                 "icon_content_type",
                 "ignore_keywords",
+                "roster",
                 "created_at",
             }
         ),
@@ -115,6 +118,7 @@ class InMemoryProductionRepository:
         status: ProductionStatus | None = None,
         icon: str | None = None,
         ignore_keywords: "builtins.list[str] | None" = None,
+        roster: "builtins.list[ProductionMember] | None" = None,
         clear_custom_icon: bool = False,
     ) -> Production:
         production = self._productions.get(production_id)
@@ -130,6 +134,8 @@ class InMemoryProductionRepository:
             production.icon = icon
         if ignore_keywords is not None:
             production.ignore_keywords = ignore_keywords
+        if roster is not None:
+            production.roster = roster
         if clear_custom_icon:
             production.icon_version = None
             production.icon_content_type = None
@@ -200,6 +206,7 @@ class FirestoreProductionRepository:
         status: ProductionStatus | None = None,
         icon: str | None = None,
         ignore_keywords: "builtins.list[str] | None" = None,
+        roster: "builtins.list[ProductionMember] | None" = None,
         clear_custom_icon: bool = False,
     ) -> Production:
         document = self._collection.document(production_id)
@@ -216,6 +223,8 @@ class FirestoreProductionRepository:
             updates["icon"] = icon
         if ignore_keywords is not None:
             updates["ignore_keywords"] = ignore_keywords
+        if roster is not None:
+            updates["roster"] = [member.model_dump(mode="json") for member in roster]
         if clear_custom_icon:
             updates["icon_version"] = None
             updates["icon_content_type"] = None

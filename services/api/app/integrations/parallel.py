@@ -1,3 +1,4 @@
+import logging
 from collections.abc import Mapping
 from typing import Any, Protocol
 
@@ -7,6 +8,7 @@ from app.errors import AnalysisProviderError
 from app.models import Source
 from app.models.analysis import GeminiSignal, SearchResult
 
+logger = logging.getLogger("rightsrader.integrations")
 _PARALLEL_API_ROOT = "https://api.parallel.ai/v1"
 _MAX_CANDIDATES = 5
 _MAX_CHARS_TOTAL = 8_000
@@ -20,7 +22,12 @@ _CATEGORY_TERMS = {
 
 
 class ParallelSearchClient(Protocol):
-    async def search(self, signal: GeminiSignal, session_id: str) -> list[SearchResult]: ...
+    async def search(
+        self,
+        signal: GeminiSignal,
+        session_id: str,
+        objective: str | None = None,
+    ) -> list[SearchResult]: ...
 
     async def extract(
         self, signal: GeminiSignal, candidates: list[SearchResult], session_id: str
@@ -59,6 +66,26 @@ class MockParallelSearchClient:
                 "archive used only for the RightsRadar local workflow."
             ),
         ),
+        "The Matrix": SearchResult(
+            source=Source(
+                title="The Matrix franchise reference archive (mock)",
+                url="https://example.com/the-matrix-franchise-reference",
+            ),
+            excerpt=(
+                "Mock search fixture: The Matrix appears in a franchise-reference archive "
+                "used only for the RightsRadar local workflow."
+            ),
+        ),
+        "There is no spoon": SearchResult(
+            source=Source(
+                title="There is no spoon quotation archive (mock)",
+                url="https://example.com/there-is-no-spoon-quotation",
+            ),
+            excerpt=(
+                "Mock search fixture: the phrase is a well-known film quotation recorded "
+                "here as deterministic local evidence, not a legal conclusion."
+            ),
+        ),
         "The Copper Comet Chronicles": SearchResult(
             source=Source(
                 title="The Copper Comet Chronicles franchise reference archive (mock)",
@@ -81,8 +108,13 @@ class MockParallelSearchClient:
         ),
     }
 
-    async def search(self, signal: GeminiSignal, session_id: str) -> list[SearchResult]:
-        del session_id
+    async def search(
+        self,
+        signal: GeminiSignal,
+        session_id: str,
+        objective: str | None = None,
+    ) -> list[SearchResult]:
+        del session_id, objective
         result = self._FIXTURES.get(signal.detected_item)
         return [result] if result else []
 
@@ -98,8 +130,17 @@ def _compact_words(value: str, limit: int) -> str:
     return " ".join(value.split()[:limit])
 
 
-def _build_search_queries(signal: GeminiSignal) -> list[str]:
+def _build_search_queries(
+    signal: GeminiSignal, objective: str | None = None
+) -> list[str]:
     item = _compact_words(signal.detected_item, 4)
+    if objective:
+        planned = _compact_words(objective, 6)
+        return [
+            planned,
+            _compact_words(f"{item} official source", 6),
+            _compact_words(f"{item} origin", 6),
+        ]
     category = _CATEGORY_TERMS.get(signal.category, signal.category.replace("_", " "))
     category = _compact_words(category, 2)
     return [
@@ -176,6 +217,11 @@ class ParallelSearchHttpClient:
         self._http_client = http_client or httpx.AsyncClient(timeout=20)
 
     async def _post(self, path: str, payload: dict[str, object]) -> Mapping[str, Any]:
+        logger.info(
+            "parallel request path=%s session_id=%s",
+            path,
+            payload.get("session_id", "-"),
+        )
         try:
             response = await self._http_client.post(
                 f"{_PARALLEL_API_ROOT}/{path}",
@@ -194,12 +240,24 @@ class ParallelSearchHttpClient:
             )
         return parsed
 
-    async def search(self, signal: GeminiSignal, session_id: str) -> list[SearchResult]:
+    async def search(
+        self,
+        signal: GeminiSignal,
+        session_id: str,
+        objective: str | None = None,
+    ) -> list[SearchResult]:
+        if objective:
+            context = (signal.context_excerpt or "").strip()[:2_000]
+            research_objective = (
+                f"{objective} Scene context: {context}" if context else objective
+            )
+        else:
+            research_objective = _research_objective(signal)
         payload = await self._post(
             "search",
             {
-                "objective": _research_objective(signal),
-                "search_queries": _build_search_queries(signal),
+                "objective": research_objective,
+                "search_queries": _build_search_queries(signal, objective),
                 "mode": "advanced",
                 "max_chars_total": _MAX_CHARS_TOTAL,
                 "session_id": session_id,

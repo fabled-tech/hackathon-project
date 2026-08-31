@@ -1,10 +1,19 @@
 import json
+import logging
 from typing import Any, Protocol
 
 from pydantic import ValidationError
 
 from app.errors import AnalysisProviderError, EvidenceCurationError
-from app.models.analysis import EvidenceCurationDecision, GeminiSignal, SearchResult
+from app.models.analysis import (
+    EvidenceCurationDecision,
+    GeminiSignal,
+    SearchObjectivePlan,
+    SearchResult,
+    StakeholderBrief,
+)
+
+logger = logging.getLogger("rightsrader.integrations")
 
 
 class GeminiClient(Protocol):
@@ -16,6 +25,12 @@ class GeminiClient(Protocol):
         content_type: str,
         content: bytes,
     ) -> list[GeminiSignal]: ...
+
+    async def plan_queries(self, signal: GeminiSignal) -> list[str]: ...
+
+    async def brief_stakeholders(
+        self, signal: GeminiSignal, extracted: list[SearchResult]
+    ) -> str: ...
 
     async def curate_evidence(
         self, signal: GeminiSignal, candidates: list[SearchResult]
@@ -66,6 +81,32 @@ class MockGeminiClient:
                     confidence=0.78,
                 )
             )
+        if "the matrix" in normalized:
+            signals.append(
+                GeminiSignal(
+                    category="franchise_reference",
+                    detected_item="The Matrix",
+                    explanation=(
+                        "The script names a well-known film franchise; a reviewer should "
+                        "research whether this homage needs a license before release."
+                    ),
+                    confidence=0.88,
+                    context_excerpt=script_text,
+                )
+            )
+        if "there is no spoon" in normalized:
+            signals.append(
+                GeminiSignal(
+                    category="quotation",
+                    detected_item="There is no spoon",
+                    explanation=(
+                        "The script includes a distinctive film quotation; a reviewer should "
+                        "confirm its origin and clearance status before release."
+                    ),
+                    confidence=0.81,
+                    context_excerpt=script_text,
+                )
+            )
         if "the copper comet chronicles" in normalized:
             signals.append(
                 GeminiSignal(
@@ -91,6 +132,29 @@ class MockGeminiClient:
                 )
             )
         return signals
+
+    async def plan_queries(self, signal: GeminiSignal) -> list[str]:
+        item = signal.detected_item
+        return [
+            f"{item} official source",
+            f"{item} origin attribution",
+        ]
+
+    async def brief_stakeholders(
+        self, signal: GeminiSignal, extracted: list[SearchResult]
+    ) -> str:
+        if not extracted:
+            return (
+                f"No extracted pages were available to brief stakeholders on "
+                f"{signal.detected_item}."
+            )
+        first = extracted[0]
+        return (
+            f"{signal.detected_item} appears in {first.source.title}. "
+            f"{first.excerpt[:240]} "
+            f"Citations are limited to the extracted page text. "
+            f"No legal conclusion is implied."
+        )
 
     async def curate_evidence(
         self, signal: GeminiSignal, candidates: list[SearchResult]
@@ -155,6 +219,9 @@ class VertexGeminiClient:
     async def identify_material(self, script_text: str) -> list[GeminiSignal]:
         from google.genai import types
 
+        logger.info(
+            "vertex generate_content model=%s method=identify_material", self._model
+        )
         try:
             response = await self._client.aio.models.generate_content(
                 model=self._model,
@@ -193,6 +260,11 @@ class VertexGeminiClient:
     ) -> list[GeminiSignal]:
         from google.genai import types
 
+        logger.info(
+            "vertex generate_content model=%s method=identify_material_from_file filename=%s",
+            self._model,
+            filename,
+        )
         try:
             response = await self._client.aio.models.generate_content(
                 model=self._model,
@@ -238,6 +310,12 @@ class VertexGeminiClient:
         if not candidates:
             return EvidenceCurationDecision(primary_url=None, rationale=None)
 
+        logger.info(
+            "vertex generate_content model=%s method=curate_evidence lead=%s candidates=%s",
+            self._model,
+            signal.detected_item,
+            len(candidates),
+        )
         candidate_payload = [candidate.model_dump(mode="json") for candidate in candidates]
         try:
             response = await self._client.aio.models.generate_content(
@@ -276,3 +354,94 @@ class VertexGeminiClient:
         if decision.primary_url is None or not decision.rationale:
             return EvidenceCurationDecision(primary_url=None, rationale=None)
         return decision
+
+    async def plan_queries(self, signal: GeminiSignal) -> list[str]:
+        from google.genai import types
+
+        logger.info(
+            "vertex generate_content model=%s method=plan_queries lead=%s",
+            self._model,
+            signal.detected_item,
+        )
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self._model,
+                contents=(
+                    "Propose 2 or 3 short web-search objectives for this "
+                    "rights-clearance research lead. Each objective is one concise "
+                    "source hunt (trademark, official site, recent news, origin). "
+                    "Do not give legal advice or invent facts.\n\nLead:\n"
+                    + signal.model_dump_json()
+                ),
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=SearchObjectivePlan,
+                    temperature=0,
+                ),
+            )
+        except Exception as error:
+            raise AnalysisProviderError(
+                "Gemini query planning failed", operation="gemini_plan_queries"
+            ) from error
+
+        try:
+            plan = SearchObjectivePlan.model_validate_json(response.text or "{}")
+        except (ValidationError, ValueError) as error:
+            raise AnalysisProviderError(
+                "Gemini query planning returned invalid output",
+                operation="gemini_plan_queries",
+            ) from error
+        return [item.strip() for item in plan.objectives if item.strip()][:3]
+
+    async def brief_stakeholders(
+        self, signal: GeminiSignal, extracted: list[SearchResult]
+    ) -> str:
+        from google.genai import types
+
+        if not extracted:
+            return (
+                f"No extracted pages were available to brief stakeholders on "
+                f"{signal.detected_item}."
+            )
+
+        logger.info(
+            "vertex generate_content model=%s method=brief_stakeholders lead=%s pages=%s",
+            self._model,
+            signal.detected_item,
+            len(extracted),
+        )
+        excerpt_payload = [
+            {"url": item.source.url, "excerpt": item.excerpt} for item in extracted
+        ]
+        try:
+            response = await self._client.aio.models.generate_content(
+                model=self._model,
+                contents=(
+                    "Write 3 to 5 sentences briefing roster stakeholders on this "
+                    "rights-clearance lead. Cite only facts present in the extracted "
+                    "excerpts. Do not invent URLs, quotes, or legal conclusions.\n\n"
+                    "Lead:\n"
+                    + signal.model_dump_json()
+                    + "\n\nExtracted excerpts:\n"
+                    + json.dumps(excerpt_payload)
+                ),
+                config=types.GenerateContentConfig(
+                    response_mime_type="application/json",
+                    response_schema=StakeholderBrief,
+                    temperature=0,
+                ),
+            )
+        except Exception as error:
+            raise AnalysisProviderError(
+                "Gemini stakeholder brief failed",
+                operation="gemini_brief_stakeholders",
+            ) from error
+
+        try:
+            brief = StakeholderBrief.model_validate_json(response.text or "{}")
+        except (ValidationError, ValueError) as error:
+            raise AnalysisProviderError(
+                "Gemini stakeholder brief returned invalid output",
+                operation="gemini_brief_stakeholders",
+            ) from error
+        return brief.brief
