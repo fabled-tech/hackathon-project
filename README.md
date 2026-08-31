@@ -188,9 +188,10 @@ cloud). Summaries never include secrets or provider response bodies.
 
 The first screen asks whether to **walk The Matrix homage** or **work the desk yourself**. The
 choice is stored in `localStorage` (`rightsrader.demo.choice`) so a refresh does not nag; use the
-sidebar **Demo** control to reopen the chooser or run the homage again. Walkthrough always opens
-The Matrix rooftop homage (franchise **and** “There is no spoon”) so two Research lanes fire. It
-does not re-analyze on every later load.
+sidebar **Demo** control to reopen the chooser or run the homage again. Walkthrough files The
+Matrix rooftop homage (franchise **and** “There is no spoon”), then reveals the desk **one
+pipeline stage per Run next stage press** — Intake → Research → Curation → your turn — instead of
+dumping a pre-complete case.
 
 On the production overview, **Signed in as** defaults to clearance (**Jordan**). The **Inbox**
 lists cases with pending findings assigned to that roster user; nested Research Findings no longer
