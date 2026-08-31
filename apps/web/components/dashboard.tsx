@@ -44,7 +44,8 @@ import {
   useEffect,
   useMemo,
   useRef,
-  useState
+  useState,
+  useSyncExternalStore
 } from 'react';
 import { DemoCoach } from './demo-coach';
 import { DemoGate } from './demo-gate';
@@ -54,9 +55,11 @@ import {
   DEMO_PRODUCTION_TITLE,
   DEMO_ROSTER,
   duplicateCaseIdsToRemove,
+  getDemoChoiceServerSnapshot,
   missingFeaturedDemoScripts,
   normalizeDemoScript,
   readDemoChoice,
+  subscribeDemoChoice,
   writeDemoChoice
 } from '@/lib/demo-mode';
 import { DEMO_REVEAL_BY_STEP, type DemoRevealStage } from '@/lib/demo-reveal';
@@ -279,7 +282,14 @@ export function Dashboard() {
   const [newStudio, setNewStudio] = useState('');
   const [newRoster, setNewRoster] = useState<ProductionMemberInput[]>(DEMO_ROSTER);
   const [error, setError] = useState<string | null>(null);
-  const [gateOpen, setGateOpen] = useState(() => !readDemoChoice());
+  const storedDemoChoice = useSyncExternalStore(
+    subscribeDemoChoice,
+    readDemoChoice,
+    getDemoChoiceServerSnapshot
+  );
+  /** Demo control / walkthrough errors can reopen the gate even after a stored choice. */
+  const [gateForcedOpen, setGateForcedOpen] = useState(false);
+  const gateOpen = gateForcedOpen || storedDemoChoice === null;
   const [coachOpen, setCoachOpen] = useState(false);
   const [walkthroughBusy, setWalkthroughBusy] = useState(false);
   const [openedCase, setOpenedCase] = useState<Case | null>(null);
@@ -400,7 +410,7 @@ export function Dashboard() {
 
   const chooseSelfServe = useCallback(() => {
     writeDemoChoice('self-serve');
-    setGateOpen(false);
+    setGateForcedOpen(false);
     setCoachOpen(false);
   }, []);
 
@@ -455,11 +465,11 @@ export function Dashboard() {
       setOpenedCase(null);
       setDemoStep(0);
       setView({ kind: 'case' });
-      setGateOpen(false);
+      setGateForcedOpen(false);
       setCoachOpen(true);
     } catch {
       setError('Could not open the sample case. Use Demo to try again, or work the desk yourself.');
-      setGateOpen(true);
+      setGateForcedOpen(true);
     } finally {
       setWalkthroughBusy(false);
     }
@@ -586,7 +596,7 @@ export function Dashboard() {
           <button
             type="button"
             data-testid="demo-control"
-            onClick={() => setGateOpen(true)}
+            onClick={() => setGateForcedOpen(true)}
             className="mt-3 w-full border-2 border-ink bg-white px-2.5 py-1.5 font-display text-[9px] text-ink shadow-press transition hover:bg-exhibit focus-visible:outline-2 focus-visible:outline-cyan-pop"
           >
             Demo

@@ -181,15 +181,44 @@ function canUseStorage(): boolean {
   return typeof window !== 'undefined' && typeof window.localStorage !== 'undefined';
 }
 
+type DemoChoiceListener = () => void;
+const demoChoiceListeners = new Set<DemoChoiceListener>();
+
+function emitDemoChoiceChange(): void {
+  for (const listener of demoChoiceListeners) {
+    listener();
+  }
+}
+
+/** Subscribe for useSyncExternalStore — same-tab writes + cross-tab storage events. */
+export function subscribeDemoChoice(onStoreChange: DemoChoiceListener): () => void {
+  demoChoiceListeners.add(onStoreChange);
+  if (typeof window !== 'undefined') {
+    window.addEventListener('storage', onStoreChange);
+  }
+  return () => {
+    demoChoiceListeners.delete(onStoreChange);
+    if (typeof window !== 'undefined') {
+      window.removeEventListener('storage', onStoreChange);
+    }
+  };
+}
+
 export function readDemoChoice(): DemoChoice | null {
   if (!canUseStorage()) return null;
   const value = window.localStorage.getItem(DEMO_CHOICE_KEY);
   return value === 'walkthrough' || value === 'self-serve' ? value : null;
 }
 
+/** SSR snapshot: treat as chosen so the gate stays closed and matches hydrated e2e/self-serve. */
+export function getDemoChoiceServerSnapshot(): DemoChoice {
+  return 'self-serve';
+}
+
 export function writeDemoChoice(choice: DemoChoice): void {
   if (!canUseStorage()) return;
   window.localStorage.setItem(DEMO_CHOICE_KEY, choice);
+  emitDemoChoiceChange();
 }
 
 export function readLastScriptId(): string | undefined {

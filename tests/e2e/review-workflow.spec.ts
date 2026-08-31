@@ -605,10 +605,11 @@ test('runs a roster desk thread with stakeholder research and a human reply', as
   await page.getByRole('button', { name: 'Post to desk' }).click();
   await expect(desk).toContainText('Studio-owned brand');
 
-  await desk.getByRole('button', { name: 'Escalate Time keeps the reel turning' }).click();
-  await expect(page.getByTestId('finding-card').filter({ hasText: 'Time keeps the reel turning' })).toContainText(
-    'Escalated'
-  );
+  const quoteFinding = page
+    .getByTestId('finding-card')
+    .filter({ hasText: 'Time keeps the reel turning' });
+  await quoteFinding.getByRole('button', { name: /Escalate/ }).click();
+  await expect(quoteFinding).toContainText('Escalated');
 });
 
 test('creates a production, analyzes the two-lane demo script, and shows tool-call chips', async ({
