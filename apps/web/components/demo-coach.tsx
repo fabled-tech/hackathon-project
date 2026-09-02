@@ -30,9 +30,14 @@ export const DEMO_TOUR_STEPS = [
     body: 'Curation picks primary sources and the finding cards appear. Only now is the analysis “complete” for reviewers.'
   },
   {
+    target: 'demo-coach-findings',
+    title: 'Clearance Adjudicator',
+    body: 'Two readings of “The Matrix” conflict. An ADK agent frames the hypotheses, one advocate per reading searches registries through Parallel, and a grounded judge writes the memo and assigns it.'
+  },
+  {
     target: 'demo-coach-actions',
     title: 'Your turn',
-    body: 'Speak as Jordan, Alex, or Maya. Dismiss studio-owned hits or escalate anything that still needs a human call.'
+    body: 'Act as Jordan, Alex, or Maya. Dismiss what the memo cleared or escalate anything that still needs a human call.'
   }
 ] as const;
 
