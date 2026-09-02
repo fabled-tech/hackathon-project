@@ -64,6 +64,13 @@ Open <http://127.0.0.1:3000>. `make dev` starts FastAPI with reload on port 8000
 hot reload on port 3000. The default `RIGHTSRADAR_MODE=mock` uses in-memory repositories and
 deterministic Gemini/Parallel fixtures, so no API keys or cloud credentials are needed.
 
+### Deploy (Cloud Run + Vercel)
+
+`scripts/deploy-api.sh` builds `services/api/Dockerfile` with Cloud Build and deploys
+`rightsrader-api` to Cloud Run in `RIGHTSRADAR_MODE=cloud` with the Parallel key from Secret
+Manager. Set `NEXT_PUBLIC_API_BASE_URL` on the Vercel project to the printed URL. The API caps new
+analyses at `RIGHTSRADAR_DAILY_ANALYSIS_CAP` per UTC day; existing cases stay readable.
+
 ## Commands
 
 ```bash
