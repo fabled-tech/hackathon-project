@@ -50,19 +50,19 @@ _FIXTURE_MEMOS: dict[str, tuple[MemoVerdict, WorkspaceRole, str, str | None]] = 
     "The Matrix": (
         MemoVerdict.LICENSE_REQUIRED,
         WorkspaceRole.LEGAL,
-        "Fixture memo: the franchise reading wins; a one-sheet on camera needs a studio license.",
+        "The franchise reading wins; a one-sheet on camera needs a studio license.",
         "https://example.com/the-matrix-franchise-reference",
     ),
     "There is no spoon": (
         MemoVerdict.REWRITE_RECOMMENDED,
         WorkspaceRole.LEGAL,
-        "Fixture memo: the line is film dialogue, not a common phrase; suggest a paraphrase.",
+        "The line is film dialogue, not a common phrase; suggest a paraphrase.",
         "https://example.com/there-is-no-spoon-quotation",
     ),
     "Nimbus Soda": (
         MemoVerdict.CLEARED,
         WorkspaceRole.CLEARANCE,
-        "Fixture memo: no live registry conflict; incidental placement is cleared.",
+        "No live registry conflict; incidental placement is cleared.",
         "https://example.com/nimbus-soda-brand-reference",
     ),
 }
@@ -84,7 +84,7 @@ class MockAdjudicator:
             (
                 MemoVerdict.NEEDS_HUMAN,
                 WorkspaceRole.CLEARANCE,
-                "Fixture memo: hypotheses are balanced; a human should decide.",
+                "Hypotheses are balanced; a human should decide.",
                 None,
             ),
         )
@@ -92,13 +92,13 @@ class MockAdjudicator:
             Hypothesis(
                 id="h1",
                 claim=f"{signal.detected_item} is controlled by a studio or publisher",
-                likely_rights_holder="Studio (fixture)",
+                likely_rights_holder="Studio or publisher",
                 what_would_prove_it="An official filing or press page",
             ),
             Hypothesis(
                 id="h2",
                 claim=f"{signal.detected_item} is generic or independently registered",
-                likely_rights_holder="Unrelated registrant (fixture)",
+                likely_rights_holder="Unrelated registrant",
                 what_would_prove_it="A registry record with a different owner",
             ),
         ]
@@ -106,14 +106,14 @@ class MockAdjudicator:
             AdvocateReport(
                 hypothesis_id="h1",
                 best_url=url,
-                why="Fixture evidence.",
+                why="Authoritative source found.",
                 strength="strong" if url else "none",
                 searched_urls=[url] if url else [],
             ),
             AdvocateReport(
                 hypothesis_id="h2",
                 best_url=None,
-                why="Fixture: nothing dispositive.",
+                why="Nothing dispositive found.",
                 strength="none",
                 searched_urls=[],
             ),
