@@ -25,7 +25,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.services = app_services
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=["http://localhost:3000", "http://127.0.0.1:3000"],
+        allow_origins=app_settings.allowed_origins,
         allow_methods=["DELETE", "GET", "POST", "PATCH"],
         allow_headers=["Content-Type"],
     )
@@ -34,7 +34,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @app.get("/health", tags=["health"])
     def health() -> dict[str, str]:
-        return {"status": "ok", "mode": app_settings.mode.value}
+        return {
+            "status": "ok",
+            "mode": app_settings.mode.value,
+            "adjudicator": app_settings.adjudicator_mode,
+        }
 
     return app
 
