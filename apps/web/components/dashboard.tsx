@@ -69,6 +69,7 @@ import {
   readActiveMemberId,
   writeActiveMemberId
 } from '@/lib/inbox';
+import { verdictLabel } from '@/lib/memo';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
@@ -1009,8 +1010,14 @@ export function Dashboard() {
                             <li
                               key={finding.id}
                               className="border border-cyan-pop px-2 py-1 font-pixel text-[7px] text-cyan-pop"
+                              data-testid="inbox-finding-chip"
                             >
                               {finding.detected_item}
+                              {finding.memo ? (
+                                <span className="ml-1 text-brand" data-testid="inbox-verdict">
+                                  · {verdictLabel(finding.memo.verdict)}
+                                </span>
+                              ) : null}
                             </li>
                           ))}
                         </ul>

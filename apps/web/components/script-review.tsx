@@ -40,6 +40,7 @@ import {
   workflowStatusForDemoReveal,
   type DemoRevealStage
 } from '@/lib/demo-reveal';
+import { memoOwnerName, verdictLabel, verdictTone } from '@/lib/memo';
 
 const SAMPLE_SCRIPT =
   'EXT. NEON SKYWALK — MIDNIGHT\n\nMARA skates through the rain, kicks a Nimbus Soda can into her palm, and smirks. "Time keeps the reel turning," she says as a drone camera dives past.';
@@ -1426,6 +1427,53 @@ export function ScriptReview({
                                   </blockquote>
                                 ))}
                               </div>
+                              {finding.memo ? (
+                                <div
+                                  className="mt-3 border-2 border-ink bg-white p-3"
+                                  data-testid="clearance-memo"
+                                  data-verdict={finding.memo.verdict}
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <h4 className="font-pixel text-[8px] uppercase tracking-[0.16px] text-line-strong">
+                                      Clearance memo · Adjudicator
+                                    </h4>
+                                    <span
+                                      className={`rotate-1 border-2 px-2 py-0.5 font-display text-[9px] ${
+                                        verdictTone(finding.memo.verdict) === 'cleared'
+                                          ? 'border-brand-strong text-brand-strong'
+                                          : verdictTone(finding.memo.verdict) === 'danger'
+                                            ? 'border-accent text-accent'
+                                            : verdictTone(finding.memo.verdict) === 'warn'
+                                              ? 'border-[#c77d00] text-[#c77d00]'
+                                              : 'border-ink text-ink'
+                                      }`}
+                                      data-testid="memo-verdict"
+                                    >
+                                      {verdictLabel(finding.memo.verdict)} · {Math.round(finding.memo.confidence * 100)}%
+                                    </span>
+                                  </div>
+                                  <p className="mt-2 text-[11px] leading-[16.5px] text-ink-soft">
+                                    {finding.memo.rationale}
+                                  </p>
+                                  {finding.memo.dispositive_url ? (
+                                    <a
+                                      href={finding.memo.dispositive_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-ink underline-offset-2 hover:text-accent hover:underline"
+                                    >
+                                      Dispositive source <ArrowUpRight className="size-3" aria-hidden />
+                                    </a>
+                                  ) : null}
+                                  <p className="mt-2 font-pixel text-[7px] text-line-strong">
+                                    {memoOwnerName(finding.memo, roster)
+                                      ? `Assigned to ${memoOwnerName(finding.memo, roster)} (${finding.memo.recommended_owner_role})`
+                                      : `Recommended owner: ${finding.memo.recommended_owner_role}`}
+                                    {' · '}
+                                    {finding.memo.hypotheses?.length ?? 0} hypotheses argued
+                                  </p>
+                                </div>
+                              ) : null}
                               <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3">
                                 <span className="text-[10px] text-muted">✂ - - - - -</span>
                                 <div className="flex gap-2.5">
