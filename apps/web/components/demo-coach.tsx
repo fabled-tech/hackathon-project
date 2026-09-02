@@ -32,7 +32,7 @@ export const DEMO_TOUR_STEPS = [
   {
     target: 'demo-coach-findings',
     title: 'Clearance Adjudicator',
-    body: 'Two readings of “The Matrix” conflict. An ADK agent frames the hypotheses, one advocate per reading searches registries through Parallel, and a grounded judge writes the memo and assigns it.'
+    body: 'Two readings of “The Matrix” conflict. An ADK agent frames the hypotheses, one advocate per reading searches registries through Parallel, and Gemini writes the memo and assigns it.'
   },
   {
     target: 'demo-coach-actions',

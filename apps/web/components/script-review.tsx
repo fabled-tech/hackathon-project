@@ -30,6 +30,7 @@ import {
   Globe2,
   Loader2,
   Radar,
+  Scale,
   Sparkles,
   UserRound
 } from 'lucide-react';
@@ -218,45 +219,32 @@ function AgentPipeline({
   const curatedSources = findings.filter(
     (finding) => finding.evidence?.primary
   ).length;
+  const memos = findings.filter((finding) => finding.memo != null).length;
+  const hasAdjudicator =
+    memos > 0 ||
+    threadHasAgent(thread, 'Adjudicator') ||
+    (result?.tool_calls ?? []).some((call) => call.agent_name === 'Adjudicator') ||
+    revealStage === 'adjudication';
   const revealIndex =
-    revealStage === 'intake'
-      ? 0
-      : revealStage === 'research'
-        ? 1
-        : revealStage === 'curation' || revealStage === 'human'
-          ? 2
-          : -1;
+    revealStage === 'intake' ? 0
+    : revealStage === 'research' ? 1
+    : revealStage === 'curation' ? 2
+    : revealStage === 'adjudication' ? 3
+    : revealStage === 'human' ? (hasAdjudicator ? 3 : 2)
+    : -1;
   const stages = [
-    {
-      name: 'Gemini Intake',
-      description: 'Vertex Gemini detects clearance leads.',
-      icon: <Sparkles className="size-3.5" aria-hidden />,
-      output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`,
-      done:
-        revealStage != null
-          ? revealIndex >= 0
-          : threadHasAgent(thread, 'Intake') || status === 'complete'
-    },
-    {
-      name: 'Parallel Research',
-      description: 'Vertex plan/brief plus Parallel Search xN and Extract.',
-      icon: <Globe2 className="size-3.5" aria-hidden />,
-      output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`,
-      done:
-        revealStage != null
-          ? revealIndex >= 1
-          : threadHasAgent(thread, 'Research') || status === 'complete'
-    },
-    {
-      name: 'Gemini Curation',
-      description: 'Vertex Gemini cites only extracted URLs.',
-      icon: <FileSearch className="size-3.5" aria-hidden />,
-      output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`,
-      done:
-        revealStage != null
-          ? revealIndex >= 2
-          : threadHasAgent(thread, 'Curation') || status === 'complete'
-    }
+    { name: 'Gemini Intake', description: 'Vertex Gemini detects clearance leads.', icon: <Sparkles className="size-3.5" aria-hidden />, output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`, done: revealStage != null ? revealIndex >= 0 : threadHasAgent(thread, 'Intake') || status === 'complete' },
+    { name: 'Parallel Research', description: 'Vertex plan/brief plus Parallel Search xN and Extract.', icon: <Globe2 className="size-3.5" aria-hidden />, output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`, done: revealStage != null ? revealIndex >= 1 : threadHasAgent(thread, 'Research') || status === 'complete' },
+    { name: 'Gemini Curation', description: 'Vertex Gemini cites only extracted URLs.', icon: <FileSearch className="size-3.5" aria-hidden />, output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`, done: revealStage != null ? revealIndex >= 2 : threadHasAgent(thread, 'Curation') || status === 'complete' },
+    ...(hasAdjudicator
+      ? [{
+          name: 'Clearance Adjudicator',
+          description: 'ADK agents argue competing readings on Parallel; Gemini writes a grounded Clearance Memo.',
+          icon: <Scale className="size-3.5" aria-hidden />,
+          output: `${memos} ${memos === 1 ? 'memo' : 'memos'} issued`,
+          done: revealStage != null ? revealIndex >= 3 : threadHasAgent(thread, 'Adjudicator') || status === 'complete'
+        }]
+      : [])
   ];
 
   return (
@@ -272,8 +260,9 @@ function AgentPipeline({
             CASE AGENT PIPELINE
           </p>
           <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
-            Named agents post into the case desk. Tool-call chips sit under agent messages so
-            judges can count Vertex vs Parallel live.
+            Intake → Research (Parallel Search ×N + Extract) → Curation → Adjudicator (ADK
+            multi-agent) → your call. Every model and search call is logged under the message
+            that made it.
           </p>
         </div>
         <span
@@ -298,7 +287,7 @@ function AgentPipeline({
         </span>
       </div>
 
-      <ol className="mt-4 grid gap-2 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
+      <ol className={`mt-4 grid gap-2 lg:items-stretch ${stages.length === 4 ? 'lg:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr]' : 'lg:grid-cols-[1fr_auto_1fr_auto_1fr]'}`}>
         {stages.map((stage, index) => {
             const isCurrent =
               revealStage != null && revealIndex === index && status === 'running';
@@ -1126,12 +1115,12 @@ export function ScriptReview({
             {focusTour || showWalkthroughChrome ? (
               <p className="mt-1 max-w-2xl text-[11px] leading-4 text-paper">
                 Walkthrough: press <strong>Run next stage</strong> to advance Intake → Research →
-                Curation. Lime frame is the beat.
+                Curation → Adjudicator. The highlighted panel is the current beat.
               </p>
             ) : (
               <p className="mt-1 max-w-2xl text-[11px] leading-4 text-lavender-soft">
-                Left: file the scene and work the desk. Center: findings. Right: judge/dev tool log
-                (kept visually separate from the purple clearance UI).
+                Left: file the scene and work the desk thread. Center: findings and clearance
+                memos. Right: recent cases, plus the agent tool log when you need it.
               </p>
             )}
           </div>
@@ -1360,6 +1349,7 @@ export function ScriptReview({
                             {showWalkthroughChrome &&
                             demoWalkthrough &&
                             demoWalkthrough.stage !== 'curation' &&
+                            demoWalkthrough.stage !== 'adjudication' &&
                             demoWalkthrough.stage !== 'human'
                               ? 'Findings unlock after Gemini Curation. Keep pressing Run next stage.'
                               : 'No deterministic research leads were found in this excerpt. That is not a clearance conclusion.'}
