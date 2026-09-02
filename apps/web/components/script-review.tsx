@@ -35,16 +35,17 @@ import {
   UserRound
 } from 'lucide-react';
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { FEATURED_DEMO_SCRIPTS } from '@/lib/demo-mode';
 import {
   caseForDemoReveal,
   workflowStatusForDemoReveal,
   type DemoRevealStage
 } from '@/lib/demo-reveal';
+import { fetchHealth, modeBadgeLabel, type ApiHealth } from '@/lib/health';
 import { writeActiveMemberId } from '@/lib/inbox';
 import { memoOwnerName, verdictLabel, verdictTone } from '@/lib/memo';
 
-const SAMPLE_SCRIPT =
-  'EXT. NEON SKYWALK — MIDNIGHT\n\nMARA skates through the rain, kicks a Nimbus Soda can into her palm, and smirks. "Time keeps the reel turning," she says as a drone camera dives past.';
+const SAMPLE_SCRIPT = FEATURED_DEMO_SCRIPTS[0].script;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
 function statusLabel(status: ReviewerStatus): string {
@@ -206,12 +207,14 @@ function threadHasAgent(thread: CaseThreadMessage[] | undefined, name: string): 
 function AgentPipeline({
   status,
   result,
-  revealStage
+  revealStage,
+  health
 }: {
   status: AgentWorkflowStatus;
   result: Case | null;
   /** When set (demo walkthrough), light stages one-by-one instead of all-complete. */
   revealStage?: DemoRevealStage | null;
+  health: ApiHealth | null;
 }) {
   const findings = result?.findings ?? [];
   const thread = result?.thread ?? [];
@@ -286,6 +289,9 @@ function AgentPipeline({
               : status === 'failed'
                 ? 'RETRY NEEDED'
                 : 'READY'}
+        </span>
+        <span className={`border px-2 py-1 font-pixel text-[7px] ${health?.mode === 'cloud' ? 'border-brand text-brand' : 'border-line-strong text-lavender'}`} data-testid="mode-badge">
+          {modeBadgeLabel(health)}
         </span>
       </div>
 
@@ -518,7 +524,7 @@ function ToolCallChips({ calls }: { calls: ToolCallEvent[] }) {
         >
           <span className="text-[#ffb454]">{call.provider.toUpperCase()}</span>{' '}
           {call.method}
-          {call.fixture ? ' · fixture' : ''}
+          {call.fixture ? ' · fixture' : ' · live'}
           <span className={call.ok ? ' text-[#7ee787]' : ' text-[#ff7b72]'}>
             {call.ok ? ' OK' : ' FAIL'}
           </span>
@@ -535,15 +541,14 @@ function JudgeLogRail({ calls }: { calls: ToolCallEvent[] }) {
     <aside
       className="flex h-full min-h-[24rem] flex-col border-2 border-[#3d4f66] bg-[#0b1220] text-[#c9d1d9] shadow-[4px_4px_0_#ffb454]"
       data-testid="judge-log"
-      aria-label="Judge and development tool-call log"
+      aria-label="Agent tool-call log"
     >
       <div className="border-b border-[#3d4f66] px-3 py-2.5">
-        <p className="font-mono text-[10px] font-semibold tracking-wide text-[#ffb454]">
-          DEV / JUDGE LOG
-        </p>
+        <p className="font-mono text-[10px] font-semibold tracking-wide text-[#ffb454]">AGENT TOOL LOG</p>
         <p className="mt-1 font-mono text-[10px] leading-4 text-[#8b949e]">
-          Not the clearance desk — Vertex + Parallel call trace for judges. No secrets. Mock runs
-          mark <span className="text-[#d2a8ff]">fixture</span>.
+          Every Vertex Gemini, ADK, and Parallel call this case made, in order. No secrets or
+          response bodies. Offline runs are marked <span className="text-[#d2a8ff]">fixture</span>;
+          live runs are marked <span className="text-[#7ee787]">live</span>.
         </p>
         <p className="mt-2 font-mono text-[10px] text-[#7ee787]">
           {calls.length} calls · vertex={vertexCount} · parallel={parallelCount}
@@ -574,7 +579,7 @@ function JudgeLogRail({ calls }: { calls: ToolCallEvent[] }) {
                   {call.ok ? 'OK' : 'FAIL'}
                 </span>
                 <span className="tabular-nums text-[#8b949e]">{call.duration_ms}ms</span>
-                {call.fixture ? <span className="text-[#d2a8ff]">fixture</span> : null}
+                <span className={call.fixture ? 'text-[#d2a8ff]' : 'text-[#7ee787]'}>{call.fixture ? 'fixture' : 'live'}</span>
               </div>
               <p className="mt-1 text-[#c9d1d9]">
                 <span className="text-[#8b949e]">{call.agent_name}</span>
@@ -829,6 +834,8 @@ export function ScriptReview({
   const [scriptText, setScriptText] = useState(
     demoWalkthrough?.fullCase.script_text ?? initialCase?.script_text ?? SAMPLE_SCRIPT
   );
+  const [health, setHealth] = useState<ApiHealth | null>(null);
+  const [showToolLog, setShowToolLog] = useState(false);
   const [caseResult, setCaseResult] = useState<Case | null>(initialCase);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -881,6 +888,16 @@ export function ScriptReview({
   const uploadGeneration = useRef(0);
   const fileAnalysisGeneration = useRef(0);
   const caseLoadingGeneration = useRef(0);
+
+  useEffect(() => {
+    let alive = true;
+    fetchHealth(API_BASE_URL).then((h) => {
+      if (alive) setHealth(h);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function submitScript(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -1187,6 +1204,18 @@ export function ScriptReview({
                         ? 'Script the agents analyzed'
                         : 'Script text'}
                     </label>
+                    <div className="mb-2 flex flex-wrap gap-2" data-testid="sample-chips">
+                      {FEATURED_DEMO_SCRIPTS.map((sample) => (
+                        <button
+                          key={sample.id}
+                          type="button"
+                          onClick={() => setScriptText(sample.script)}
+                          className="border border-ink bg-white px-2 py-1 font-display text-[8px] text-ink shadow-press hover:bg-exhibit"
+                        >
+                          {sample.title}
+                        </button>
+                      ))}
+                    </div>
                     <textarea
                       id="script-text"
                       name="script-text"
@@ -1274,6 +1303,7 @@ export function ScriptReview({
                   status={displayWorkflowStatus}
                   result={pipelineCase}
                   revealStage={demoWalkthrough?.stage ?? null}
+                  health={health}
                 />
               </div>
             </div>
@@ -1652,12 +1682,20 @@ export function ScriptReview({
 
           {displayCase && !focusTour && !showWalkthroughChrome ? (
             <div className="animate-fade-up xl:sticky xl:top-2 xl:max-h-[calc(100vh-1.25rem)] xl:self-start">
-              <PixelLabel>
-                <span className="text-[#ffb454]">DEV · JUDGE</span>
-              </PixelLabel>
-              <div className="mt-2 h-[calc(100vh-5rem)] min-h-[24rem]">
-                <JudgeLogRail calls={displayCase.tool_calls ?? []} />
-              </div>
+              <button
+                type="button"
+                data-testid="toggle-tool-log"
+                onClick={() => setShowToolLog((value) => !value)}
+                className="border-2 border-ink bg-white px-3 py-2 font-display text-[9px] text-ink shadow-press"
+                aria-expanded={showToolLog}
+              >
+                {showToolLog ? 'Hide agent tool log' : 'Show agent tool log'} · {(displayCase.tool_calls ?? []).length}
+              </button>
+              {showToolLog ? (
+                <div className="mt-2 h-[calc(100vh-8rem)] min-h-[24rem]">
+                  <JudgeLogRail calls={displayCase.tool_calls ?? []} />
+                </div>
+              ) : null}
             </div>
           ) : !displayCase && !showWalkthroughChrome ? (
           <aside className="animate-fade-up lg:sticky lg:top-4">

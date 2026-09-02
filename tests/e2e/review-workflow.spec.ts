@@ -603,6 +603,7 @@ test('runs a roster desk thread with stakeholder research and a human reply', as
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
   await expect(page.getByTestId('agent-pipeline')).toContainText('COMPLETE');
+  await page.getByTestId('toggle-tool-log').click();
   await expect(page.getByTestId('judge-log')).toBeVisible();
 
   const desk = page.getByTestId('case-desk');
