@@ -1,5 +1,15 @@
 # RightsRadar
 
+> **Judges: 90-second tour.** Live app: <https://hackathon-project-web-five.vercel.app> ·
+> API health: <https://RIGHTSRADAR_API_URL/health> (shows `mode: cloud`, `adjudicator: adk`).
+> Click **Walk The Matrix homage**, then press **Run next stage** five times:
+> Intake (Vertex Gemini) → Research (Parallel Search ×N + Extract) → Curation → **Adjudicator**
+> (ADK multi-agent: hypotheses → parallel advocates on Parallel Search → grounded Clearance Memo)
+> → your turn. Open **Show agent tool log** to count live Vertex and Parallel calls.
+> Track: **Parallel**. Google Cloud: Vertex AI Gemini via `google-genai`, ADK via `google-adk`,
+> Firestore, Cloud Storage, Cloud Run. Parallel: `parallel-web` Search + Extract, and
+> Parallel Web Search as a Gemini grounding provider.
+
 RightsRadar is a hosted-app foundation for the Google Cloud Agentic Cinema Hackathon — Parallel
 Track. It helps production teams research possible rights-clearance concerns in scripts and assets.
 It is research assistance only: it does not provide legal advice or make final infringement
