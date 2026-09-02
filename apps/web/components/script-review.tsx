@@ -1289,6 +1289,16 @@ export function ScriptReview({
               </div>
             </div>
 
+            {error ? (
+              <p
+                className="flex items-start gap-2.5 border-2 border-accent bg-danger-bg px-4 py-3 text-sm font-semibold text-accent"
+                role="alert"
+              >
+                <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {error}
+              </p>
+            ) : null}
+
             {showDeskColumns ? (
               <div
                 className={`grid items-start gap-4 ${
@@ -1322,16 +1332,6 @@ export function ScriptReview({
                     )}
                   </div>
                 </div>
-
-            {error ? (
-              <p
-                className="flex items-start gap-2.5 border-2 border-accent bg-danger-bg px-4 py-3 text-sm font-semibold text-accent"
-                role="alert"
-              >
-                <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-                {error}
-              </p>
-            ) : null}
 
             {showDeskColumns ? (
               <div className="animate-fade-up min-w-0 space-y-4">
