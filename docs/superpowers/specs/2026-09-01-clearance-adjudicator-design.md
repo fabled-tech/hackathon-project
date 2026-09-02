@@ -150,8 +150,24 @@ Files: `apps/web/components/script-review.tsx` (desk, pipeline, finding cards),
 6. **Judge-facing copy.** Rename "JUDGE LOG" to "Agent tool log"; chips show `live` or
    `fixture`; add one line under the pipeline strip: "Intake → Research (Parallel Search ×N +
    Extract) → Curation → Adjudicator (ADK multi-agent) → your call."
-7. **Polish backlog.** Items from the codebase/UI audit that are cheap and visible go into the
-   implementation plan as a final task; anything larger is deferred.
+7. **Polish backlog (from the 2026-09-01 audit).** Cheap, visible, in the plan's final task:
+   - One identity control. "Signed in as" (overview) and "Speak as" (desk) become a single
+     "Acting as" picker backed by `rightsrader.activeMemberId`.
+   - Tool log hidden behind a "Show agent tool log" toggle, default off; chips stay under agent
+     messages.
+   - Live-mode badge next to the pipeline status, read from `GET /health` (`mode`, `adjudicator`).
+   - One-click sample chips (Matrix homage, two-lane skywalk) on the blank case form, sourced
+     from `FEATURED_DEMO_SCRIPTS`.
+   - Remove dev-facing copy ("so judges can count", "Lime frame is the beat", "Not the clearance
+     desk").
+   Deferred: splitting `dashboard.tsx` / `script-review.tsx` (~1.6k lines each), mobile layout.
+
+## CI
+
+`main` e2e is red (`review-workflow.spec.ts`: 30 s timeouts on the script textarea, missing
+"Potential research leads" copy, error banners not visible). A green badge is a credibility
+signal for judges reading the repo, so fixing or quarantining those tests is part of the
+compliance step, before the Adjudicator work lands.
 
 ## Deployment and operations
 
