@@ -33,6 +33,10 @@ def test_mock_adjudicator_returns_deterministic_memos_for_featured_leads() -> No
         "hypothesize", "search_authoritative", "search_authoritative", "judge_grounded",
     ]
     assert all(call.summary for call in matrix.calls)
+    for call in matrix.calls:
+        lowered = call.summary.lower()
+        assert "fixture:" not in lowered
+        assert "judge wrote" not in lowered
 
 
 def test_owner_for_role_skips_missing_roles() -> None:

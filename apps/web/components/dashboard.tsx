@@ -823,7 +823,7 @@ export function Dashboard() {
             key={
               demoFullCase
                 ? `demo-${demoFullCase.id}`
-                : `${openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`}-${activeMemberId}`
+                : (openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`)
             }
             productionId={activeProduction?.id}
             roster={activeProduction?.roster ?? []}

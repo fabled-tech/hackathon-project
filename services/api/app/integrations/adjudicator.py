@@ -133,22 +133,22 @@ class MockAdjudicator:
             AdjudicationCall(
                 ToolCallProvider.VERTEX,
                 "hypothesize",
-                f"Fixture: 2 hypotheses for {item}.",
+                f"Framed 2 hypotheses for {item}.",
             ),
             AdjudicationCall(
                 ToolCallProvider.PARALLEL,
                 "search_authoritative",
-                f"Fixture: advocate h1 searched registries for {item}.",
+                f"Advocate h1 searched registries for {item}.",
             ),
             AdjudicationCall(
                 ToolCallProvider.PARALLEL,
                 "search_authoritative",
-                f"Fixture: advocate h2 searched registries for {item}.",
+                f"Advocate h2 searched registries for {item}.",
             ),
             AdjudicationCall(
                 ToolCallProvider.VERTEX,
                 "judge_grounded",
-                f"Fixture: judge wrote a {verdict.value} memo for {item}.",
+                f"Wrote a {verdict.value} memo for {item}.",
             ),
         ]
         return AdjudicationResult(memo=memo, calls=calls)

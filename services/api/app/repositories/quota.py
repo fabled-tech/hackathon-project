@@ -12,6 +12,10 @@ class AnalysisQuota(Protocol):
         """Reserve one analysis for `day`. Return False when the cap is already reached."""
         ...
 
+    def refund(self, day: str) -> None:
+        """Release one reserved analysis for `day` when analysis did not run to completion."""
+        ...
+
 
 class InMemoryAnalysisQuota:
     def __init__(self, cap: int) -> None:
@@ -26,6 +30,12 @@ class InMemoryAnalysisQuota:
                 return False
             self._used[day] = used + 1
             return True
+
+    def refund(self, day: str) -> None:
+        with self._lock:
+            used = self._used.get(day, 0)
+            if used > 0:
+                self._used[day] = used - 1
 
 
 class FirestoreAnalysisQuota:
@@ -51,3 +61,16 @@ class FirestoreAnalysisQuota:
             return True
 
         return bool(reserve(transaction))
+
+    def refund(self, day: str) -> None:
+        document = self._collection.document(day)
+        transaction = self._client.transaction()
+
+        @self._transactional
+        def release(txn: object) -> None:
+            snapshot = document.get(transaction=txn)
+            used = int((snapshot.to_dict() or {}).get("used", 0)) if snapshot.exists else 0
+            if used > 0:
+                txn.set(document, {"used": used - 1, "cap": self._cap}, merge=True)  # type: ignore[attr-defined]
+
+        release(transaction)

@@ -61,12 +61,17 @@ def _elapsed(started: float) -> int:
 
 
 def build_advocate_agents(
-    hypotheses: list[Hypothesis], model: str, tool: Callable[..., Any]
+    hypotheses: list[Hypothesis],
+    model: str,
+    tool: Callable[..., Any],
+    *,
+    tool_for: Callable[[Hypothesis], Callable[..., Any]] | None = None,
 ) -> list[Any]:
     from google.adk.agents import LlmAgent
 
     agents = []
     for hypothesis in hypotheses:
+        bound = tool_for(hypothesis) if tool_for is not None else tool
         agents.append(
             LlmAgent(
                 name=f"advocate_{hypothesis.id}",
@@ -83,7 +88,7 @@ def build_advocate_agents(
                     '{"best_url": string|null, "why": string, "strength": "strong"|"weak"|"none"}. '
                     "Never give legal advice."
                 ),
-                tools=[tool],
+                tools=[bound],
                 output_key=f"advocate_{hypothesis.id}",
             )
         )
@@ -137,7 +142,7 @@ class AdkAdjudicator:
         from google.genai import types
 
         calls: list[AdjudicationCall] = []
-        allowed: set[str] = {item.source.url for item in extracted}
+        allowed: set[str] = set()
         session_cls: Any = InMemorySessionService
         session_service: Any = session_cls()
         await session_service.create_session(
@@ -180,59 +185,64 @@ class AdkAdjudicator:
         searched: dict[str, list[str]] = {}
         include_domains = authoritative_domains_for(signal)
 
-        async def search_authoritative(
-            search_queries: list[str], include_domains: list[str]
-        ) -> list[dict[str, Any]]:
-            """Search authoritative sources (registries, official sites) for this hypothesis.
+        def tool_for(hypothesis: Hypothesis) -> Callable[..., Any]:
+            async def search_authoritative(
+                search_queries: list[str], include_domains: list[str]
+            ) -> list[dict[str, Any]]:
+                """Search authoritative sources (registries, official sites) for this hypothesis.
 
-            Args:
-                search_queries: 2-3 keyword queries, 3-6 words each.
-                include_domains: domains to restrict results to.
-            """
-            started_tool = perf_counter()
-            ok = True
-            urls: list[str] = []
-            try:
-                response = await self._parallel_sdk.search(
-                    objective=f"Find authoritative evidence about {signal.detected_item}.",
-                    search_queries=search_queries[:3],
-                    mode="fast",
-                    max_chars_total=6_000,
-                    session_id=session_id,
-                    advanced_settings={
-                        "source_policy": {"include_domains": include_domains[:10]},
-                        "max_results": 5,
-                    },
+                Args:
+                    search_queries: 2-3 keyword queries, 3-6 words each.
+                    include_domains: domains to restrict results to.
+                """
+                started_tool = perf_counter()
+                ok = True
+                urls: list[str] = []
+                try:
+                    response = await self._parallel_sdk.search(
+                        objective=f"Find authoritative evidence about {signal.detected_item}.",
+                        search_queries=search_queries[:3],
+                        mode="fast",
+                        max_chars_total=6_000,
+                        session_id=session_id,
+                        advanced_settings={
+                            "source_policy": {"include_domains": include_domains[:10]},
+                            "max_results": 5,
+                        },
+                    )
+                    results = [
+                        {
+                            "url": item.url,
+                            "title": getattr(item, "title", None) or item.url,
+                            "excerpt": "\n".join(getattr(item, "excerpts", None) or [])[:1_200],
+                            "publish_date": getattr(item, "publish_date", None),
+                        }
+                        for item in (getattr(response, "results", None) or [])
+                    ]
+                    urls = [item["url"] for item in results]
+                except Exception as error:  # tool errors are reported, not raised
+                    ok = False
+                    logger.warning("advocate search failed error=%s", type(error).__name__)
+                    results = []
+                allowed.update(urls)
+                searched.setdefault(hypothesis.id, []).extend(urls)
+                calls.append(
+                    AdjudicationCall(
+                        ToolCallProvider.PARALLEL,
+                        "search_authoritative",
+                        f"Advocate ran Parallel Search ({len(urls)} URL(s)) on registries for "
+                        f"{signal.detected_item}.",
+                        ok=ok,
+                        duration_ms=_elapsed(started_tool),
+                    )
                 )
-                results = [
-                    {
-                        "url": item.url,
-                        "title": getattr(item, "title", None) or item.url,
-                        "excerpt": "\n".join(getattr(item, "excerpts", None) or [])[:1_200],
-                        "publish_date": getattr(item, "publish_date", None),
-                    }
-                    for item in (getattr(response, "results", None) or [])
-                ]
-                urls = [item["url"] for item in results]
-            except Exception as error:  # tool errors are reported, not raised
-                ok = False
-                logger.warning("advocate search failed error=%s", type(error).__name__)
-                results = []
-            allowed.update(urls)
-            searched.setdefault("all", []).extend(urls)
-            calls.append(
-                AdjudicationCall(
-                    ToolCallProvider.PARALLEL,
-                    "search_authoritative",
-                    f"Advocate ran Parallel Search ({len(urls)} URL(s)) on registries for "
-                    f"{signal.detected_item}.",
-                    ok=ok,
-                    duration_ms=_elapsed(started_tool),
-                )
-            )
-            return results
+                return results
 
-        advocates = build_advocate_agents(hypotheses, self._model, search_authoritative)
+            return search_authoritative
+
+        advocates = build_advocate_agents(
+            hypotheses, self._model, lambda *_a, **_k: [], tool_for=tool_for
+        )
         fan_out = ParallelAgent(
             name="advocates", sub_agents=advocates, description="Argue each hypothesis in parallel"
         )
@@ -266,7 +276,7 @@ class AdkAdjudicator:
                         if parsed.get("strength") in ("strong", "weak", "none")
                         else "none"
                     ),
-                    searched_urls=list(dict.fromkeys(searched.get("all", []))),
+                    searched_urls=list(dict.fromkeys(searched.get(hypothesis.id, []))),
                 )
             )
 

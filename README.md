@@ -187,13 +187,14 @@ data. The default mock mode follows the same contract without making network cal
 
 ### Judges: start here
 
-RightsRadar is a rights-clearance research desk, not a chatbot. Three named agents run on each
+RightsRadar is a rights-clearance research desk, not a chatbot. Four named agents run on each
 case (Intake and Curation on Vertex Gemini; Research on Vertex `plan_queries` / `brief_stakeholders`
-plus Parallel Search xN + Extract). Real roster members sit in the same thread. Curation cannot
+plus Parallel Search xN + Extract; Adjudicator on ADK hypotheses, parallel advocates, and a
+grounded Gemini memo). Real roster members sit in the same thread. Curation cannot
 invent a URL that Extract did not return. There is no Agent Engine box and no Cloud Tasks queue.
 
 **Mock vs cloud:** `make dev` defaults to `RIGHTSRADAR_MODE=mock` with labeled fixtures
-(`example.com` URLs, phrases like “Nimbus Soda”, tool-call chips marked `fixture`). Playwright
+(`example.com` URLs, phrases like “Nimbus Soda”; the agent tool log marks them `fixture`). Playwright
 e2e uses mock and must not be narrated as live web research. A live demo must use
 `RIGHTSRADAR_MODE=cloud` with ADC and `RIGHTSRADAR_PARALLEL_API_KEY` so findings cite real pages.
 
@@ -222,7 +223,7 @@ Matrix rooftop homage (franchise **and** “There is no spoon”), then reveals 
 pipeline stage per Run next stage press** — Intake → Research → Curation → Adjudicator → your
 turn — instead of dumping a pre-complete case.
 
-On the production overview, **Signed in as** defaults to clearance (**Jordan**). The **Inbox**
+On the production overview, **Acting as** defaults to clearance (**Jordan**). The **Inbox**
 lists cases with pending findings assigned to that roster user; nested Research Findings no longer
 expand on the case inventory list.
 
@@ -237,7 +238,7 @@ expand on the case inventory list.
 4. **Analyze script**. Watch the case desk: Intake Vertex → Research @stakeholders →
    `plan_queries` → Parallel Search xN → Extract → stakeholder brief → Curation Vertex →
    **Adjudicator** (hypotheses, parallel advocates, grounded Clearance Memo).
-5. Speak as **Jordan**. Dismiss a studio-owned hit if you filed skywalk. Speak as **Maya**.
+5. Acting as **Jordan**. Dismiss a studio-owned hit if you filed skywalk. Acting as **Maya**.
    Escalate the quote and assign a roster member.
 6. Cloud only: open **Show agent tool log**. Open one live Parallel URL in a tab. Show
    `GET /health` `mode: cloud` and one Vertex chip plus one Parallel chip that are **not**

@@ -44,6 +44,7 @@ import {
 import { fetchHealth, modeBadgeLabel, type ApiHealth } from '@/lib/health';
 import { writeActiveMemberId } from '@/lib/inbox';
 import { memoOwnerName, verdictLabel, verdictTone } from '@/lib/memo';
+import { chipMethodLabel } from '@/lib/tool-chips';
 
 const SAMPLE_SCRIPT = FEATURED_DEMO_SCRIPTS[0].script;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
@@ -523,8 +524,7 @@ function ToolCallChips({ calls }: { calls: ToolCallEvent[] }) {
           data-method={call.method}
         >
           <span className="text-[#ffb454]">{call.provider.toUpperCase()}</span>{' '}
-          {call.method}
-          {call.fixture ? ' · fixture' : ' · live'}
+          {chipMethodLabel(call.method)}
           <span className={call.ok ? ' text-[#7ee787]' : ' text-[#ff7b72]'}>
             {call.ok ? ' OK' : ' FAIL'}
           </span>
