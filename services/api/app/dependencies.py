@@ -3,7 +3,10 @@ from dataclasses import dataclass, field
 from app.agents import AgentService, RightsClearanceAgentService
 from app.config import IntegrationMode, Settings
 from app.integrations import (
+    AdjudicatorClient,
+    AdkAdjudicator,
     GeminiClient,
+    MockAdjudicator,
     MockGeminiClient,
     MockParallelSearchClient,
     ParallelSdkClient,
@@ -88,6 +91,19 @@ def build_services(settings: Settings) -> ApplicationServices:
     else:
         parallel = MockParallelSearchClient()
 
+    adjudicator: AdjudicatorClient
+    if settings.adjudicator_mode == "adk":
+        assert isinstance(parallel, ParallelSdkClient)
+        adjudicator = AdkAdjudicator(
+            project=_require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT"),
+            location=settings.google_cloud_location,
+            model=settings.gemini_model,
+            parallel_api_key=_require(settings.parallel_api_key, "RIGHTSRADAR_PARALLEL_API_KEY"),
+            parallel_sdk=parallel.sdk,
+        )
+    else:
+        adjudicator = MockAdjudicator()
+
     case_repository, asset_repository = build_repositories(settings)
 
     production_repository: ProductionRepository
@@ -122,7 +138,11 @@ def build_services(settings: Settings) -> ApplicationServices:
         case_repository=case_repository,
         asset_repository=asset_repository,
         agent_service=RightsClearanceAgentService(
-            gemini, parallel, max_concurrency=settings.parallel_max_concurrency
+            gemini,
+            parallel,
+            max_concurrency=settings.parallel_max_concurrency,
+            adjudicator=adjudicator,
+            adjudicate_below_confidence=settings.adjudicate_below_confidence,
         ),
         production_repository=production_repository,
         production_icon_repository=production_icon_repository,
