@@ -5,6 +5,7 @@ from typing import Any
 from pydantic import BaseModel, Field, model_validator
 
 from .analysis import Evidence, EvidenceSelection
+from .memo import ClearanceMemo
 from .productions import FindingComment
 
 
@@ -73,6 +74,7 @@ class Finding(BaseModel):
     due_date: str | None = None
     comments: list[FindingComment] = Field(default_factory=list)
     stakeholder_ids: list[str] = Field(default_factory=list)
+    memo: ClearanceMemo | None = None
 
     @model_validator(mode="before")
     @classmethod
