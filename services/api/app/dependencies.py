@@ -6,8 +6,8 @@ from app.integrations import (
     GeminiClient,
     MockGeminiClient,
     MockParallelSearchClient,
+    ParallelSdkClient,
     ParallelSearchClient,
-    ParallelSearchHttpClient,
     VertexGeminiClient,
 )
 from app.repositories import (
@@ -81,7 +81,7 @@ def build_services(settings: Settings) -> ApplicationServices:
         gemini = MockGeminiClient()
 
     if settings.selected_mode(settings.parallel_mode) is IntegrationMode.REAL:
-        parallel = ParallelSearchHttpClient(
+        parallel = ParallelSdkClient(
             api_key=_require(settings.parallel_api_key, "RIGHTSRADAR_PARALLEL_API_KEY"),
             client_model=settings.gemini_model,
         )

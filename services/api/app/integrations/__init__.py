@@ -1,11 +1,11 @@
 from .gemini import GeminiClient, MockGeminiClient, VertexGeminiClient
-from .parallel import MockParallelSearchClient, ParallelSearchClient, ParallelSearchHttpClient
+from .parallel import MockParallelSearchClient, ParallelSdkClient, ParallelSearchClient
 
 __all__ = [
     "GeminiClient",
     "MockGeminiClient",
     "MockParallelSearchClient",
+    "ParallelSdkClient",
     "ParallelSearchClient",
-    "ParallelSearchHttpClient",
     "VertexGeminiClient",
 ]

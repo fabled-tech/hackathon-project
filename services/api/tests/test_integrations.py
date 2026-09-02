@@ -1,12 +1,11 @@
 import asyncio
-import json
+from types import SimpleNamespace
 
-import httpx
 import pytest
 
 from app.errors import AnalysisProviderError, EvidenceCurationError
 from app.integrations.gemini import VertexGeminiClient
-from app.integrations.parallel import ParallelSearchHttpClient
+from app.integrations.parallel import ParallelSdkClient
 from app.models import EvidenceCurationDecision, Source
 from app.models.analysis import GeminiSignal, SearchResult
 
@@ -40,135 +39,133 @@ class FakeGenAIClient:
         self.aio = FakeGenAio(response_text)
 
 
+class FakeParallelSdk:
+    def __init__(self, search_payload: dict, extract_payload: dict) -> None:
+        self.search_calls: list[dict] = []
+        self.extract_calls: list[dict] = []
+        self._search_payload = search_payload
+        self._extract_payload = extract_payload
+
+    async def search(self, **kwargs: object) -> SimpleNamespace:
+        self.search_calls.append(kwargs)
+        return _to_ns(self._search_payload)
+
+    async def extract(self, **kwargs: object) -> SimpleNamespace:
+        self.extract_calls.append(kwargs)
+        return _to_ns(self._extract_payload)
+
+    async def close(self) -> None:
+        return None
+
+
+def _to_ns(payload: dict) -> SimpleNamespace:
+    return SimpleNamespace(
+        results=[SimpleNamespace(**item) for item in payload.get("results", [])],
+        errors=[SimpleNamespace(**item) for item in payload.get("errors", [])],
+    )
+
+
 def test_search_then_extract_reuses_session_and_restricts_urls() -> None:
-    requests: list[dict[str, object]] = []
+    fake = FakeParallelSdk(
+        search_payload={
+            "results": [
+                {
+                    "url": "https://source.test/a",
+                    "title": "A",
+                    "publish_date": "2026-07-01",
+                    "excerpts": ["A"],
+                },
+                {
+                    "url": "https://source.test/a",
+                    "title": "A duplicate",
+                    "publish_date": None,
+                    "excerpts": ["A2"],
+                },
+                {
+                    "url": "https://source.test/b",
+                    "title": "B",
+                    "publish_date": None,
+                    "excerpts": ["B"],
+                },
+            ]
+        },
+        extract_payload={
+            "results": [
+                {
+                    "url": "https://source.test/a",
+                    "title": "A",
+                    "publish_date": "2026-07-01",
+                    "excerpts": ["Verified A", "More A"],
+                },
+                {
+                    "url": "https://unknown.test",
+                    "title": "Unknown",
+                    "publish_date": None,
+                    "excerpts": ["Must be ignored"],
+                },
+            ],
+            "errors": [{"url": "https://source.test/b", "error_type": "fetch_error"}],
+        },
+    )
+    client = ParallelSdkClient("secret-test-key", "gemini-2.5-flash", client=fake)
+    signal = GeminiSignal(
+        category="brand_reference",
+        detected_item="Example Brand",
+        explanation="A named brand.",
+        confidence=0.8,
+        context_excerpt="An Example Brand can is visible in the scene.",
+    )
 
     async def scenario() -> tuple[list[SearchResult], list[SearchResult]]:
-        async def handler(request: httpx.Request) -> httpx.Response:
-            payload = json.loads(request.content)
-            requests.append(payload)
-            if request.url.path.endswith("/search"):
-                return httpx.Response(
-                    200,
-                    json={
-                        "results": [
-                            {
-                                "url": "https://source.test/a",
-                                "title": "A",
-                                "publish_date": "2026-07-01",
-                                "excerpts": ["A"],
-                            },
-                            {
-                                "url": "https://source.test/a",
-                                "title": "A duplicate",
-                                "excerpts": ["A2"],
-                            },
-                            {
-                                "url": "https://source.test/b",
-                                "title": "B",
-                                "excerpts": ["B"],
-                            },
-                        ]
-                    },
-                )
-            return httpx.Response(
-                200,
-                json={
-                    "results": [
-                        {
-                            "url": "https://source.test/a",
-                            "title": "A",
-                            "publish_date": "2026-07-01",
-                            "excerpts": ["Verified A", "More A"],
-                        },
-                        {
-                            "url": "https://unknown.test",
-                            "title": "Unknown",
-                            "excerpts": ["Must be ignored"],
-                        },
-                    ],
-                    "errors": [
-                        {"url": "https://source.test/b", "error_type": "fetch_error"}
-                    ],
-                },
-            )
-
-        http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        client = ParallelSearchHttpClient(
-            "secret-test-key", "gemini-2.5-flash", http_client=http
-        )
-        signal = GeminiSignal(
-            category="brand_reference",
-            detected_item="Example Brand",
-            explanation="A named brand.",
-            confidence=0.8,
-            context_excerpt="An Example Brand can is visible in the scene.",
-        )
         searched = await client.search(signal, "rightsrader:case-1:0")
         extracted = await client.extract(signal, searched, "rightsrader:case-1:0")
-        await http.aclose()
         return searched, extracted
 
     searched, extracted = asyncio.run(scenario())
 
-    assert [item.source.url for item in searched] == [
-        "https://source.test/a",
-        "https://source.test/b",
-    ]
+    assert [item.source.url for item in searched] == ["https://source.test/a", "https://source.test/b"]
     assert searched[0].publish_date == "2026-07-01"
     assert [item.source.url for item in extracted] == ["https://source.test/a"]
     assert extracted[0].excerpt == "Verified A\n\nMore A"
-    assert requests[0]["session_id"] == requests[1]["session_id"]
-    assert requests[0]["client_model"] == "gemini-2.5-flash"
-    assert requests[0]["mode"] == "advanced"
-    assert len(requests[0]["search_queries"]) == 3  # type: ignore[arg-type]
-    assert "Example Brand can is visible" in str(requests[0]["objective"])
-    assert requests[1]["urls"] == ["https://source.test/a", "https://source.test/b"]
+    assert fake.search_calls[0]["session_id"] == fake.extract_calls[0]["session_id"]
+    assert fake.search_calls[0]["client_model"] == "gemini-2.5-flash"
+    assert fake.search_calls[0]["mode"] == "advanced"
+    assert len(fake.search_calls[0]["search_queries"]) == 3
+    assert "Example Brand can is visible" in str(fake.search_calls[0]["objective"])
+    assert fake.extract_calls[0]["urls"] == ["https://source.test/a", "https://source.test/b"]
 
 
 def test_extract_fails_safely_when_no_shortlisted_page_can_be_verified() -> None:
-    async def scenario() -> None:
-        async def handler(request: httpx.Request) -> httpx.Response:
-            del request
-            return httpx.Response(
-                200,
-                json={
-                    "results": [],
-                    "errors": [
-                        {
-                            "url": "https://source.test/a",
-                            "error_type": "fetch_error",
-                            "content": "secret-test-key must not escape",
-                        }
-                    ],
-                },
-            )
-
-        http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        client = ParallelSearchHttpClient(
-            "secret-test-key", "gemini-2.5-flash", http_client=http
+    fake = FakeParallelSdk(
+        search_payload={"results": []},
+        extract_payload={
+            "results": [],
+            "errors": [
+                {
+                    "url": "https://source.test/a",
+                    "error_type": "fetch_error",
+                    "content": "secret-test-key must not escape",
+                }
+            ],
+        },
+    )
+    client = ParallelSdkClient("secret-test-key", "gemini-2.5-flash", client=fake)
+    signal = GeminiSignal(
+        category="brand_reference",
+        detected_item="Example Brand",
+        explanation="A named brand.",
+        confidence=0.8,
+    )
+    candidates = [
+        SearchResult(
+            source=Source(title="A", url="https://source.test/a"), excerpt="Search excerpt."
         )
-        signal = GeminiSignal(
-            category="brand_reference",
-            detected_item="Example Brand",
-            explanation="A named brand.",
-            confidence=0.8,
-        )
-        candidates = [
-            SearchResult(
-                source=Source(title="A", url="https://source.test/a"),
-                excerpt="Search excerpt.",
-            )
-        ]
-        try:
-            with pytest.raises(AnalysisProviderError) as error:
-                await client.extract(signal, candidates, "rightsrader:case-1:0")
-            assert "secret-test-key" not in str(error.value)
-            assert "https://source.test/a" not in str(error.value)
-        finally:
-            await http.aclose()
+    ]
 
-    asyncio.run(scenario())
+    with pytest.raises(AnalysisProviderError) as error:
+        asyncio.run(client.extract(signal, candidates, "rightsrader:case-1:0"))
+    assert "secret-test-key" not in str(error.value)
+    assert "https://source.test/a" not in str(error.value)
 
 
 def test_vertex_curation_uses_schema_and_rejects_unknown_url() -> None:
@@ -361,47 +358,35 @@ def test_vertex_brief_stakeholders_uses_extracted_text_only() -> None:
 
 
 def test_parallel_search_sends_planned_objective() -> None:
-    requests: list[dict[str, object]] = []
+    fake = FakeParallelSdk(
+        search_payload={
+            "results": [
+                {
+                    "url": "https://source.test/a",
+                    "title": "A",
+                    "publish_date": None,
+                    "excerpts": ["A"],
+                }
+            ]
+        },
+        extract_payload={"results": []},
+    )
+    client = ParallelSdkClient("secret-test-key", "gemini-2.5-flash", client=fake)
+    signal = GeminiSignal(
+        category="brand_reference",
+        detected_item="Example Brand",
+        explanation="A named brand.",
+        confidence=0.8,
+        context_excerpt="An Example Brand can is visible in the scene.",
+    )
 
-    async def scenario() -> list[SearchResult]:
-        async def handler(request: httpx.Request) -> httpx.Response:
-            payload = json.loads(request.content)
-            requests.append(payload)
-            return httpx.Response(
-                200,
-                json={
-                    "results": [
-                        {
-                            "url": "https://source.test/a",
-                            "title": "A",
-                            "excerpts": ["A"],
-                        }
-                    ]
-                },
-            )
-
-        http = httpx.AsyncClient(transport=httpx.MockTransport(handler))
-        client = ParallelSearchHttpClient(
-            "secret-test-key", "gemini-2.5-flash", http_client=http
-        )
-        signal = GeminiSignal(
-            category="brand_reference",
-            detected_item="Example Brand",
-            explanation="A named brand.",
-            confidence=0.8,
-            context_excerpt="An Example Brand can is visible in the scene.",
-        )
-        results = await client.search(
-            signal, "rightsrader:case-1:0", "Example Brand trademark register"
-        )
-        await http.aclose()
-        return results
-
-    results = asyncio.run(scenario())
+    results = asyncio.run(
+        client.search(signal, "rightsrader:case-1:0", "Example Brand trademark register")
+    )
 
     assert [item.source.url for item in results] == ["https://source.test/a"]
-    assert "Example Brand trademark register" in str(requests[0]["objective"])
-    assert requests[0]["session_id"] == "rightsrader:case-1:0"
+    assert "Example Brand trademark register" in str(fake.search_calls[0]["objective"])
+    assert fake.search_calls[0]["session_id"] == "rightsrader:case-1:0"
 
 
 def test_vertex_client_closes_its_async_transport() -> None:
