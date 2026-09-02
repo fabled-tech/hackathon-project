@@ -671,6 +671,6 @@ test('creates a production, analyzes the two-lane demo script, and shows tool-ca
     page.getByTestId('finding-card').filter({ hasText: 'Time keeps the reel turning' })
   ).toBeVisible();
   await expect(page.getByTestId('tool-call-chip').filter({ hasText: 'plan_queries' })).toHaveCount(2);
-  await expect(page.getByTestId('tool-call-chip').filter({ hasText: 'search' })).toHaveCount(4);
+  await expect(page.locator('[data-testid="tool-call-chip"][data-method="search"]')).toHaveCount(4);
   await expect(page.getByText('example.com').first()).toBeVisible();
 });

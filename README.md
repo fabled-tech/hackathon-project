@@ -103,6 +103,7 @@ flowchart LR
     Intake[IntakeAgent]
     Research[ResearchAgent]
     Curation[CurationAgent]
+    Adjudicator[Adjudicator (ADK)]
   end
   Web[Next.js desk] --> API[FastAPI]
   API --> Intake
@@ -112,6 +113,10 @@ flowchart LR
   Research -->|"stakeholders"| Producer
   Research -->|"stakeholders"| Legal
   Curation -->|"finding plus human"| Coord
+  Curation -->|"contested lead"| Adjudicator
+  Adjudicator -->|"hypotheses + parallel advocates"| Parallel
+  Adjudicator -->|"grounded judge"| Vertex
+  Adjudicator -->|"memo + owner"| Legal
   Intake --> Vertex[Vertex Gemini]
   Research --> Vertex
   Curation --> Vertex
@@ -195,9 +200,16 @@ e2e uses mock and must not be narrated as live web research. A live demo must us
 Stakeholder mapping is deterministic: clearance always; production on brand/franchise/location;
 legal on likeness/quote/music/character. Missing roles are skipped — no invented people.
 
+Contested leads (franchise, quote, character, likeness, low confidence, or registry-vs-claimant
+evidence) go to the Clearance Adjudicator: an ADK `LlmAgent` frames 2–3 hypotheses, an ADK
+`ParallelAgent` runs one advocate per hypothesis with a `parallel-web` Search tool pinned to
+registries, and Gemini (grounded with Parallel Web Search) writes a Clearance Memo that is assigned
+to a roster member and lands in their Inbox. The memo may only cite a URL an advocate or the
+grounding step returned.
+
 Each case stores a judge-visible tool-call log (every Vertex Gemini and Parallel Search/Extract
 call, with duration, fixture vs live, and success/fail). The case desk renders **tool-call chips
-under the relevant agent messages** and keeps the JUDGE LOG dump. The API process prints
+under the relevant agent messages** and keeps the agent tool log. The API process prints
 structured `tool_call case_id=... provider=... method=...` lines to stdout (Cloud Logging in
 cloud). Summaries never include secrets or provider response bodies.
 
@@ -207,8 +219,8 @@ The first screen asks whether to **walk The Matrix homage** or **work the desk y
 choice is stored in `localStorage` (`rightsrader.demo.choice`) so a refresh does not nag; use the
 sidebar **Demo** control to reopen the chooser or run the homage again. Walkthrough files The
 Matrix rooftop homage (franchise **and** “There is no spoon”), then reveals the desk **one
-pipeline stage per Run next stage press** — Intake → Research → Curation → your turn — instead of
-dumping a pre-complete case.
+pipeline stage per Run next stage press** — Intake → Research → Curation → Adjudicator → your
+turn — instead of dumping a pre-complete case.
 
 On the production overview, **Signed in as** defaults to clearance (**Jordan**). The **Inbox**
 lists cases with pending findings assigned to that roster user; nested Research Findings no longer
@@ -223,13 +235,15 @@ expand on the case inventory list.
 3. If self-serve: **Create**, **New case**, paste the Matrix homage (franchise + quote) or the
    two-lane skywalk scene. Optional: attach a still/PDF so Intake makes a from-file Vertex call.
 4. **Analyze script**. Watch the case desk: Intake Vertex → Research @stakeholders →
-   `plan_queries` → Parallel Search xN → Extract → stakeholder brief → Curation Vertex.
+   `plan_queries` → Parallel Search xN → Extract → stakeholder brief → Curation Vertex →
+   **Adjudicator** (hypotheses, parallel advocates, grounded Clearance Memo).
 5. Speak as **Jordan**. Dismiss a studio-owned hit if you filed skywalk. Speak as **Maya**.
    Escalate the quote and assign a roster member.
-6. Cloud only: open one live Parallel URL in a tab. Show `GET /health` `mode: cloud` and one
-   Vertex chip plus one Parallel chip that are **not** marked fixture.
+6. Cloud only: open **Show agent tool log**. Open one live Parallel URL in a tab. Show
+   `GET /health` `mode: cloud` and one Vertex chip plus one Parallel chip that are **not**
+   marked fixture.
 
-**Expected tool-call counts for the two-lead script** (count chips or JUDGE LOG):
+**Expected tool-call counts for the two-lead script** (count chips or the agent tool log):
 
 | Call | Minimum on a two-lead script |
 | --- | --- |
@@ -239,6 +253,9 @@ expand on the case inventory list.
 | Parallel `extract` | ≥2 |
 | `brief_stakeholders` | ≥2 |
 | `curate_evidence` | ≥2 |
+| `hypothesize` | ≥1 |
+| `search_authoritative` | ≥2 |
+| `judge_grounded` | ≥1 |
 
 Mock chips are labeled `fixture` and cite `example.com`. Do not claim those URLs are live
 Parallel results. Pre-flight the CLOUD script the morning of; keep a recorded backup of that
