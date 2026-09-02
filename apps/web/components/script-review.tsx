@@ -48,6 +48,10 @@ function statusLabel(status: ReviewerStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
 }
 
+function isQuotaError(error: unknown): boolean {
+  return error instanceof Error && /\(429\)/.test(error.message);
+}
+
 function fileSizeLabel(byteSize: number): string {
   if (byteSize < 1024) return `${byteSize} bytes`;
   return `${(byteSize / 1024).toFixed(1)} KiB`;
@@ -911,10 +915,14 @@ export function ScriptReview({
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       onCaseCreated?.();
-    } catch {
+    } catch (caught) {
       if (caseOperationGeneration.current === operationGeneration) {
         setAgentWorkflowStatus('failed');
-        setError('RightsRadar could not analyze this script right now. Please try again.');
+        setError(
+          isQuotaError(caught)
+            ? 'Daily live-analysis budget reached. Open a pre-analyzed demo case or try again tomorrow.'
+            : 'RightsRadar could not analyze this script right now. Please try again.'
+        );
       }
     } finally {
       if (submissionGeneration.current === requestGeneration) {
@@ -984,11 +992,13 @@ export function ScriptReview({
       if (analysisFileInputRef.current) analysisFileInputRef.current.value = '';
       if (fileInputRef.current) fileInputRef.current.value = '';
       onCaseCreated?.();
-    } catch {
+    } catch (caught) {
       if (caseOperationGeneration.current === operationGeneration) {
         setAgentWorkflowStatus('failed');
         setError(
-          'RightsRadar could not analyze this file. Use a PDF, DOCX, PNG, JPEG, or WebP file up to 10 MiB.'
+          isQuotaError(caught)
+            ? 'Daily live-analysis budget reached. Open a pre-analyzed demo case or try again tomorrow.'
+            : 'RightsRadar could not analyze this file. Use a PDF, DOCX, PNG, JPEG, or WebP file up to 10 MiB.'
         );
       }
     } finally {

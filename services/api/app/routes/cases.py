@@ -38,6 +38,7 @@ from app.models.requests import (
     UpdateFindingRequest,
 )
 from app.repositories import CaseRepositoryNotFound, FindingNotFound, ProductionRepositoryNotFound
+from app.repositories.quota import today_key
 
 router = APIRouter(prefix="/api/cases", tags=["cases"])
 logger = logging.getLogger(__name__)
@@ -47,6 +48,18 @@ MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
 
 def _services(request: Request) -> ApplicationServices:
     return request.app.state.services  # type: ignore[no-any-return]
+
+
+QUOTA_MESSAGE = (
+    "Daily live-analysis budget reached. Pre-analyzed demo cases remain open; "
+    "try a new analysis tomorrow."
+)
+
+
+async def _reserve_analysis(services: ApplicationServices) -> None:
+    allowed = await run_in_threadpool(services.analysis_quota.try_consume, today_key())
+    if not allowed:
+        raise HTTPException(status_code=429, detail=QUOTA_MESSAGE)
 
 
 async def _analyze_desk(
@@ -122,6 +135,7 @@ def _extract_docx_text(content: bytes) -> str:
 async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
     case_id = str(uuid4())
     services = _services(request)
+    await _reserve_analysis(services)
     ignored_keywords: list[str] = []
     roster: list[ProductionMember] = []
     if payload.production_id is not None:
@@ -173,6 +187,7 @@ async def create_case_from_file(
         )
     except ProductionRepositoryNotFound as error:
         raise HTTPException(status_code=404, detail="Production not found") from error
+    await _reserve_analysis(services)
 
     content_type = file.content_type or ""
     if content_type not in ALLOWED_ANALYSIS_FILE_CONTENT_TYPES:

@@ -11,12 +11,15 @@ from app.integrations import (
     VertexGeminiClient,
 )
 from app.repositories import (
+    AnalysisQuota,
     AssetRepository,
     CaseRepository,
     CloudStorageAssetRepository,
     CloudStorageProductionIconRepository,
+    FirestoreAnalysisQuota,
     FirestoreCaseRepository,
     FirestoreProductionRepository,
+    InMemoryAnalysisQuota,
     InMemoryAssetRepository,
     InMemoryCaseRepository,
     InMemoryProductionIconRepository,
@@ -37,6 +40,7 @@ class ApplicationServices:
     production_icon_repository: ProductionIconRepository = field(
         default_factory=InMemoryProductionIconRepository
     )
+    analysis_quota: AnalysisQuota = field(default_factory=lambda: InMemoryAnalysisQuota(cap=25))
 
 
 def _require(value: str | None, setting_name: str) -> str:
@@ -104,6 +108,16 @@ def build_services(settings: Settings) -> ApplicationServices:
         production_repository = InMemoryProductionRepository()
         production_icon_repository = InMemoryProductionIconRepository()
 
+    analysis_quota: AnalysisQuota
+    if settings.selected_mode(settings.repository_mode) is IntegrationMode.REAL:
+        analysis_quota = FirestoreAnalysisQuota(
+            project=_require(settings.google_cloud_project, "RIGHTSRADAR_GOOGLE_CLOUD_PROJECT"),
+            collection="rightsrader_quota",
+            cap=settings.daily_analysis_cap,
+        )
+    else:
+        analysis_quota = InMemoryAnalysisQuota(cap=settings.daily_analysis_cap)
+
     return ApplicationServices(
         case_repository=case_repository,
         asset_repository=asset_repository,
@@ -112,4 +126,5 @@ def build_services(settings: Settings) -> ApplicationServices:
         ),
         production_repository=production_repository,
         production_icon_repository=production_icon_repository,
+        analysis_quota=analysis_quota,
     )
