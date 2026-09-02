@@ -618,7 +618,7 @@ test('runs a roster desk thread with stakeholder research and a human reply', as
     2
   );
 
-  await page.getByLabel('Speak as').selectOption({ label: 'Jordan (clearance)' });
+  await page.getByLabel('Acting as').selectOption({ label: 'Jordan (clearance)' });
   await page.getByLabel('Desk reply').fill('Studio-owned brand. I can dismiss Nimbus.');
   await page.getByRole('button', { name: 'Post to desk' }).click();
   await expect(desk).toContainText('Studio-owned brand');

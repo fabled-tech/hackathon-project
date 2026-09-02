@@ -851,6 +851,9 @@ export function Dashboard() {
               }
               if (activeProductionId) void refreshProductionCases(activeProductionId);
             }}
+            onActiveMemberChange={(next) => {
+              setMemberPick(next);
+            }}
           />
         ) : view.kind === 'settings' ? (
           <ProductionSettings
@@ -921,7 +924,7 @@ export function Dashboard() {
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="flex items-center gap-2 text-[11px] text-lavender-soft">
-                    <span className="font-pixel text-[7px] text-cyan-pop">SIGNED IN AS</span>
+                    <span className="font-pixel text-[7px] text-cyan-pop">ACTING AS</span>
                     <select
                       data-testid="signed-in-as"
                       value={activeMemberId}

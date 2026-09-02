@@ -40,6 +40,7 @@ import {
   workflowStatusForDemoReveal,
   type DemoRevealStage
 } from '@/lib/demo-reveal';
+import { writeActiveMemberId } from '@/lib/inbox';
 import { memoOwnerName, verdictLabel, verdictTone } from '@/lib/memo';
 
 const SAMPLE_SCRIPT =
@@ -628,7 +629,7 @@ function CaseDesk({
       </p>
       <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
         This is the group chat. Agents and roster humans post here. Dismiss / Escalate posts as
-        whoever you Speak as — same thread, not a separate queue.
+        whoever you are acting as — same thread, not a separate queue.
       </p>
       {roster.length > 0 ? (
         <ul
@@ -738,7 +739,7 @@ function CaseDesk({
           }}
         >
           <label className="block font-pixel text-[7px] text-line-strong" htmlFor="act-as-member">
-            Speak as
+            Acting as
           </label>
           <div className="flex items-center gap-2">
             {actingMember ? <HumanAvatar name={actingMember.name} size="sm" /> : null}
@@ -804,6 +805,7 @@ export function ScriptReview({
   productionId,
   roster = [],
   activeMemberId,
+  onActiveMemberChange,
   onCaseCreated,
   onCaseUpdated,
   initialCase = null,
@@ -813,6 +815,7 @@ export function ScriptReview({
   productionId?: string;
   roster?: ProductionMember[];
   activeMemberId?: string;
+  onActiveMemberChange?: (memberId: string) => void;
   onCaseCreated?: () => void;
   onCaseUpdated?: (caseResult: Case) => void;
   initialCase?: Case | null;
@@ -858,17 +861,13 @@ export function ScriptReview({
   const [error, setError] = useState<string | null>(null);
   const rosterDefaultId =
     roster.find((member) => member.role === 'clearance')?.id || roster[0]?.id || '';
-  const [speakAsOverride, setSpeakAsOverride] = useState<string | null>(null);
   const actingMemberId =
-    (speakAsOverride && roster.some((member) => member.id === speakAsOverride)
-      ? speakAsOverride
-      : null) ??
     (activeMemberId && roster.some((member) => member.id === activeMemberId)
       ? activeMemberId
-      : null) ??
-    rosterDefaultId;
+      : null) ?? rosterDefaultId;
   const setActingMemberId = (memberId: string) => {
-    setSpeakAsOverride(memberId);
+    writeActiveMemberId(window.localStorage, memberId);
+    onActiveMemberChange?.(memberId);
   };
   const [deskReply, setDeskReply] = useState('');
   const [isReplying, setIsReplying] = useState(false);
@@ -1042,7 +1041,7 @@ export function ScriptReview({
   async function changeStatus(finding: Finding, reviewerStatus: ReviewerStatus) {
     if (!workingCase) return;
     if (roster.length > 0 && !actingMemberId) {
-      setError('Pick who you Speak as before dismissing or escalating in the desk thread.');
+      setError('Pick who you are acting as before dismissing or escalating in the desk thread.');
       return;
     }
     setUpdatingFindingId(finding.id);
