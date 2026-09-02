@@ -69,11 +69,12 @@ Package: `google-adk` (1.x line) in the `cloud` dependency group. Gemini runs on
    hypothesis from registries and official sources, run at most two searches, and end with
    `{best_url, why, strength: strong|weak|none}`. Advocates never call Extract; the main Research
    lanes already did.
-3. **JudgeAgent** (`LlmAgent`, `output_key="memo"`, JSON response schema). Input: all
-   `advocate_*` outputs and the original Curation decision. It calls Gemini with
+3. **Judge** (direct `google-genai` call, not an ADK `LlmAgent`: Gemini rejects a response
+   schema when grounding tools are attached, and ADK does not accept a raw `parallel_ai_search`
+   tool). Input: all `advocate_*` outputs and the original Curation decision. It calls Gemini with
    `types.Tool(parallel_ai_search=types.ToolParallelAiSearch(api_key=<parallel key>,
-   custom_configs={"mode": "fast", "max_results": 5}))` as a grounding tool so the memo can cite
-   grounding chunks. Output is a **Clearance Memo**:
+   custom_configs={"mode": "fast", "max_results": 5}))` as a grounding tool and is instructed to
+   reply with JSON only, so the memo can cite grounding chunks. Output is a **Clearance Memo**:
 
    ```json
    {
@@ -90,9 +91,11 @@ Package: `google-adk` (1.x line) in the `cloud` dependency group. Gemini runs on
    Judge's grounding chunks; anything else fails validation and the memo is rejected (same rule
    Curation already enforces for its primary URL).
 
-Execution: `Runner(agent=adjudicator, app_name="rightsrader", session_service=
-InMemorySessionService())` invoked with `run_async` from the existing asyncio pipeline. One
-session per lead, `session_id=f"rightsrader:{case_id}:{index}:adjudicate"`.
+Execution: two ADK `Runner` passes per contested lead over one `InMemorySessionService`
+session (`session_id=f"rightsrader:{case_id}:{index}:adjudicate"`): first the HypothesisAgent
+(its `output_schema` produces the list the fan-out is built from), then a `ParallelAgent` of
+Advocates built from that list. The Judge reads the session state and runs last. All invoked
+with `run_async` from the existing asyncio pipeline.
 
 ### Recording and persistence
 
