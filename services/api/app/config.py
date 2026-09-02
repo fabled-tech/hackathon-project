@@ -1,5 +1,5 @@
 from enum import StrEnum
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -18,7 +18,10 @@ class IntegrationMode(StrEnum):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env", "../../.env"), env_prefix="RIGHTSRADAR_", extra="ignore"
+        env_file=(".env", "../../.env"),
+        env_prefix="RIGHTSRADAR_",
+        extra="ignore",
+        env_ignore_empty=True,
     )
 
     mode: EnvironmentMode = EnvironmentMode.MOCK
@@ -56,7 +59,7 @@ class Settings(BaseSettings):
         return integration_mode
 
     @property
-    def adjudicator_mode(self) -> str:
+    def adjudicator_mode(self) -> Literal["adk", "fixture"]:
         gemini_real = self.selected_mode(self.gemini_mode) is IntegrationMode.REAL
         parallel_real = self.selected_mode(self.parallel_mode) is IntegrationMode.REAL
         return "adk" if gemini_real and parallel_real else "fixture"
