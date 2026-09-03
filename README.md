@@ -242,8 +242,9 @@ expand on the case inventory list.
 4. **Analyze script**. Watch the case desk: Intake Vertex → Research @stakeholders →
    `plan_queries` → Parallel Search xN → Extract → stakeholder brief → Curation Vertex →
    **Adjudicator** (hypotheses, parallel advocates, grounded Clearance Memo).
-5. Acting as **Jordan**. Dismiss a studio-owned hit if you filed skywalk. Acting as **Maya**.
-   Escalate the quote and assign a roster member.
+5. Acting as **Jordan**, clear a lead with **Accept** or drop a studio-owned hit with
+   **Dismiss**. Acting as **Maya**, use **Escalate in desk** on the quote and **Hand to** a
+   roster member. Every one of those posts back into the thread as that person.
 6. Cloud only: open **Show agent tool log**. Open one live Parallel URL in a tab. Show
    `GET /health` `mode: cloud` and one Vertex chip plus one Parallel chip that are **not**
    marked fixture.

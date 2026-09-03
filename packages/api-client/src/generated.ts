@@ -170,6 +170,7 @@ export interface ProductionMember {
 }
 
 export interface ProductionMemberInput {
+  id?: string | null;
   name: string;
   role: WorkspaceRole;
   email?: string | null;

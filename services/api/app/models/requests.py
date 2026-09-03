@@ -41,6 +41,9 @@ class UpdateFindingMetaRequest(BaseModel):
 
 
 class ProductionMemberInput(BaseModel):
+    # Editing a roster round-trips this id so findings, memos, and thread messages keep
+    # pointing at the same person. Unknown ids are ignored and a new member is created.
+    id: str | None = Field(default=None, max_length=80)
     name: str = Field(min_length=1, max_length=120)
     role: WorkspaceRole
     email: str | None = Field(default=None, max_length=254)
