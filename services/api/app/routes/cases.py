@@ -208,12 +208,17 @@ async def create_case_from_file(
             detail="Analysis file content does not match its declared type",
         )
 
+    source_text = (
+        await run_in_threadpool(_extract_docx_text, content)
+        if content_type == DOCX_CONTENT_TYPE
+        else None
+    )
+
     await _reserve_analysis(services)
     filename = Path(file.filename or "production-file").name
     case_id = str(uuid4())
     try:
-        if content_type == DOCX_CONTENT_TYPE:
-            source_text = await run_in_threadpool(_extract_docx_text, content)
+        if source_text is not None:
             desk = await _analyze_desk(
                 services, case_id, source_text, production.ignore_keywords, production.roster
             )
