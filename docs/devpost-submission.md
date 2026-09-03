@@ -22,7 +22,7 @@ single citation.
 ## What it does
 
 RightsRadar is a rights-clearance research desk, not a chatbot. A production team files script
-text and production files. Three named agents run the case, then a fourth resolves contested
+text and production files. Four named agents run the case, and the fourth only runs on contested
 leads:
 
 1. **IntakeAgent** (Vertex Gemini) detects research leads and @mentions Research.

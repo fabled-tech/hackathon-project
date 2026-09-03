@@ -2,6 +2,7 @@ import asyncio
 from collections.abc import Sequence
 from datetime import UTC, datetime
 from io import BytesIO
+from zipfile import ZipFile
 
 from fastapi import FastAPI, HTTPException
 from starlette.datastructures import Headers, UploadFile
@@ -10,7 +11,7 @@ from starlette.requests import Request
 from app.dependencies import ApplicationServices
 from app.errors import AnalysisUnavailableError
 from app.models import Finding, Production
-from app.models.requests import CreateCaseRequest
+from app.models.requests import DOCX_CONTENT_TYPE, CreateCaseRequest
 from app.repositories.assets import InMemoryAssetRepository
 from app.repositories.cases import InMemoryCaseRepository
 from app.repositories.productions import InMemoryProductionRepository
@@ -113,6 +114,31 @@ def test_analysis_unavailable_refunds_quota() -> None:
         assert error.status_code == 503
     else:
         raise AssertionError("expected 503")
+    assert quota.try_consume(today_key()) is True
+
+
+def test_unreadable_docx_does_not_consume_quota() -> None:
+    agent = CountingAgentService()
+    quota = InMemoryAnalysisQuota(cap=1)
+    productions = InMemoryProductionRepository()
+    productions.create(Production(id="p1", title="T", created_at=datetime.now(UTC)))
+    request = _request(agent, quota, productions)
+    archive = BytesIO()
+    with ZipFile(archive, "w") as zipped:
+        zipped.writestr("readme.txt", "not a word document")
+    upload = UploadFile(
+        filename="script.docx",
+        file=BytesIO(archive.getvalue()),
+        headers=Headers({"content-type": DOCX_CONTENT_TYPE}),
+    )
+
+    try:
+        asyncio.run(create_case_from_file("p1", upload, request))
+    except HTTPException as error:
+        assert error.status_code == 422
+    else:
+        raise AssertionError("expected 422")
+    assert agent.calls == 0
     assert quota.try_consume(today_key()) is True
 
 
