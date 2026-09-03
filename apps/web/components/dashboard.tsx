@@ -1314,6 +1314,8 @@ function ProductionSettings({
   );
   const [roster, setRoster] = useState<ProductionMemberInput[]>(
     (production.roster ?? []).map((member) => ({
+      // Send the id back so renaming or adding someone keeps existing assignments intact.
+      id: member.id,
       name: member.name,
       role: member.role,
       email: member.email ?? undefined

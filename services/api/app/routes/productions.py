@@ -1,4 +1,5 @@
 import logging
+from collections.abc import Sequence
 from datetime import UTC, datetime
 from typing import Annotated
 from uuid import uuid4
@@ -41,16 +42,32 @@ def _services(request: Request) -> ApplicationServices:
     return request.app.state.services  # type: ignore[no-any-return]
 
 
-def _members_from_input(entries: list[ProductionMemberInput]) -> list[ProductionMember]:
-    return [
-        ProductionMember(
-            id=str(uuid4()),
-            name=entry.name,
-            role=entry.role,
-            email=entry.email,
+def _members_from_input(
+    entries: list[ProductionMemberInput],
+    existing: Sequence[ProductionMember] = (),
+) -> list[ProductionMember]:
+    """Build roster members, keeping the id of anyone already on the roster.
+
+    Findings, memos, and thread messages reference member ids, so a rename or an added
+    member must not re-issue the ids of the people who are staying.
+    """
+    reusable = {member.id for member in existing}
+    members: list[ProductionMember] = []
+    for entry in entries:
+        if entry.id is not None and entry.id in reusable:
+            reusable.discard(entry.id)
+            member_id = entry.id
+        else:
+            member_id = str(uuid4())
+        members.append(
+            ProductionMember(
+                id=member_id,
+                name=entry.name,
+                role=entry.role,
+                email=entry.email,
+            )
         )
-        for entry in entries
-    ]
+    return members
 
 
 @router.post("", response_model=Production, status_code=status.HTTP_201_CREATED)
@@ -102,7 +119,11 @@ def update_production(
             status=payload.status,
             icon=payload.icon,
             ignore_keywords=payload.ignore_keywords,
-            roster=_members_from_input(payload.roster) if payload.roster is not None else None,
+            roster=(
+                _members_from_input(payload.roster, existing.roster)
+                if payload.roster is not None
+                else None
+            ),
             clear_custom_icon=payload.icon is not None,
         )
     except ProductionRepositoryNotFound as error:

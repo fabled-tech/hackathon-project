@@ -81,6 +81,78 @@ def test_production_roster_is_created_and_updated() -> None:
     assert [member["name"] for member in updated.json()["roster"]] == ["Jordan"]
 
 
+def test_roster_edit_keeps_member_ids_so_assignments_survive() -> None:
+    from app.main import create_app
+
+    client = TestClient(create_app())
+    created = client.post(
+        "/api/productions",
+        json={
+            "title": "Desk Feature",
+            "roster": [
+                {"name": "Jordan", "role": "clearance"},
+                {"name": "Alex", "role": "production"},
+            ],
+        },
+    )
+    assert created.status_code == 201
+    production_id = created.json()["id"]
+    original = {member["name"]: member["id"] for member in created.json()["roster"]}
+
+    # Renaming one member and adding another must not re-issue the other members' ids,
+    # because findings, memos, and thread messages all reference them.
+    updated = client.patch(
+        f"/api/productions/{production_id}",
+        json={
+            "roster": [
+                {"id": original["Jordan"], "name": "Jordan Vale", "role": "clearance"},
+                {"id": original["Alex"], "name": "Alex", "role": "production"},
+                {"name": "Maya", "role": "legal"},
+            ]
+        },
+    )
+
+    assert updated.status_code == 200
+    roster = updated.json()["roster"]
+    by_name = {member["name"]: member["id"] for member in roster}
+    assert by_name["Jordan Vale"] == original["Jordan"]
+    assert by_name["Alex"] == original["Alex"]
+    assert by_name["Maya"] not in original.values()
+    assert len({member["id"] for member in roster}) == 3
+
+
+def test_roster_edit_rejects_ids_that_are_not_on_the_roster() -> None:
+    from app.main import create_app
+
+    client = TestClient(create_app())
+    created = client.post(
+        "/api/productions",
+        json={"title": "Desk Feature", "roster": [{"name": "Jordan", "role": "clearance"}]},
+    )
+    production_id = created.json()["id"]
+    known = created.json()["roster"][0]["id"]
+
+    # An unknown id must not be persisted, and a repeated id must not create duplicates.
+    updated = client.patch(
+        f"/api/productions/{production_id}",
+        json={
+            "roster": [
+                {"id": known, "name": "Jordan", "role": "clearance"},
+                {"id": known, "name": "Alex", "role": "production"},
+                {"id": "not-a-member", "name": "Maya", "role": "legal"},
+            ]
+        },
+    )
+
+    assert updated.status_code == 200
+    roster = updated.json()["roster"]
+    assert len({member["id"] for member in roster}) == 3
+    by_name = {member["name"]: member["id"] for member in roster}
+    assert by_name["Jordan"] == known
+    assert by_name["Alex"] != known
+    assert by_name["Maya"] != "not-a-member"
+
+
 def test_case_thread_includes_named_agents_and_stakeholders() -> None:
     from app.main import create_app
 

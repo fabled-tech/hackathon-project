@@ -16,6 +16,7 @@ import {
   type ReviewerStatus,
   type ToolCallEvent,
   uploadAsset,
+  updateFindingMeta,
   updateFindingStatus
 } from '@rightsrader/api-client';
 import {
@@ -1058,7 +1059,7 @@ export function ScriptReview({
   async function changeStatus(finding: Finding, reviewerStatus: ReviewerStatus) {
     if (!workingCase) return;
     if (roster.length > 0 && !actingMemberId) {
-      setError('Pick who you are acting as before dismissing or escalating in the desk thread.');
+      setError('Pick who you are acting as before deciding a lead in the desk thread.');
       return;
     }
     setUpdatingFindingId(finding.id);
@@ -1095,6 +1096,34 @@ export function ScriptReview({
       }
     } catch {
       setError('The reviewer status could not be saved. Please try again.');
+    } finally {
+      setUpdatingFindingId(null);
+    }
+  }
+
+  async function assignFinding(finding: Finding, memberId: string) {
+    if (!workingCase || !productionId) return;
+    const owner = roster.find((member) => member.id === memberId);
+    if (!owner) return;
+    if (roster.length > 0 && !actingMemberId) {
+      setError('Pick who you are acting as before handing a lead to someone.');
+      return;
+    }
+    setUpdatingFindingId(finding.id);
+    setError(null);
+    try {
+      await updateFindingMeta(
+        productionId,
+        workingCase.id,
+        finding.id,
+        { assignee: owner.name, actor_member_id: actingMemberId || null },
+        API_BASE_URL
+      );
+      const nextCase = await getCase(workingCase.id, API_BASE_URL);
+      setCaseResult(nextCase);
+      onCaseUpdated?.(nextCase);
+    } catch {
+      setError('The handoff could not be saved. Please try again.');
     } finally {
       setUpdatingFindingId(null);
     }
@@ -1503,9 +1532,52 @@ export function ScriptReview({
                                   </p>
                                 </div>
                               ) : null}
+                              {finding.assignee ? (
+                                <p
+                                  data-testid="finding-assignee"
+                                  className="mt-2 font-pixel text-[7px] text-line-strong"
+                                >
+                                  Handed to {finding.assignee}
+                                </p>
+                              ) : null}
                               <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3">
                                 <span className="text-[10px] text-muted">✂ - - - - -</span>
-                                <div className="flex gap-2.5">
+                                <div className="flex flex-wrap items-center gap-2.5">
+                                  {roster.length > 0 && productionId ? (
+                                    <label className="flex items-center gap-1.5 font-pixel text-[7px] text-line-strong">
+                                      Hand to
+                                      <select
+                                        data-testid="assign-finding"
+                                        aria-label={`Hand ${finding.detected_item} to a roster member`}
+                                        value={
+                                          roster.find(
+                                            (member) => member.name === finding.assignee
+                                          )?.id ?? ''
+                                        }
+                                        disabled={updatingFindingId === finding.id}
+                                        onChange={(event) =>
+                                          assignFinding(finding, event.target.value)
+                                        }
+                                        className="border border-line bg-ink px-1.5 py-1 font-sans text-[10px] text-paper"
+                                      >
+                                        <option value="">Nobody yet</option>
+                                        {roster.map((member) => (
+                                          <option key={member.id} value={member.id}>
+                                            {member.name} ({member.role})
+                                          </option>
+                                        ))}
+                                      </select>
+                                    </label>
+                                  ) : null}
+                                  <SecondaryButton
+                                    disabled={updatingFindingId === finding.id}
+                                    onClick={() => changeStatus(finding, 'accepted')}
+                                  >
+                                    {updatingFindingId === finding.id ? (
+                                      <Spinner className="size-3.5" />
+                                    ) : null}
+                                    Accept
+                                  </SecondaryButton>
                                   <SecondaryButton
                                     disabled={updatingFindingId === finding.id}
                                     onClick={() => changeStatus(finding, 'dismissed')}

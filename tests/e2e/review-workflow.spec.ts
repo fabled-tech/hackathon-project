@@ -631,6 +631,41 @@ test('runs a roster desk thread with stakeholder research and a human reply', as
   await expect(quoteFinding).toContainText('Escalated');
 });
 
+test('accepts a lead and hands it to a roster member from the finding card', async ({ page }) => {
+  const title = `Handoff Production ${Date.now()} ${Math.random().toString(16).slice(2)}`;
+  const response = await page.request.post('http://127.0.0.1:8000/api/productions', {
+    data: {
+      title,
+      studio: 'RightsRadar Test Unit',
+      roster: [
+        { name: 'Jordan', role: 'clearance' },
+        { name: 'Maya', role: 'legal' }
+      ]
+    }
+  });
+  expect(response.ok()).toBeTruthy();
+
+  await page.goto('/');
+  await page.getByRole('button', { name: new RegExp(title) }).first().click();
+  await page.getByRole('navigation').getByRole('button', { name: 'New case' }).click();
+  await scriptTextarea(page).fill('A Nimbus Soda can sits on the desk in the wide shot.');
+  await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  const brandFinding = page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' });
+  await expect(brandFinding).toContainText('Pending');
+
+  await page.getByLabel('Acting as').selectOption({ label: 'Jordan (clearance)' });
+  await brandFinding.getByRole('button', { name: 'Accept' }).click();
+  await expect(brandFinding.getByTestId('status-stamp')).toContainText('Cleared');
+
+  await brandFinding.getByTestId('assign-finding').selectOption({ label: 'Maya (legal)' });
+  await expect(brandFinding.getByTestId('finding-assignee')).toHaveText('Handed to Maya');
+
+  // The handoff has to be legible in the thread, not just on the card.
+  await expect(page.getByTestId('case-desk')).toContainText('Jordan (clearance) assigned');
+  await expect(page.getByTestId('case-desk')).toContainText('→ Maya');
+});
+
 test('creates a production, analyzes the two-lane demo script, and shows tool-call chips', async ({
   page
 }) => {
