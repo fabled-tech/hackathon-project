@@ -45,30 +45,52 @@ function tool(
   };
 }
 
-const full: Case = {
+const fullCase: Case = {
   id: 'c1',
   script_text: 'INT. GREENSCREEN',
   created_at: '2026-08-30T00:00:00Z',
   title: 'The Matrix rooftop homage',
-  findings: [finding('f1', 'The Matrix'), finding('f2', 'There is no spoon')],
+  findings: [
+    {
+      ...finding('f1', 'The Matrix'),
+      memo: {
+        verdict: 'rewrite_recommended',
+        confidence: 0.85,
+        winning_hypothesis_id: 'h1',
+        rationale: 'Parody reading wins on registry evidence.',
+        recommended_owner_role: 'legal'
+      }
+    },
+    finding('f2', 'There is no spoon')
+  ],
   thread: [
     message({ id: 't1', author_kind: 'agent', agent_name: 'Intake', body: 'Detected 2 leads' }),
     message({ id: 't2', author_kind: 'agent', agent_name: 'Research', body: 'Searching' }),
-    message({ id: 't3', author_kind: 'agent', agent_name: 'Curation', body: 'Cited' })
+    message({ id: 't3', author_kind: 'agent', agent_name: 'Curation', body: 'Cited' }),
+    message({
+      id: 't4',
+      author_kind: 'agent',
+      agent_name: 'Adjudicator',
+      body: 'Clearance memo drafted'
+    })
   ],
   tool_calls: [
     tool({ id: 'c1', agent_name: 'Research', method: 'plan_queries' }),
-    tool({ id: 'c2', agent_name: 'Curation', method: 'curate_evidence' })
+    tool({ id: 'c2', agent_name: 'Curation', method: 'curate_evidence' }),
+    tool({ id: 'c3', agent_name: 'Adjudicator', method: 'write_memo' })
   ]
 };
 
+const full = fullCase;
+
 describe('demo reveal staging', () => {
-  it('maps five coach steps onto ready → human', () => {
+  it('has six reveal stages with adjudication before human', () => {
     expect(DEMO_REVEAL_BY_STEP).toEqual([
       'ready',
       'intake',
       'research',
       'curation',
+      'adjudication',
       'human'
     ]);
   });
@@ -105,5 +127,16 @@ describe('demo reveal staging', () => {
     expect(curated!.thread).toHaveLength(3);
     expect(workflowStatusForDemoReveal('human')).toBe('complete');
     expect(caseForDemoReveal(full, 'human')?.findings).toHaveLength(2);
+  });
+
+  it('hides adjudicator output and memos until the adjudication stage', () => {
+    const curation = caseForDemoReveal(fullCase, 'curation')!;
+    expect((curation.thread ?? []).some((m) => m.agent_name === 'Adjudicator')).toBe(false);
+    expect((curation.tool_calls ?? []).some((c) => c.agent_name === 'Adjudicator')).toBe(false);
+    expect(curation.findings.every((f) => f.memo == null)).toBe(true);
+
+    const adjudication = caseForDemoReveal(fullCase, 'adjudication')!;
+    expect((adjudication.thread ?? []).some((m) => m.agent_name === 'Adjudicator')).toBe(true);
+    expect(adjudication.findings.some((f) => f.memo != null)).toBe(true);
   });
 });

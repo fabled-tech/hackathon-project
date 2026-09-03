@@ -466,3 +466,35 @@ def test_matrix_homage_returns_franchise_and_quote_leads() -> None:
     assert roster_by_role["clearance"] in items["The Matrix"]["stakeholder_ids"]
     assert roster_by_role["production"] in items["The Matrix"]["stakeholder_ids"]
     assert roster_by_role["legal"] in items["There is no spoon"]["stakeholder_ids"]
+
+
+def test_mock_case_carries_adjudicator_memo_and_routes_to_legal() -> None:
+    from app.main import create_app
+
+    client = TestClient(create_app())
+    production = client.post(
+        "/api/productions",
+        json={
+            "title": "Matrix",
+            "roster": [
+                {"name": "Jordan", "role": "clearance"},
+                {"name": "Alex", "role": "production"},
+                {"name": "Maya", "role": "legal"},
+            ],
+        },
+    ).json()
+    maya = next(m["id"] for m in production["roster"] if m["name"] == "Maya")
+    case = client.post(
+        "/api/cases",
+        json={
+            "production_id": production["id"],
+            "script_text": 'A The Matrix one-sheet. "There is no spoon," she says.',
+        },
+    ).json()
+
+    spoon = next(f for f in case["findings"] if f["detected_item"] == "There is no spoon")
+    assert spoon["memo"]["verdict"] == "rewrite_recommended"
+    assert spoon["assignee"] == maya and maya in spoon["stakeholder_ids"]
+    assert any(m["agent_name"] == "Adjudicator" for m in case["thread"])
+    methods = [c["method"] for c in case["tool_calls"] if c["agent_name"] == "Adjudicator"]
+    assert methods.count("search_authoritative") >= 2 and "judge_grounded" in methods

@@ -38,6 +38,7 @@ from app.models.requests import (
     UpdateFindingRequest,
 )
 from app.repositories import CaseRepositoryNotFound, FindingNotFound, ProductionRepositoryNotFound
+from app.repositories.quota import today_key
 
 router = APIRouter(prefix="/api/cases", tags=["cases"])
 logger = logging.getLogger(__name__)
@@ -47,6 +48,22 @@ MAX_DOCX_UNCOMPRESSED_BYTES = 50 * 1024 * 1024
 
 def _services(request: Request) -> ApplicationServices:
     return request.app.state.services  # type: ignore[no-any-return]
+
+
+QUOTA_MESSAGE = (
+    "Daily live-analysis budget reached. Pre-analyzed demo cases remain open; "
+    "try a new analysis tomorrow."
+)
+
+
+async def _reserve_analysis(services: ApplicationServices) -> None:
+    allowed = await run_in_threadpool(services.analysis_quota.try_consume, today_key())
+    if not allowed:
+        raise HTTPException(status_code=429, detail=QUOTA_MESSAGE)
+
+
+async def _refund_analysis(services: ApplicationServices) -> None:
+    await run_in_threadpool(services.analysis_quota.refund, today_key())
 
 
 async def _analyze_desk(
@@ -133,11 +150,13 @@ async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
             raise HTTPException(status_code=404, detail="Production not found") from error
         ignored_keywords = production.ignore_keywords
         roster = production.roster
+    await _reserve_analysis(services)
     try:
         desk = await _analyze_desk(
             services, case_id, payload.script_text, ignored_keywords, roster
         )
     except AnalysisUnavailableError as error:
+        await _refund_analysis(services)
         logger.warning("Case analysis failed during %s.", error.operation)
         raise HTTPException(
             status_code=503,
@@ -189,6 +208,7 @@ async def create_case_from_file(
             detail="Analysis file content does not match its declared type",
         )
 
+    await _reserve_analysis(services)
     filename = Path(file.filename or "production-file").name
     case_id = str(uuid4())
     try:
@@ -210,6 +230,7 @@ async def create_case_from_file(
             )
             case_text = f"Uploaded {content_type} production file: {filename}"
     except AnalysisUnavailableError as error:
+        await _refund_analysis(services)
         logger.warning("File analysis failed during %s.", error.operation)
         raise HTTPException(
             status_code=503,

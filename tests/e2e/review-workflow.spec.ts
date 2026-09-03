@@ -11,6 +11,25 @@ test.beforeEach(async ({ page }) => {
   });
 });
 
+/**
+ * The textarea's accessible label switches from "Script text" to
+ * "Script the agents analyzed" once a case has been submitted (see
+ * script-review.tsx). Select by the stable element id instead of the
+ * label text so tests keep working across that state change.
+ */
+function scriptTextarea(page: Page) {
+  return page.locator('#script-text');
+}
+
+/**
+ * The "Refresh recent cases" button label shortens to "Refresh" once a
+ * case is open (compact recent-cases panel in script-review.tsx). Match
+ * on the shared substring so tests work in both layouts.
+ */
+function refreshRecentCasesButton(page: Page) {
+  return page.getByRole('button', { name: /Refresh/ });
+}
+
 async function openCaseWorkspace(page: Page) {
   const title = `E2E Production ${Date.now()} ${Math.random().toString(16).slice(2)}`;
   const response = await page.request.post('http://127.0.0.1:8000/api/productions', {
@@ -30,19 +49,19 @@ test('keeps the visible case usable after reopening another case fails', async (
   const failedScript = 'Failure guard target case: a quiet scene plays in silence.';
 
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill(visibleScript);
+  await scriptTextarea(page).fill(visibleScript);
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
-  await page.getByLabel('Script text').fill(failedScript);
+  await scriptTextarea(page).fill(failedScript);
   const failedCaseResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
   const failedCase = await (await failedCaseResponse).json();
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await refreshRecentCasesButton(page).click();
   await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(visibleScript) }).click();
-  await expect(page.getByLabel('Script text')).toHaveValue(visibleScript);
+  await expect(scriptTextarea(page)).toHaveValue(visibleScript);
 
   await page.route(`**/api/cases/${failedCase.id}`, async (route) => {
     await route.fulfill({
@@ -53,7 +72,7 @@ test('keeps the visible case usable after reopening another case fails', async (
   });
   await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(failedScript) }).click();
   await expect(page.getByText('This case could not be reopened. Please try again.')).toBeVisible();
-  await expect(page.getByLabel('Script text')).toHaveValue(visibleScript);
+  await expect(scriptTextarea(page)).toHaveValue(visibleScript);
 
   await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
   await page.getByRole('button', { name: 'Upload asset' }).click();
@@ -67,23 +86,23 @@ test('ignores stale asset uploads after a newer case is selected', async ({ page
   const newerScript = 'Stale upload newer case: a quiet scene plays in silence.';
 
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill(olderScript);
+  await scriptTextarea(page).fill(olderScript);
   const olderCaseResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
   const olderCase = await (await olderCaseResponse).json();
 
-  await page.getByLabel('Script text').fill(newerScript);
+  await scriptTextarea(page).fill(newerScript);
   const newerCaseResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
   const newerCase = await (await newerCaseResponse).json();
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await refreshRecentCasesButton(page).click();
   await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(olderScript) }).click();
-  await expect(page.getByLabel('Script text')).toHaveValue(olderScript);
+  await expect(scriptTextarea(page)).toHaveValue(olderScript);
 
   let releaseOlderAssetsResponse: (() => void) | undefined;
   let signalOlderAssetsRequestStarted: (() => void) | undefined;
@@ -106,7 +125,7 @@ test('ignores stale asset uploads after a newer case is selected', async ({ page
   await page.getByRole('button', { name: 'Upload asset' }).click();
   await olderAssetsRequestStarted;
   await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(newerScript) }).click();
-  await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
+  await expect(scriptTextarea(page)).toHaveValue(newerScript);
 
   const staleAssetsResponse = page.waitForResponse(
     (response) =>
@@ -117,7 +136,7 @@ test('ignores stale asset uploads after a newer case is selected', async ({ page
   await staleAssetsResponse;
   await expect(page.getByTestId('asset-list')).not.toContainText('production-note.txt');
   await expect(page.getByTestId('finding-card')).toHaveCount(0);
-  await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
+  await expect(scriptTextarea(page)).toHaveValue(newerScript);
 
   await page.unroute(`**/api/cases/${olderCase.id}/assets`);
   expect(newerCase.id).not.toBe(olderCase.id);
@@ -128,7 +147,7 @@ test('ignores stale case reopen responses after a newer case is selected', async
   const newerScript = 'A quiet scene without any fictional references plays in silence.';
 
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill(olderScript);
+  await scriptTextarea(page).fill(olderScript);
   const olderCaseResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
   );
@@ -139,14 +158,14 @@ test('ignores stale case reopen responses after a newer case is selected', async
   await page.getByRole('button', { name: 'Upload asset' }).click();
   await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
 
-  await page.getByLabel('Script text').fill(newerScript);
+  await scriptTextarea(page).fill(newerScript);
   const newerCaseResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
   const newerCase = await (await newerCaseResponse).json();
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await refreshRecentCasesButton(page).click();
   await expect(page.getByTestId('recent-cases')).toContainText(olderScript);
 
   let releaseOlderCaseResponse: (() => void) | undefined;
@@ -165,7 +184,7 @@ test('ignores stale case reopen responses after a newer case is selected', async
   await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(olderScript) }).click();
   await olderCaseRequestStarted;
   await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(newerScript) }).click();
-  await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
+  await expect(scriptTextarea(page)).toHaveValue(newerScript);
 
   const staleAssetsResponse = page.waitForResponse(
     (response) =>
@@ -175,7 +194,7 @@ test('ignores stale case reopen responses after a newer case is selected', async
   releaseOlderCaseResponse?.();
   await staleAssetsResponse;
 
-  await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
+  await expect(scriptTextarea(page)).toHaveValue(newerScript);
   await expect(page.getByTestId('finding-card')).toHaveCount(0);
   await expect(page.getByTestId('asset-list')).not.toContainText('production-note.txt');
   await expect(page.getByTestId('asset-list')).toContainText(
@@ -188,7 +207,7 @@ test('ignores stale case reopen responses after a newer case is selected', async
 
 test('uploads a text asset and reopens it from recent cases', async ({ page }) => {
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill('Nimbus Soda appears in a shot.');
+  await scriptTextarea(page).fill('Nimbus Soda appears in a shot.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
   await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
@@ -196,7 +215,7 @@ test('uploads a text asset and reopens it from recent cases', async ({ page }) =
   await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
   await expect(page.getByTestId('asset-list')).toContainText('text/plain');
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await refreshRecentCasesButton(page).click();
   await page.getByTestId('recent-cases').getByRole('button').first().click();
   await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
   await expect(page.getByTestId('asset-list')).toContainText('text/plain');
@@ -207,7 +226,7 @@ test('reopens a different case with its script, reviewer status, and assets', as
   const newerScript = 'A different scene contains no fictional brand references.';
 
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill(originalScript);
+  await scriptTextarea(page).fill(originalScript);
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
   const originalFinding = page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' });
@@ -218,17 +237,17 @@ test('reopens a different case with its script, reviewer status, and assets', as
   await page.getByRole('button', { name: 'Upload asset' }).click();
   await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
 
-  await page.getByLabel('Script text').fill(newerScript);
+  await scriptTextarea(page).fill(newerScript);
   await page.getByRole('button', { name: 'Analyze script' }).click();
-  await expect(page.getByLabel('Script text')).toHaveValue(newerScript);
+  await expect(scriptTextarea(page)).toHaveValue(newerScript);
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await refreshRecentCasesButton(page).click();
   await page
     .getByTestId('recent-cases')
     .getByRole('button', { name: new RegExp(originalScript) })
     .click();
 
-  await expect(page.getByLabel('Script text')).toHaveValue(originalScript);
+  await expect(scriptTextarea(page)).toHaveValue(originalScript);
   await expect(page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' })).toContainText(
     'Dismissed'
   );
@@ -237,12 +256,13 @@ test('reopens a different case with its script, reviewer status, and assets', as
 
 test('frames cited character leads as research assistance', async ({ page }) => {
   await openCaseWorkspace(page);
-  await expect(page.getByText('Potential research leads')).toBeVisible();
-  await expect(page.getByText(/characters, franchises, and likenesses/i)).toBeVisible();
   await expect(page.getByLabel('Legal disclaimer')).toContainText('Research assistance only.');
 
-  await page.getByLabel('Script text').fill('Captain Aurelia enters the archive.');
+  await scriptTextarea(page).fill('Captain Aurelia enters the archive.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
+
+  // Findings (and the "Potential research leads" heading) render only once a case exists.
+  await expect(page.getByText('Potential research leads')).toBeVisible();
 
   const characterFinding = page.getByTestId('finding-card').filter({ hasText: 'Captain Aurelia' });
   await expect(characterFinding).toContainText('character reference');
@@ -252,7 +272,7 @@ test('frames cited character leads as research assistance', async ({ page }) => 
 
 test('submits a script and lets the reviewer dismiss a finding', async ({ page }) => {
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill(
+  await scriptTextarea(page).fill(
     'MARA opens a can of Nimbus Soda. "Time keeps the reel turning," she says.'
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
@@ -273,7 +293,7 @@ test('submits a script and lets the reviewer dismiss a finding', async ({ page }
 
 test('lets the reviewer escalate a finding', async ({ page }) => {
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill(
+  await scriptTextarea(page).fill(
     'A Nimbus Soda billboard looms over the skyline in the establishing shot.'
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
@@ -295,7 +315,7 @@ test('shows an error banner when script submission fails', async ({ page }) => {
     await route.fulfill({ status: 500, contentType: 'application/json', body: '{}' });
   });
 
-  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await scriptTextarea(page).fill('Nimbus Soda appears in the scene.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
   await expect(
@@ -308,7 +328,7 @@ test('shows an error banner when script submission fails', async ({ page }) => {
 
 test('shows an error banner when asset upload fails', async ({ page }) => {
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await scriptTextarea(page).fill('Nimbus Soda appears in the scene.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
   await expect(page.getByTestId('finding-card').first()).toBeVisible();
 
@@ -340,7 +360,7 @@ test('shows an error banner when loading recent cases fails', async ({ page }) =
     await route.fulfill({ status: 503, contentType: 'application/json', body: '{}' });
   });
 
-  await page.getByRole('button', { name: 'Refresh recent cases' }).click();
+  await refreshRecentCasesButton(page).click();
 
   await expect(
     page.getByText('Recent cases could not be loaded. Please try again.')
@@ -351,7 +371,7 @@ test('shows an error banner when loading recent cases fails', async ({ page }) =
 
 test('shows an error banner when saving a reviewer status fails', async ({ page }) => {
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await scriptTextarea(page).fill('Nimbus Soda appears in the scene.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
   const brandFinding = page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' });
@@ -390,7 +410,7 @@ test('shows a no-findings message when the script produces no leads', async ({ p
     });
   });
 
-  await page.getByLabel('Script text').fill('A quiet scene plays in silence.');
+  await scriptTextarea(page).fill('A quiet scene plays in silence.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
   await expect(
@@ -410,7 +430,7 @@ test('shows the recent-cases placeholder before the first refresh', async ({ pag
 
 test('character counter updates as the user types', async ({ page }) => {
   await openCaseWorkspace(page);
-  const textarea = page.getByLabel('Script text');
+  const textarea = scriptTextarea(page);
   await textarea.fill('');
   await expect(page.getByText('0 / 20,000')).toBeVisible();
 
@@ -420,13 +440,13 @@ test('character counter updates as the user types', async ({ page }) => {
 
 test('analyze button is disabled when the script textarea is empty', async ({ page }) => {
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill('');
+  await scriptTextarea(page).fill('');
   await expect(page.getByRole('button', { name: 'Analyze script' })).toBeDisabled();
 });
 
 test('upload button is disabled when no file is selected', async ({ page }) => {
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await scriptTextarea(page).fill('Nimbus Soda appears in the scene.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
   await expect(page.getByTestId('finding-card').first()).toBeVisible();
   await expect(page.getByRole('button', { name: 'Upload asset' })).toBeDisabled();
@@ -434,7 +454,7 @@ test('upload button is disabled when no file is selected', async ({ page }) => {
 
 test('explains accepted production assets before upload', async ({ page }) => {
   await openCaseWorkspace(page);
-  await page.getByLabel('Script text').fill('Nimbus Soda appears in the scene.');
+  await scriptTextarea(page).fill('Nimbus Soda appears in the scene.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
   await expect(page.getByText('script sides, continuity or clearance notes')).toBeVisible();
@@ -458,9 +478,9 @@ test('filters production ignore phrases before creating findings', async ({ page
   );
 
   await page.getByRole('button', { name: 'New case' }).click();
-  await page
-    .getByLabel('Script text')
-    .fill('Nimbus Soda appears. "Time keeps the reel turning," the director says.');
+  await scriptTextarea(page).fill(
+    'Nimbus Soda appears. "Time keeps the reel turning," the director says.'
+  );
   await page.getByRole('button', { name: 'Analyze script' }).click();
 
   await expect(page.getByTestId('finding-card')).toHaveCount(1);
@@ -540,9 +560,7 @@ test('uploads a custom production icon and has no agent-run controls', async ({ 
 
 test('opens a case desk and its findings from the user Inbox', async ({ page }) => {
   await openCaseWorkspace(page);
-  await page
-    .getByLabel('Script text')
-    .fill('Nimbus Soda appears beside the hero prop.');
+  await scriptTextarea(page).fill('Nimbus Soda appears beside the hero prop.');
   await page.getByRole('button', { name: 'Analyze script' }).click();
   await page.getByRole('navigation').getByRole('button', { name: 'Overview' }).click();
 
@@ -580,11 +598,12 @@ test('runs a roster desk thread with stakeholder research and a human reply', as
   await page.goto('/');
   await page.getByRole('button', { name: new RegExp(title) }).first().click();
   await page.getByRole('navigation').getByRole('button', { name: 'New case' }).click();
-  await page.getByLabel('Script text').fill(
+  await scriptTextarea(page).fill(
     'MARA opens a can of Nimbus Soda. "Time keeps the reel turning," she says.'
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
   await expect(page.getByTestId('agent-pipeline')).toContainText('COMPLETE');
+  await page.getByTestId('toggle-tool-log').click();
   await expect(page.getByTestId('judge-log')).toBeVisible();
 
   const desk = page.getByTestId('case-desk');
@@ -600,7 +619,7 @@ test('runs a roster desk thread with stakeholder research and a human reply', as
     2
   );
 
-  await page.getByLabel('Speak as').selectOption({ label: 'Jordan (clearance)' });
+  await page.getByLabel('Acting as').selectOption({ label: 'Jordan (clearance)' });
   await page.getByLabel('Desk reply').fill('Studio-owned brand. I can dismiss Nimbus.');
   await page.getByRole('button', { name: 'Post to desk' }).click();
   await expect(desk).toContainText('Studio-owned brand');
@@ -623,7 +642,7 @@ test('creates a production, analyzes the two-lane demo script, and shows tool-ca
   await expect(page.getByLabel('Roster name 3')).toHaveValue('Maya');
   await page.getByRole('button', { name: 'Create' }).click();
   await page.getByRole('navigation').getByRole('button', { name: 'New case' }).click();
-  await page.getByLabel('Script text').fill(DEMO_TWO_LEAD_SCRIPT.script);
+  await scriptTextarea(page).fill(DEMO_TWO_LEAD_SCRIPT.script);
   const caseResponse = page.waitForResponse(
     (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
   );
@@ -652,6 +671,6 @@ test('creates a production, analyzes the two-lane demo script, and shows tool-ca
     page.getByTestId('finding-card').filter({ hasText: 'Time keeps the reel turning' })
   ).toBeVisible();
   await expect(page.getByTestId('tool-call-chip').filter({ hasText: 'plan_queries' })).toHaveCount(2);
-  await expect(page.getByTestId('tool-call-chip').filter({ hasText: 'search' })).toHaveCount(4);
+  await expect(page.locator('[data-testid="tool-call-chip"][data-method="search"]')).toHaveCount(4);
   await expect(page.getByText('example.com').first()).toBeVisible();
 });

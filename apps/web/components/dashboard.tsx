@@ -69,6 +69,7 @@ import {
   readActiveMemberId,
   writeActiveMemberId
 } from '@/lib/inbox';
+import { verdictLabel } from '@/lib/memo';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
@@ -822,7 +823,7 @@ export function Dashboard() {
             key={
               demoFullCase
                 ? `demo-${demoFullCase.id}`
-                : `${openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`}-${activeMemberId}`
+                : (openedCase?.id ?? `blank-${activeProduction?.id ?? 'none'}`)
             }
             productionId={activeProduction?.id}
             roster={activeProduction?.roster ?? []}
@@ -849,6 +850,9 @@ export function Dashboard() {
                 setOpenedCase(nextCase);
               }
               if (activeProductionId) void refreshProductionCases(activeProductionId);
+            }}
+            onActiveMemberChange={(next) => {
+              setMemberPick(next);
             }}
           />
         ) : view.kind === 'settings' ? (
@@ -920,7 +924,7 @@ export function Dashboard() {
                 </div>
                 <div className="flex flex-wrap items-center gap-3">
                   <label className="flex items-center gap-2 text-[11px] text-lavender-soft">
-                    <span className="font-pixel text-[7px] text-cyan-pop">SIGNED IN AS</span>
+                    <span className="font-pixel text-[7px] text-cyan-pop">ACTING AS</span>
                     <select
                       data-testid="signed-in-as"
                       value={activeMemberId}
@@ -1009,8 +1013,14 @@ export function Dashboard() {
                             <li
                               key={finding.id}
                               className="border border-cyan-pop px-2 py-1 font-pixel text-[7px] text-cyan-pop"
+                              data-testid="inbox-finding-chip"
                             >
                               {finding.detected_item}
+                              {finding.memo ? (
+                                <span className="ml-1 text-brand" data-testid="inbox-verdict">
+                                  · {verdictLabel(finding.memo.verdict)}
+                                </span>
+                              ) : null}
                             </li>
                           ))}
                         </ul>

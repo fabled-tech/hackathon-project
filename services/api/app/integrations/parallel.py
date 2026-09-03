@@ -2,16 +2,14 @@ import logging
 from collections.abc import Mapping
 from typing import Any, Protocol
 
-import httpx
-
 from app.errors import AnalysisProviderError
 from app.models import Source
 from app.models.analysis import GeminiSignal, SearchResult
 
 logger = logging.getLogger("rightsrader.integrations")
-_PARALLEL_API_ROOT = "https://api.parallel.ai/v1"
 _MAX_CANDIDATES = 5
 _MAX_CHARS_TOTAL = 8_000
+_REQUEST_TIMEOUT_SECONDS = 90.0  # Extract live fetch can take up to 60 s per Parallel docs.
 _CATEGORY_TERMS = {
     "brand_reference": "brand trademark",
     "quotation": "quote origin",
@@ -203,66 +201,85 @@ def _normalize_results(
     return normalized
 
 
-class ParallelSearchHttpClient:
-    def __init__(
-        self,
-        api_key: str,
-        client_model: str,
-        *,
-        http_client: httpx.AsyncClient | None = None,
-    ) -> None:
-        self._api_key = api_key
-        self._client_model = client_model
-        self._owns_http_client = http_client is None
-        self._http_client = http_client or httpx.AsyncClient(timeout=20)
+def parallel_search_kwargs(
+    signal: GeminiSignal, session_id: str, objective: str | None, client_model: str
+) -> dict[str, Any]:
+    if objective:
+        context = (signal.context_excerpt or "").strip()[:2_000]
+        research_objective = f"{objective} Scene context: {context}" if context else objective
+    else:
+        research_objective = _research_objective(signal)
+    return {
+        "objective": research_objective,
+        "search_queries": _build_search_queries(signal, objective),
+        "mode": "advanced",
+        "max_chars_total": _MAX_CHARS_TOTAL,
+        "session_id": session_id,
+        "client_model": client_model,
+    }
 
-    async def _post(self, path: str, payload: dict[str, object]) -> Mapping[str, Any]:
-        logger.info(
-            "parallel request path=%s session_id=%s",
-            path,
-            payload.get("session_id", "-"),
+
+def parallel_extract_kwargs(
+    signal: GeminiSignal, urls: list[str], session_id: str, client_model: str
+) -> dict[str, Any]:
+    return {
+        "urls": urls,
+        "objective": _research_objective(signal),
+        "search_queries": _build_search_queries(signal),
+        "max_chars_total": _MAX_CHARS_TOTAL,
+        "session_id": session_id,
+        "client_model": client_model,
+    }
+
+
+def _sdk_results_to_payload(response: Any) -> Mapping[str, Any]:
+    results = []
+    for item in getattr(response, "results", None) or []:
+        results.append(
+            {
+                "url": getattr(item, "url", None),
+                "title": getattr(item, "title", None),
+                "publish_date": getattr(item, "publish_date", None),
+                "excerpts": list(getattr(item, "excerpts", None) or []),
+            }
         )
+    return {"results": results}
+
+
+class ParallelSdkClient:
+    """Parallel Search and Extract through the official parallel-web SDK."""
+
+    def __init__(self, api_key: str, client_model: str, *, client: Any | None = None) -> None:
+        self._client_model = client_model
+        self._owns_client = client is None
+        self._client = client or self._build_client(api_key)
+
+    @staticmethod
+    def _build_client(api_key: str) -> Any:
+        from parallel import AsyncParallel
+
+        return AsyncParallel(api_key=api_key, timeout=_REQUEST_TIMEOUT_SECONDS)
+
+    @property
+    def sdk(self) -> Any:
+        return self._client
+
+    async def _call(self, path: str, **kwargs: Any) -> Mapping[str, Any]:
+        logger.info("parallel request path=%s session_id=%s", path, kwargs.get("session_id", "-"))
         try:
-            response = await self._http_client.post(
-                f"{_PARALLEL_API_ROOT}/{path}",
-                headers={"x-api-key": self._api_key},
-                json=payload,
-            )
-            response.raise_for_status()
-            parsed = response.json()
-        except (httpx.HTTPError, ValueError, TypeError) as error:
+            response = await getattr(self._client, path)(**kwargs)
+        except Exception as error:
+            logger.warning("parallel request failed path=%s error=%s", path, type(error).__name__)
             raise AnalysisProviderError(
                 f"Parallel {path} request failed", operation=f"parallel_{path}"
             ) from error
-        if not isinstance(parsed, Mapping):
-            raise AnalysisProviderError(
-                f"Parallel {path} returned an invalid response", operation=f"parallel_{path}"
-            )
-        return parsed
+        return _sdk_results_to_payload(response)
 
     async def search(
-        self,
-        signal: GeminiSignal,
-        session_id: str,
-        objective: str | None = None,
+        self, signal: GeminiSignal, session_id: str, objective: str | None = None
     ) -> list[SearchResult]:
-        if objective:
-            context = (signal.context_excerpt or "").strip()[:2_000]
-            research_objective = (
-                f"{objective} Scene context: {context}" if context else objective
-            )
-        else:
-            research_objective = _research_objective(signal)
-        payload = await self._post(
-            "search",
-            {
-                "objective": research_objective,
-                "search_queries": _build_search_queries(signal, objective),
-                "mode": "advanced",
-                "max_chars_total": _MAX_CHARS_TOTAL,
-                "session_id": session_id,
-                "client_model": self._client_model,
-            },
+        payload = await self._call(
+            "search", **parallel_search_kwargs(signal, session_id, objective, self._client_model)
         )
         return _normalize_results(payload)
 
@@ -272,25 +289,18 @@ class ParallelSearchHttpClient:
         if not candidates:
             return []
         urls = [candidate.source.url for candidate in candidates]
-        payload = await self._post(
-            "extract",
-            {
-                "urls": urls,
-                "objective": _research_objective(signal),
-                "search_queries": _build_search_queries(signal),
-                "max_chars_total": _MAX_CHARS_TOTAL,
-                "session_id": session_id,
-                "client_model": self._client_model,
-            },
+        payload = await self._call(
+            "extract", **parallel_extract_kwargs(signal, urls, session_id, self._client_model)
         )
         extracted = _normalize_results(payload, allowed_urls=set(urls))
         if not extracted:
             raise AnalysisProviderError(
-                "Parallel could not extract any shortlisted source",
-                operation="parallel_extract",
+                "Parallel could not extract any shortlisted source", operation="parallel_extract"
             )
         return extracted
 
     async def aclose(self) -> None:
-        if self._owns_http_client:
-            await self._http_client.aclose()
+        if self._owns_client:
+            close = getattr(self._client, "close", None)
+            if close is not None:
+                await close()

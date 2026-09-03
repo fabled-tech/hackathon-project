@@ -58,11 +58,11 @@ test('walkthrough reveals pipeline stages on each Next press', async ({ page }) 
   await expect(page.getByTestId('agent-pipeline')).toHaveAttribute('data-reveal-stage', 'ready');
   await expect(page.getByTestId('agent-pipeline')).toContainText('READY');
   await expect(page.getByTestId('finding-card')).toHaveCount(0);
-  await expect(page.getByTestId('demo-coach')).toContainText('STEP 1 / 5');
+  await expect(page.getByTestId('demo-coach')).toContainText('STEP 1 / 6');
   await expect(page.getByTestId('demo-coach')).toContainText('Matrix script is filed');
 
   await page.getByTestId('demo-coach-next').click();
-  await expect(page.getByTestId('demo-coach')).toContainText('STEP 2 / 5');
+  await expect(page.getByTestId('demo-coach')).toContainText('STEP 2 / 6');
   await expect(page.getByTestId('agent-pipeline')).toHaveAttribute('data-reveal-stage', 'intake');
   await expect(page.getByTestId('case-desk')).toBeVisible();
   await expect(page.getByText('Detected').first()).toBeVisible();
@@ -78,9 +78,28 @@ test('walkthrough reveals pipeline stages on each Next press', async ({ page }) 
   await expect(
     page.getByTestId('finding-card').filter({ hasText: 'There is no spoon' })
   ).toBeVisible();
+  await expect(page.getByTestId('clearance-memo')).toHaveCount(0);
+
+  await page.getByTestId('demo-coach-next').click();
+  await expect(page.getByTestId('agent-pipeline')).toHaveAttribute('data-reveal-stage', 'adjudication');
+  await expect(page.getByTestId('demo-coach')).toContainText('Clearance Adjudicator');
+  await expect(page.getByTestId('tool-call-chip').filter({ hasText: 'search_authoritative' }).first()).toBeVisible();
+  await expect(page.getByTestId('clearance-memo').filter({ hasText: 'Rewrite recommended' })).toBeVisible();
 
   await page.getByTestId('demo-coach-next').click();
   await expect(page.getByTestId('agent-pipeline')).toHaveAttribute('data-reveal-stage', 'human');
   await expect(page.getByTestId('demo-coach')).toContainText('Your turn');
   await expect(page.getByTestId('human-avatar').first()).toBeVisible();
+});
+
+test('inbox shows the adjudicator verdict for the assigned user', async ({ page }) => {
+  test.setTimeout(90_000);
+  await page.goto('/');
+  await page.getByTestId('demo-walkthrough').click();
+  await expect(page.getByTestId('demo-coach')).toBeVisible({ timeout: 45_000 });
+  await page.getByTestId('demo-coach-dismiss').click();
+  await page.getByRole('button', { name: 'Overview' }).click();
+  await expect(page.getByTestId('signed-in-as')).toBeVisible();
+  await page.getByTestId('signed-in-as').selectOption({ label: 'Maya · legal' });
+  await expect(page.getByTestId('inbox-verdict').filter({ hasText: 'Rewrite recommended' }).first()).toBeVisible();
 });

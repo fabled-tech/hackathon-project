@@ -1,7 +1,8 @@
 from enum import StrEnum
+from typing import Annotated, Literal
 
-from pydantic import Field
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, field_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 
 class EnvironmentMode(StrEnum):
@@ -17,7 +18,10 @@ class IntegrationMode(StrEnum):
 
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
-        env_file=(".env", "../../.env"), env_prefix="RIGHTSRADAR_", extra="ignore"
+        env_file=(".env", "../../.env"),
+        env_prefix="RIGHTSRADAR_",
+        extra="ignore",
+        env_ignore_empty=True,
     )
 
     mode: EnvironmentMode = EnvironmentMode.MOCK
@@ -34,6 +38,18 @@ class Settings(BaseSettings):
     cloud_storage_bucket: str | None = None
     enable_real_smoke: bool = False
     enable_reconciliation: bool = False
+    allowed_origins: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: ["http://localhost:3000", "http://127.0.0.1:3000"]
+    )
+    daily_analysis_cap: int = Field(default=25, ge=1, le=10_000)
+    adjudicate_below_confidence: float = Field(default=0.75, ge=0, le=1)
+
+    @field_validator("allowed_origins", mode="before")
+    @classmethod
+    def split_origins(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [item.strip() for item in value.split(",") if item.strip()]
+        return value
 
     def selected_mode(self, integration_mode: IntegrationMode) -> IntegrationMode:
         if self.mode is EnvironmentMode.MOCK:
@@ -41,3 +57,9 @@ class Settings(BaseSettings):
         if self.mode is EnvironmentMode.CLOUD:
             return IntegrationMode.REAL
         return integration_mode
+
+    @property
+    def adjudicator_mode(self) -> Literal["adk", "fixture"]:
+        gemini_real = self.selected_mode(self.gemini_mode) is IntegrationMode.REAL
+        parallel_real = self.selected_mode(self.parallel_mode) is IntegrationMode.REAL
+        return "adk" if gemini_real and parallel_real else "fixture"

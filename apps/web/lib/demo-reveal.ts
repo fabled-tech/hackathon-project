@@ -1,7 +1,7 @@
 import type { Case, CaseThreadMessage, ToolCallEvent } from '@rightsrader/api-client';
 
 /** Progressive walkthrough reveal of a finished Matrix (or other) case. */
-export type DemoRevealStage = 'ready' | 'intake' | 'research' | 'curation' | 'human';
+export type DemoRevealStage = 'ready' | 'intake' | 'research' | 'curation' | 'adjudication' | 'human';
 
 /** Coach step index → pipeline reveal stage (one press advances one stage). */
 export const DEMO_REVEAL_BY_STEP: readonly DemoRevealStage[] = [
@@ -9,6 +9,7 @@ export const DEMO_REVEAL_BY_STEP: readonly DemoRevealStage[] = [
   'intake',
   'research',
   'curation',
+  'adjudication',
   'human'
 ] as const;
 
@@ -17,7 +18,8 @@ const AGENTS_BY_STAGE: Record<DemoRevealStage, ReadonlySet<string>> = {
   intake: new Set(['Intake']),
   research: new Set(['Intake', 'Research']),
   curation: new Set(['Intake', 'Research', 'Curation']),
-  human: new Set(['Intake', 'Research', 'Curation'])
+  adjudication: new Set(['Intake', 'Research', 'Curation', 'Adjudicator']),
+  human: new Set(['Intake', 'Research', 'Curation', 'Adjudicator'])
 };
 
 export function demoRevealStageIndex(stage: DemoRevealStage): number {
@@ -42,12 +44,13 @@ function keepToolCall(call: ToolCallEvent, stage: DemoRevealStage): boolean {
   if (stage === 'research') {
     return call.agent_name === 'Intake' || call.agent_name === 'Research';
   }
+  if (stage === 'curation') return call.agent_name !== 'Adjudicator';
   return true;
 }
 
 /**
  * Slice a fully analyzed case so the desk/pipeline can play forward on each Next.
- * Findings (with evidence) appear only at curation+.
+ * Findings (with evidence) appear only at curation+; memos at adjudication+.
  */
 export function caseForDemoReveal(full: Case, stage: DemoRevealStage): Case | null {
   if (stage === 'ready') return null;
@@ -55,12 +58,15 @@ export function caseForDemoReveal(full: Case, stage: DemoRevealStage): Case | nu
   const agents = AGENTS_BY_STAGE[stage];
   const thread = (full.thread ?? []).filter((message) => keepAgentMessage(message, agents));
   const tool_calls = (full.tool_calls ?? []).filter((call) => keepToolCall(call, stage));
-  const showFindings = stage === 'curation' || stage === 'human';
+  const showFindings = stage === 'curation' || stage === 'adjudication' || stage === 'human';
+  const showMemo = stage === 'adjudication' || stage === 'human';
 
   return {
     ...full,
     thread,
     tool_calls,
-    findings: showFindings ? full.findings : []
+    findings: showFindings
+      ? full.findings.map((finding) => (showMemo ? finding : { ...finding, memo: null }))
+      : []
   };
 }

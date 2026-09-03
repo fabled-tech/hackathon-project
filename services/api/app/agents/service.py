@@ -5,11 +5,12 @@ from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import Protocol
 
+from app.agents.adjudicator import AdjudicatorAgent
 from app.agents.curation import CurationAgent
 from app.agents.intake import IntakeAgent
 from app.agents.research import ResearchAgent
 from app.agents.trace import ToolCallRecorder
-from app.integrations import GeminiClient, ParallelSearchClient
+from app.integrations import AdjudicatorClient, GeminiClient, ParallelSearchClient
 from app.models import CaseThreadMessage, Finding, ProductionMember, ToolCallEvent
 from app.models.analysis import GeminiSignal
 
@@ -78,6 +79,8 @@ class RightsClearanceAgentService:
         parallel_search: ParallelSearchClient,
         *,
         max_concurrency: int = 4,
+        adjudicator: AdjudicatorClient | None = None,
+        adjudicate_below_confidence: float = 0.75,
     ) -> None:
         if max_concurrency < 1:
             raise ValueError("max_concurrency must be at least 1")
@@ -86,10 +89,20 @@ class RightsClearanceAgentService:
         self._max_concurrency = max_concurrency
         self._intake = IntakeAgent(gemini)
         self._curation = CurationAgent(gemini)
-        self._research = ResearchAgent(gemini, parallel_search, self._curation)
+        self._adjudicator_client = adjudicator
+        adjudicator_agent = (
+            AdjudicatorAgent(adjudicator, below_confidence=adjudicate_below_confidence)
+            if adjudicator is not None
+            else None
+        )
+        self._research = ResearchAgent(
+            gemini, parallel_search, self._curation, adjudicator=adjudicator_agent
+        )
 
     async def aclose(self) -> None:
-        for provider in (self._gemini, self._parallel_search):
+        for provider in (self._gemini, self._parallel_search, self._adjudicator_client):
+            if provider is None:
+                continue
             close = getattr(provider, "aclose", None)
             if close is not None:
                 await close()

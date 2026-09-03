@@ -30,22 +30,31 @@ import {
   Globe2,
   Loader2,
   Radar,
+  Scale,
   Sparkles,
   UserRound
 } from 'lucide-react';
 import { type FormEvent, type ReactNode, useEffect, useRef, useState } from 'react';
+import { FEATURED_DEMO_SCRIPTS } from '@/lib/demo-mode';
 import {
   caseForDemoReveal,
   workflowStatusForDemoReveal,
   type DemoRevealStage
 } from '@/lib/demo-reveal';
+import { fetchHealth, modeBadgeLabel, type ApiHealth } from '@/lib/health';
+import { writeActiveMemberId } from '@/lib/inbox';
+import { memoOwnerName, verdictLabel, verdictTone } from '@/lib/memo';
+import { chipMethodLabel } from '@/lib/tool-chips';
 
-const SAMPLE_SCRIPT =
-  'EXT. NEON SKYWALK — MIDNIGHT\n\nMARA skates through the rain, kicks a Nimbus Soda can into her palm, and smirks. "Time keeps the reel turning," she says as a drone camera dives past.';
+const SAMPLE_SCRIPT = FEATURED_DEMO_SCRIPTS[0].script;
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
 
 function statusLabel(status: ReviewerStatus): string {
   return status.charAt(0).toUpperCase() + status.slice(1);
+}
+
+function isQuotaError(error: unknown): boolean {
+  return error instanceof Error && /\(429\)/.test(error.message);
 }
 
 function fileSizeLabel(byteSize: number): string {
@@ -199,12 +208,14 @@ function threadHasAgent(thread: CaseThreadMessage[] | undefined, name: string): 
 function AgentPipeline({
   status,
   result,
-  revealStage
+  revealStage,
+  health
 }: {
   status: AgentWorkflowStatus;
   result: Case | null;
   /** When set (demo walkthrough), light stages one-by-one instead of all-complete. */
   revealStage?: DemoRevealStage | null;
+  health: ApiHealth | null;
 }) {
   const findings = result?.findings ?? [];
   const thread = result?.thread ?? [];
@@ -214,45 +225,32 @@ function AgentPipeline({
   const curatedSources = findings.filter(
     (finding) => finding.evidence?.primary
   ).length;
+  const memos = findings.filter((finding) => finding.memo != null).length;
+  const hasAdjudicator =
+    memos > 0 ||
+    threadHasAgent(thread, 'Adjudicator') ||
+    (result?.tool_calls ?? []).some((call) => call.agent_name === 'Adjudicator') ||
+    revealStage === 'adjudication';
   const revealIndex =
-    revealStage === 'intake'
-      ? 0
-      : revealStage === 'research'
-        ? 1
-        : revealStage === 'curation' || revealStage === 'human'
-          ? 2
-          : -1;
+    revealStage === 'intake' ? 0
+    : revealStage === 'research' ? 1
+    : revealStage === 'curation' ? 2
+    : revealStage === 'adjudication' ? 3
+    : revealStage === 'human' ? (hasAdjudicator ? 3 : 2)
+    : -1;
   const stages = [
-    {
-      name: 'Gemini Intake',
-      description: 'Vertex Gemini detects clearance leads.',
-      icon: <Sparkles className="size-3.5" aria-hidden />,
-      output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`,
-      done:
-        revealStage != null
-          ? revealIndex >= 0
-          : threadHasAgent(thread, 'Intake') || status === 'complete'
-    },
-    {
-      name: 'Parallel Research',
-      description: 'Vertex plan/brief plus Parallel Search xN and Extract.',
-      icon: <Globe2 className="size-3.5" aria-hidden />,
-      output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`,
-      done:
-        revealStage != null
-          ? revealIndex >= 1
-          : threadHasAgent(thread, 'Research') || status === 'complete'
-    },
-    {
-      name: 'Gemini Curation',
-      description: 'Vertex Gemini cites only extracted URLs.',
-      icon: <FileSearch className="size-3.5" aria-hidden />,
-      output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`,
-      done:
-        revealStage != null
-          ? revealIndex >= 2
-          : threadHasAgent(thread, 'Curation') || status === 'complete'
-    }
+    { name: 'Gemini Intake', description: 'Vertex Gemini detects clearance leads.', icon: <Sparkles className="size-3.5" aria-hidden />, output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`, done: revealStage != null ? revealIndex >= 0 : threadHasAgent(thread, 'Intake') || status === 'complete' },
+    { name: 'Parallel Research', description: 'Vertex plan/brief plus Parallel Search xN and Extract.', icon: <Globe2 className="size-3.5" aria-hidden />, output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`, done: revealStage != null ? revealIndex >= 1 : threadHasAgent(thread, 'Research') || status === 'complete' },
+    { name: 'Gemini Curation', description: 'Vertex Gemini cites only extracted URLs.', icon: <FileSearch className="size-3.5" aria-hidden />, output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`, done: revealStage != null ? revealIndex >= 2 : threadHasAgent(thread, 'Curation') || status === 'complete' },
+    ...(hasAdjudicator
+      ? [{
+          name: 'Clearance Adjudicator',
+          description: 'ADK agents argue competing readings on Parallel; Gemini writes a grounded Clearance Memo.',
+          icon: <Scale className="size-3.5" aria-hidden />,
+          output: `${memos} ${memos === 1 ? 'memo' : 'memos'} issued`,
+          done: revealStage != null ? revealIndex >= 3 : threadHasAgent(thread, 'Adjudicator') || status === 'complete'
+        }]
+      : [])
   ];
 
   return (
@@ -268,8 +266,9 @@ function AgentPipeline({
             CASE AGENT PIPELINE
           </p>
           <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
-            Named agents post into the case desk. Tool-call chips sit under agent messages so
-            judges can count Vertex vs Parallel live.
+            Intake → Research (Parallel Search ×N + Extract) → Curation → Adjudicator (ADK
+            multi-agent) → your call. Every model and search call is logged under the message
+            that made it.
           </p>
         </div>
         <span
@@ -292,9 +291,12 @@ function AgentPipeline({
                 ? 'RETRY NEEDED'
                 : 'READY'}
         </span>
+        <span className={`border px-2 py-1 font-pixel text-[7px] ${health?.mode === 'cloud' ? 'border-brand text-brand' : 'border-line-strong text-lavender'}`} data-testid="mode-badge">
+          {modeBadgeLabel(health)}
+        </span>
       </div>
 
-      <ol className="mt-4 grid gap-2 lg:grid-cols-[1fr_auto_1fr_auto_1fr] lg:items-stretch">
+      <ol className={`mt-4 grid gap-2 lg:items-stretch ${stages.length === 4 ? 'lg:grid-cols-[1fr_auto_1fr_auto_1fr_auto_1fr]' : 'lg:grid-cols-[1fr_auto_1fr_auto_1fr]'}`}>
         {stages.map((stage, index) => {
             const isCurrent =
               revealStage != null && revealIndex === index && status === 'running';
@@ -522,8 +524,7 @@ function ToolCallChips({ calls }: { calls: ToolCallEvent[] }) {
           data-method={call.method}
         >
           <span className="text-[#ffb454]">{call.provider.toUpperCase()}</span>{' '}
-          {call.method}
-          {call.fixture ? ' · fixture' : ''}
+          {chipMethodLabel(call.method)}
           <span className={call.ok ? ' text-[#7ee787]' : ' text-[#ff7b72]'}>
             {call.ok ? ' OK' : ' FAIL'}
           </span>
@@ -540,15 +541,14 @@ function JudgeLogRail({ calls }: { calls: ToolCallEvent[] }) {
     <aside
       className="flex h-full min-h-[24rem] flex-col border-2 border-[#3d4f66] bg-[#0b1220] text-[#c9d1d9] shadow-[4px_4px_0_#ffb454]"
       data-testid="judge-log"
-      aria-label="Judge and development tool-call log"
+      aria-label="Agent tool-call log"
     >
       <div className="border-b border-[#3d4f66] px-3 py-2.5">
-        <p className="font-mono text-[10px] font-semibold tracking-wide text-[#ffb454]">
-          DEV / JUDGE LOG
-        </p>
+        <p className="font-mono text-[10px] font-semibold tracking-wide text-[#ffb454]">AGENT TOOL LOG</p>
         <p className="mt-1 font-mono text-[10px] leading-4 text-[#8b949e]">
-          Not the clearance desk — Vertex + Parallel call trace for judges. No secrets. Mock runs
-          mark <span className="text-[#d2a8ff]">fixture</span>.
+          Every Vertex Gemini, ADK, and Parallel call this case made, in order. No secrets or
+          response bodies. Offline runs are marked <span className="text-[#d2a8ff]">fixture</span>;
+          live runs are marked <span className="text-[#7ee787]">live</span>.
         </p>
         <p className="mt-2 font-mono text-[10px] text-[#7ee787]">
           {calls.length} calls · vertex={vertexCount} · parallel={parallelCount}
@@ -579,7 +579,7 @@ function JudgeLogRail({ calls }: { calls: ToolCallEvent[] }) {
                   {call.ok ? 'OK' : 'FAIL'}
                 </span>
                 <span className="tabular-nums text-[#8b949e]">{call.duration_ms}ms</span>
-                {call.fixture ? <span className="text-[#d2a8ff]">fixture</span> : null}
+                <span className={call.fixture ? 'text-[#d2a8ff]' : 'text-[#7ee787]'}>{call.fixture ? 'fixture' : 'live'}</span>
               </div>
               <p className="mt-1 text-[#c9d1d9]">
                 <span className="text-[#8b949e]">{call.agent_name}</span>
@@ -634,7 +634,7 @@ function CaseDesk({
       </p>
       <p className="mt-1 text-[10.5px] leading-4 text-lavender-soft">
         This is the group chat. Agents and roster humans post here. Dismiss / Escalate posts as
-        whoever you Speak as — same thread, not a separate queue.
+        whoever you are acting as — same thread, not a separate queue.
       </p>
       {roster.length > 0 ? (
         <ul
@@ -744,7 +744,7 @@ function CaseDesk({
           }}
         >
           <label className="block font-pixel text-[7px] text-line-strong" htmlFor="act-as-member">
-            Speak as
+            Acting as
           </label>
           <div className="flex items-center gap-2">
             {actingMember ? <HumanAvatar name={actingMember.name} size="sm" /> : null}
@@ -810,6 +810,7 @@ export function ScriptReview({
   productionId,
   roster = [],
   activeMemberId,
+  onActiveMemberChange,
   onCaseCreated,
   onCaseUpdated,
   initialCase = null,
@@ -819,6 +820,7 @@ export function ScriptReview({
   productionId?: string;
   roster?: ProductionMember[];
   activeMemberId?: string;
+  onActiveMemberChange?: (memberId: string) => void;
   onCaseCreated?: () => void;
   onCaseUpdated?: (caseResult: Case) => void;
   initialCase?: Case | null;
@@ -832,6 +834,8 @@ export function ScriptReview({
   const [scriptText, setScriptText] = useState(
     demoWalkthrough?.fullCase.script_text ?? initialCase?.script_text ?? SAMPLE_SCRIPT
   );
+  const [health, setHealth] = useState<ApiHealth | null>(null);
+  const [showToolLog, setShowToolLog] = useState(false);
   const [caseResult, setCaseResult] = useState<Case | null>(initialCase);
   const [assets, setAssets] = useState<Asset[]>([]);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -864,17 +868,13 @@ export function ScriptReview({
   const [error, setError] = useState<string | null>(null);
   const rosterDefaultId =
     roster.find((member) => member.role === 'clearance')?.id || roster[0]?.id || '';
-  const [speakAsOverride, setSpeakAsOverride] = useState<string | null>(null);
   const actingMemberId =
-    (speakAsOverride && roster.some((member) => member.id === speakAsOverride)
-      ? speakAsOverride
-      : null) ??
     (activeMemberId && roster.some((member) => member.id === activeMemberId)
       ? activeMemberId
-      : null) ??
-    rosterDefaultId;
+      : null) ?? rosterDefaultId;
   const setActingMemberId = (memberId: string) => {
-    setSpeakAsOverride(memberId);
+    writeActiveMemberId(window.localStorage, memberId);
+    onActiveMemberChange?.(memberId);
   };
   const [deskReply, setDeskReply] = useState('');
   const [isReplying, setIsReplying] = useState(false);
@@ -888,6 +888,16 @@ export function ScriptReview({
   const uploadGeneration = useRef(0);
   const fileAnalysisGeneration = useRef(0);
   const caseLoadingGeneration = useRef(0);
+
+  useEffect(() => {
+    let alive = true;
+    fetchHealth(API_BASE_URL).then((h) => {
+      if (alive) setHealth(h);
+    });
+    return () => {
+      alive = false;
+    };
+  }, []);
 
   async function submitScript(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -911,10 +921,14 @@ export function ScriptReview({
       setSelectedFile(null);
       if (fileInputRef.current) fileInputRef.current.value = '';
       onCaseCreated?.();
-    } catch {
+    } catch (caught) {
       if (caseOperationGeneration.current === operationGeneration) {
         setAgentWorkflowStatus('failed');
-        setError('RightsRadar could not analyze this script right now. Please try again.');
+        setError(
+          isQuotaError(caught)
+            ? 'Daily live-analysis budget reached. Open a pre-analyzed demo case or try again tomorrow.'
+            : 'RightsRadar could not analyze this script right now. Please try again.'
+        );
       }
     } finally {
       if (submissionGeneration.current === requestGeneration) {
@@ -984,11 +998,13 @@ export function ScriptReview({
       if (analysisFileInputRef.current) analysisFileInputRef.current.value = '';
       if (fileInputRef.current) fileInputRef.current.value = '';
       onCaseCreated?.();
-    } catch {
+    } catch (caught) {
       if (caseOperationGeneration.current === operationGeneration) {
         setAgentWorkflowStatus('failed');
         setError(
-          'RightsRadar could not analyze this file. Use a PDF, DOCX, PNG, JPEG, or WebP file up to 10 MiB.'
+          isQuotaError(caught)
+            ? 'Daily live-analysis budget reached. Open a pre-analyzed demo case or try again tomorrow.'
+            : 'RightsRadar could not analyze this file. Use a PDF, DOCX, PNG, JPEG, or WebP file up to 10 MiB.'
         );
       }
     } finally {
@@ -1042,7 +1058,7 @@ export function ScriptReview({
   async function changeStatus(finding: Finding, reviewerStatus: ReviewerStatus) {
     if (!workingCase) return;
     if (roster.length > 0 && !actingMemberId) {
-      setError('Pick who you Speak as before dismissing or escalating in the desk thread.');
+      setError('Pick who you are acting as before dismissing or escalating in the desk thread.');
       return;
     }
     setUpdatingFindingId(finding.id);
@@ -1116,12 +1132,12 @@ export function ScriptReview({
             {focusTour || showWalkthroughChrome ? (
               <p className="mt-1 max-w-2xl text-[11px] leading-4 text-paper">
                 Walkthrough: press <strong>Run next stage</strong> to advance Intake → Research →
-                Curation. Lime frame is the beat.
+                Curation → Adjudicator. The highlighted panel is the current beat.
               </p>
             ) : (
               <p className="mt-1 max-w-2xl text-[11px] leading-4 text-lavender-soft">
-                Left: file the scene and work the desk. Center: findings. Right: judge/dev tool log
-                (kept visually separate from the purple clearance UI).
+                Left: file the scene and work the desk thread. Center: findings and clearance
+                memos. Right: recent cases, plus the agent tool log when you need it.
               </p>
             )}
           </div>
@@ -1188,6 +1204,18 @@ export function ScriptReview({
                         ? 'Script the agents analyzed'
                         : 'Script text'}
                     </label>
+                    <div className="mb-2 flex flex-wrap gap-2" data-testid="sample-chips">
+                      {FEATURED_DEMO_SCRIPTS.map((sample) => (
+                        <button
+                          key={sample.id}
+                          type="button"
+                          onClick={() => setScriptText(sample.script)}
+                          className="border border-ink bg-white px-2 py-1 font-display text-[8px] text-ink shadow-press hover:bg-exhibit"
+                        >
+                          {sample.title}
+                        </button>
+                      ))}
+                    </div>
                     <textarea
                       id="script-text"
                       name="script-text"
@@ -1275,9 +1303,20 @@ export function ScriptReview({
                   status={displayWorkflowStatus}
                   result={pipelineCase}
                   revealStage={demoWalkthrough?.stage ?? null}
+                  health={health}
                 />
               </div>
             </div>
+
+            {error ? (
+              <p
+                className="flex items-start gap-2.5 border-2 border-accent bg-danger-bg px-4 py-3 text-sm font-semibold text-accent"
+                role="alert"
+              >
+                <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
+                {error}
+              </p>
+            ) : null}
 
             {showDeskColumns ? (
               <div
@@ -1313,16 +1352,6 @@ export function ScriptReview({
                   </div>
                 </div>
 
-            {error ? (
-              <p
-                className="flex items-start gap-2.5 border-2 border-accent bg-danger-bg px-4 py-3 text-sm font-semibold text-accent"
-                role="alert"
-              >
-                <CircleAlert className="mt-0.5 size-4 shrink-0" aria-hidden />
-                {error}
-              </p>
-            ) : null}
-
             {showDeskColumns ? (
               <div className="animate-fade-up min-w-0 space-y-4">
                 <div data-testid="demo-coach-findings">
@@ -1350,6 +1379,7 @@ export function ScriptReview({
                             {showWalkthroughChrome &&
                             demoWalkthrough &&
                             demoWalkthrough.stage !== 'curation' &&
+                            demoWalkthrough.stage !== 'adjudication' &&
                             demoWalkthrough.stage !== 'human'
                               ? 'Findings unlock after Gemini Curation. Keep pressing Run next stage.'
                               : 'No deterministic research leads were found in this excerpt. That is not a clearance conclusion.'}
@@ -1426,6 +1456,53 @@ export function ScriptReview({
                                   </blockquote>
                                 ))}
                               </div>
+                              {finding.memo ? (
+                                <div
+                                  className="mt-3 border-2 border-ink bg-white p-3"
+                                  data-testid="clearance-memo"
+                                  data-verdict={finding.memo.verdict}
+                                >
+                                  <div className="flex flex-wrap items-center justify-between gap-2">
+                                    <h4 className="font-pixel text-[8px] uppercase tracking-[0.16px] text-line-strong">
+                                      Clearance memo · Adjudicator
+                                    </h4>
+                                    <span
+                                      className={`rotate-1 border-2 px-2 py-0.5 font-display text-[9px] ${
+                                        verdictTone(finding.memo.verdict) === 'cleared'
+                                          ? 'border-brand-strong text-brand-strong'
+                                          : verdictTone(finding.memo.verdict) === 'danger'
+                                            ? 'border-accent text-accent'
+                                            : verdictTone(finding.memo.verdict) === 'warn'
+                                              ? 'border-[#c77d00] text-[#c77d00]'
+                                              : 'border-ink text-ink'
+                                      }`}
+                                      data-testid="memo-verdict"
+                                    >
+                                      {verdictLabel(finding.memo.verdict)} · {Math.round(finding.memo.confidence * 100)}%
+                                    </span>
+                                  </div>
+                                  <p className="mt-2 text-[11px] leading-[16.5px] text-ink-soft">
+                                    {finding.memo.rationale}
+                                  </p>
+                                  {finding.memo.dispositive_url ? (
+                                    <a
+                                      href={finding.memo.dispositive_url}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="mt-2 inline-flex items-center gap-1 text-[11px] font-bold text-ink underline-offset-2 hover:text-accent hover:underline"
+                                    >
+                                      Dispositive source <ArrowUpRight className="size-3" aria-hidden />
+                                    </a>
+                                  ) : null}
+                                  <p className="mt-2 font-pixel text-[7px] text-line-strong">
+                                    {memoOwnerName(finding.memo, roster)
+                                      ? `Assigned to ${memoOwnerName(finding.memo, roster)} (${finding.memo.recommended_owner_role})`
+                                      : `Recommended owner: ${finding.memo.recommended_owner_role}`}
+                                    {' · '}
+                                    {finding.memo.hypotheses?.length ?? 0} hypotheses argued
+                                  </p>
+                                </div>
+                              ) : null}
                               <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3">
                                 <span className="text-[10px] text-muted">✂ - - - - -</span>
                                 <div className="flex gap-2.5">
@@ -1605,12 +1682,20 @@ export function ScriptReview({
 
           {displayCase && !focusTour && !showWalkthroughChrome ? (
             <div className="animate-fade-up xl:sticky xl:top-2 xl:max-h-[calc(100vh-1.25rem)] xl:self-start">
-              <PixelLabel>
-                <span className="text-[#ffb454]">DEV · JUDGE</span>
-              </PixelLabel>
-              <div className="mt-2 h-[calc(100vh-5rem)] min-h-[24rem]">
-                <JudgeLogRail calls={displayCase.tool_calls ?? []} />
-              </div>
+              <button
+                type="button"
+                data-testid="toggle-tool-log"
+                onClick={() => setShowToolLog((value) => !value)}
+                className="border-2 border-ink bg-white px-3 py-2 font-display text-[9px] text-ink shadow-press"
+                aria-expanded={showToolLog}
+              >
+                {showToolLog ? 'Hide agent tool log' : 'Show agent tool log'} · {(displayCase.tool_calls ?? []).length}
+              </button>
+              {showToolLog ? (
+                <div className="mt-2 h-[calc(100vh-8rem)] min-h-[24rem]">
+                  <JudgeLogRail calls={displayCase.tool_calls ?? []} />
+                </div>
+              ) : null}
             </div>
           ) : !displayCase && !showWalkthroughChrome ? (
           <aside className="animate-fade-up lg:sticky lg:top-4">

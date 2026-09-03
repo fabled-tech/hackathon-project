@@ -16,3 +16,9 @@ class EvidenceCurationError(AnalysisUnavailableError):
     """Evidence curation returned unusable structured output."""
 
     operation = "evidence_curation"
+
+
+class AdjudicationError(AnalysisUnavailableError):
+    """The Clearance Adjudicator could not produce a grounded memo."""
+
+    operation = "adjudication"

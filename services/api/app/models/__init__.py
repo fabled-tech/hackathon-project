@@ -17,6 +17,13 @@ from .cases import (
     ToolCallEvent,
     ToolCallProvider,
 )
+from .memo import (
+    AdvocateReport,
+    ClearanceMemo,
+    Hypothesis,
+    HypothesisSet,
+    MemoVerdict,
+)
 from .productions import (
     FindingComment,
     Production,
@@ -27,18 +34,23 @@ from .productions import (
 )
 
 __all__ = [
+    "AdvocateReport",
     "Asset",
     "AssetLifecycle",
     "AssetUpload",
     "Case",
     "CaseSummary",
     "CaseThreadMessage",
+    "ClearanceMemo",
     "Evidence",
     "EvidenceCurationDecision",
     "EvidenceSelection",
     "Finding",
     "FindingComment",
     "FindingSeverity",
+    "Hypothesis",
+    "HypothesisSet",
+    "MemoVerdict",
     "Production",
     "ProductionMember",
     "ProductionStatus",

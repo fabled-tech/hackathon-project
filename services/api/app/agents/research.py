@@ -3,6 +3,7 @@ from datetime import datetime
 from time import perf_counter
 from uuid import uuid4
 
+from app.agents.adjudicator import AdjudicatorAgent
 from app.agents.curation import CurationAgent
 from app.agents.messages import agent_message
 from app.agents.stakeholders import stakeholders_for_lead
@@ -32,10 +33,12 @@ class ResearchAgent:
         gemini: GeminiClient,
         parallel_search: ParallelSearchClient,
         curation: CurationAgent,
+        adjudicator: AdjudicatorAgent | None = None,
     ) -> None:
         self._gemini = gemini
         self._parallel_search = parallel_search
         self._curation = curation
+        self._adjudicator = adjudicator
 
     async def research_lead(
         self,
@@ -150,6 +153,18 @@ class ResearchAgent:
             rationale=decision.rationale,
             alternatives=[item for item in evidence if item is not primary],
         )
+        memo = None
+        adjudicator_messages: list[CaseThreadMessage] = []
+        if self._adjudicator is not None:
+            memo, adjudicator_messages = await self._adjudicator.adjudicate_lead(
+                case_id, index, signal, extracted_results, decision, roster, recorder
+            )
+        adjudicator_messages = [
+            m.model_copy(update={"finding_id": finding_id}) for m in adjudicator_messages
+        ]
+        assignee = memo.assigned_member_id if memo is not None else None
+        if assignee is not None and assignee not in mention_ids:
+            mention_ids = [*mention_ids, assignee]
         finding = Finding(
             id=finding_id,
             case_id=case_id,
@@ -163,12 +178,15 @@ class ResearchAgent:
             reviewer_status=ReviewerStatus.PENDING,
             evidence=selection,
             stakeholder_ids=mention_ids,
+            memo=memo,
+            assignee=assignee,
         )
         messages.append(
             self._curation.announce(
                 case_id, signal, decision, stakeholders, finding_id=finding_id
             )
         )
+        messages.extend(adjudicator_messages)
         return finding, messages
 
     async def _plan_objectives(
