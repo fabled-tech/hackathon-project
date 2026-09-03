@@ -12,5 +12,7 @@ RUN uv sync --locked --directory services/api --no-dev --group cloud
 
 ENV PATH="/app/.venv/bin:${PATH}"
 WORKDIR /app/services/api
+# Cloud Run injects PORT and probes it; keep 8000 as the default for local runs.
+ENV PORT=8000
 EXPOSE 8000
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "exec uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]

@@ -26,17 +26,29 @@ if ! gcloud secrets describe rightsrader-parallel-api-key >/dev/null 2>&1; then
   exit 1
 fi
 
+# Cloud Build runs as the default compute service account, which on projects created after
+# April 2024 starts with no roles at all and cannot read its own source upload.
+PROJECT_NUMBER="$(gcloud projects describe "$PROJECT" --format 'value(projectNumber)')"
+BUILD_SA="${PROJECT_NUMBER}-compute@developer.gserviceaccount.com"
+gcloud projects add-iam-policy-binding "$PROJECT" \
+  --member "serviceAccount:$BUILD_SA" --role roles/cloudbuild.builds.builder --quiet >/dev/null
+
 # The Dockerfile lives in services/api but needs the repo root as build context (root uv.lock),
 # so build with an explicit Cloud Build config instead of `gcloud run deploy --source`.
 IMAGE="${REGION}-docker.pkg.dev/${PROJECT}/rightsrader/api:$(git rev-parse --short HEAD)"
 gcloud artifacts repositories describe rightsrader --location "$REGION" >/dev/null 2>&1 || \
   gcloud artifacts repositories create rightsrader --repository-format docker --location "$REGION"
-gcloud builds submit --config - . <<EOF
+# Keep the config on disk with a repo-relative path: the Windows Cloud SDK cannot read
+# `--config -` from stdin, and it cannot resolve absolute MSYS paths such as /tmp/build.yaml.
+BUILD_CONFIG="cloudbuild.$$.yaml"
+trap 'rm -f "$BUILD_CONFIG"' EXIT
+cat >"$BUILD_CONFIG" <<EOF
 steps:
 - name: gcr.io/cloud-builders/docker
   args: ['build', '-f', 'services/api/Dockerfile', '-t', '${IMAGE}', '.']
 images: ['${IMAGE}']
 EOF
+gcloud builds submit --config "$BUILD_CONFIG" .
 
 gcloud run deploy "$SERVICE" \
   --image "$IMAGE" \

@@ -1,7 +1,8 @@
 # RightsRadar
 
 > **Judges: 90-second tour.** Live app: <https://hackathon-project-web-five.vercel.app> ·
-> API health: <https://RIGHTSRADAR_API_URL/health> (shows `mode: cloud`, `adjudicator: adk`).
+> API health: <https://rightsrader-api-56763386386.us-central1.run.app/health>
+> (shows `mode: cloud`, `adjudicator: adk`).
 > Click **Walk The Matrix homage**, then press **Run next stage** five times:
 > Intake (Vertex Gemini) → Research (Parallel Search ×N + Extract) → Curation → **Adjudicator**
 > (ADK multi-agent: hypotheses → parallel advocates on Parallel Search → grounded Clearance Memo)
@@ -68,8 +69,11 @@ deterministic Gemini/Parallel fixtures, so no API keys or cloud credentials are 
 
 `scripts/deploy-api.sh` builds `services/api/Dockerfile` with Cloud Build and deploys
 `rightsrader-api` to Cloud Run in `RIGHTSRADAR_MODE=cloud` with the Parallel key from Secret
-Manager. Set `NEXT_PUBLIC_API_BASE_URL` on the Vercel project to the printed URL. The API caps new
-analyses at `RIGHTSRADAR_DAILY_ANALYSIS_CAP` per UTC day; existing cases stay readable.
+Manager. It needs `PROJECT`, `REGION`, `BUCKET`, and `WEB_ORIGIN`, plus a
+`rightsrader-parallel-api-key` secret. The web app reads the resulting URL from
+`apps/web/.env.production`, which is committed because `NEXT_PUBLIC_*` values ship to the browser
+anyway; an explicit environment variable overrides it. The API caps new analyses at
+`RIGHTSRADAR_DAILY_ANALYSIS_CAP` per UTC day; existing cases stay readable.
 
 ## Commands
 
