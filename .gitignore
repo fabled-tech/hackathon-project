@@ -3,6 +3,7 @@
 .env.*
 !.env.example
 !apps/web/.env.production
+!apps/web/.env.development
 node_modules/
 .next/
 coverage/

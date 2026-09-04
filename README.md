@@ -11,6 +11,10 @@
 > Firestore, Cloud Storage, Cloud Run. Parallel: `parallel-web` Search + Extract, and
 > Parallel Web Search as a Gemini grounding provider.
 
+Devpost packet: [`docs/SUBMISSION.md`](docs/SUBMISSION.md) (checklist + rules) and
+[`docs/devpost-submission.md`](docs/devpost-submission.md) (paste-ready form copy). Deadline
+2026-09-09 14:00 PDT.
+
 RightsRadar is a hosted-app foundation for the Google Cloud Agentic Cinema Hackathon — Parallel
 Track. It helps production teams research possible rights-clearance concerns in scripts and assets.
 It is research assistance only: it does not provide legal advice or make final infringement
@@ -74,6 +78,13 @@ Manager. It needs `PROJECT`, `REGION`, `BUCKET`, and `WEB_ORIGIN`, plus a
 `apps/web/.env.production`, which is committed because `NEXT_PUBLIC_*` values ship to the browser
 anyway; an explicit environment variable overrides it. The API caps new analyses at
 `RIGHTSRADAR_DAILY_ANALYSIS_CAP` per UTC day; existing cases stay readable.
+
+This is a public hackathon demo, not a multi-tenant product. There are no user accounts.
+Cloud Run allows unauthenticated calls so judges can open the hosted URL. Anyone who has the
+URL can list productions, file cases, and upload files; those land in the project Firestore
+and Cloud Storage bucket. Do not put real scripts, emails, or personal data on the live desk.
+The daily analysis cap is the only spend brake. After the contest, put Cloud Run behind
+identity or a shared token before using this with real productions.
 
 ## Commands
 
