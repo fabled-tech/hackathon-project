@@ -15,6 +15,15 @@ export function readElementRect(element: Element): SpotlightRect {
   return { top: box.top, left: box.left, width: box.width, height: box.height };
 }
 
+const MAX_RING_VIEWPORT_RATIO = 0.42;
+const MAX_RING_PX = 320;
+
+/** Keep the lime ring readable even when the target is a tall findings column. */
+export function clampSpotlightRect(rect: SpotlightRect, viewport: ViewportSize): SpotlightRect {
+  const maxHeight = Math.min(viewport.height * MAX_RING_VIEWPORT_RATIO, MAX_RING_PX);
+  return { ...rect, height: Math.min(rect.height, maxHeight) };
+}
+
 export function spotlightPads(
   rect: SpotlightRect,
   viewport: ViewportSize,
@@ -26,10 +35,11 @@ export function spotlightPads(
   bottom: SpotlightRect;
   ring: SpotlightRect;
 } {
-  const top = Math.max(0, rect.top - gap);
-  const left = Math.max(0, rect.left - gap);
-  const right = Math.min(viewport.width, rect.left + rect.width + gap);
-  const bottom = Math.min(viewport.height, rect.top + rect.height + gap);
+  const capped = clampSpotlightRect(rect, viewport);
+  const top = Math.max(0, capped.top - gap);
+  const left = Math.max(0, capped.left - gap);
+  const right = Math.min(viewport.width, capped.left + capped.width + gap);
+  const bottom = Math.min(viewport.height, capped.top + capped.height + gap);
   const height = Math.max(0, bottom - top);
   return {
     top: { top: 0, left: 0, width: viewport.width, height: top },

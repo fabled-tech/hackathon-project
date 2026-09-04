@@ -85,6 +85,10 @@ test('walkthrough reveals pipeline stages on each Next press', async ({ page }) 
   await expect(page.getByTestId('demo-coach')).toContainText('Clearance Adjudicator');
   await expect(page.getByTestId('tool-call-chip').filter({ hasText: 'search_authoritative' }).first()).toBeVisible();
   await expect(page.getByTestId('clearance-memo').filter({ hasText: 'Rewrite recommended' })).toBeVisible();
+  await expect(page.getByTestId('finding-assignee').first()).toHaveText(/Handed to [A-Za-z]/);
+  await expect(page.getByTestId('finding-assignee').first()).not.toHaveText(
+    /[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}/i
+  );
 
   await page.getByTestId('demo-coach-next').click();
   await expect(page.getByTestId('agent-pipeline')).toHaveAttribute('data-reveal-stage', 'human');

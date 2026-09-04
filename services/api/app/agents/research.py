@@ -162,9 +162,14 @@ class ResearchAgent:
         adjudicator_messages = [
             m.model_copy(update={"finding_id": finding_id}) for m in adjudicator_messages
         ]
-        assignee = memo.assigned_member_id if memo is not None else None
-        if assignee is not None and assignee not in mention_ids:
-            mention_ids = [*mention_ids, assignee]
+        assignee_id = memo.assigned_member_id if memo is not None else None
+        if assignee_id is not None and assignee_id not in mention_ids:
+            mention_ids = [*mention_ids, assignee_id]
+        assignee = (
+            next((member.name for member in roster if member.id == assignee_id), None)
+            if assignee_id
+            else None
+        )
         finding = Finding(
             id=finding_id,
             case_id=case_id,

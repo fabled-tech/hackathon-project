@@ -566,7 +566,7 @@ def test_mock_case_carries_adjudicator_memo_and_routes_to_legal() -> None:
 
     spoon = next(f for f in case["findings"] if f["detected_item"] == "There is no spoon")
     assert spoon["memo"]["verdict"] == "rewrite_recommended"
-    assert spoon["assignee"] == maya and maya in spoon["stakeholder_ids"]
+    assert spoon["assignee"] == "Maya" and maya in spoon["stakeholder_ids"]
     assert any(m["agent_name"] == "Adjudicator" for m in case["thread"])
     methods = [c["method"] for c in case["tool_calls"] if c["agent_name"] == "Adjudicator"]
     assert methods.count("search_authoritative") >= 2 and "judge_grounded" in methods

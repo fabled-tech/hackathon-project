@@ -44,7 +44,8 @@ import {
 } from '@/lib/demo-reveal';
 import { fetchHealth, modeBadgeLabel, type ApiHealth } from '@/lib/health';
 import { writeActiveMemberId } from '@/lib/inbox';
-import { memoOwnerName, verdictLabel, verdictTone } from '@/lib/memo';
+import { linerNotesForFinding } from '@/lib/finding-display';
+import { assigneeDisplayName, memoOwnerName, verdictLabel, verdictTone } from '@/lib/memo';
 import { chipMethodLabel } from '@/lib/tool-chips';
 
 const SAMPLE_SCRIPT = FEATURED_DEMO_SCRIPTS[0].script;
@@ -1468,7 +1469,7 @@ export function ScriptReview({
                                 <h4 className="font-pixel text-[8px] uppercase tracking-[0.16px] text-line-strong">
                                   Evidence / liner notes
                                 </h4>
-                                {finding.supporting_evidence.map((evidence) => (
+                                {linerNotesForFinding(finding).map((evidence) => (
                                   <blockquote key={evidence.source.url} className="mt-2.5">
                                     <a
                                       href={evidence.source.url}
@@ -1532,12 +1533,12 @@ export function ScriptReview({
                                   </p>
                                 </div>
                               ) : null}
-                              {finding.assignee ? (
+                              {assigneeDisplayName(finding.assignee, roster) ? (
                                 <p
                                   data-testid="finding-assignee"
                                   className="mt-2 font-pixel text-[7px] text-line-strong"
                                 >
-                                  Handed to {finding.assignee}
+                                  Handed to {assigneeDisplayName(finding.assignee, roster)}
                                 </p>
                               ) : null}
                               <div className="mt-3.5 flex flex-wrap items-center justify-between gap-3">
@@ -1551,7 +1552,9 @@ export function ScriptReview({
                                         aria-label={`Hand ${finding.detected_item} to a roster member`}
                                         value={
                                           roster.find(
-                                            (member) => member.name === finding.assignee
+                                            (member) =>
+                                              member.name === finding.assignee ||
+                                              member.id === finding.assignee
                                           )?.id ?? ''
                                         }
                                         disabled={updatingFindingId === finding.id}

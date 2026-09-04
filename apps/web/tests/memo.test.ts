@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { memoOwnerName, verdictLabel, verdictTone } from '../lib/memo';
+import { assigneeDisplayName, memoOwnerName, verdictLabel, verdictTone } from '../lib/memo';
 
 describe('memo helpers', () => {
   it('labels verdicts in product language', () => {
@@ -19,5 +19,12 @@ describe('memo helpers', () => {
     expect(memoOwnerName({ assigned_member_id: 'm' }, roster)).toBe('Maya');
     expect(memoOwnerName({ assigned_member_id: 'zzz' }, roster)).toBeNull();
     expect(memoOwnerName({ assigned_member_id: null }, roster)).toBeNull();
+  });
+  it('never prints a raw roster UUID as the assignee', () => {
+    const roster = [{ id: '90254cbb-4b36-4594-adda-f5752e21e796', name: 'Jordan', role: 'clearance' as const }];
+    expect(assigneeDisplayName(roster[0].id, roster)).toBe('Jordan');
+    expect(assigneeDisplayName('Jordan', roster)).toBe('Jordan');
+    expect(assigneeDisplayName('aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee', roster)).toBeNull();
+    expect(assigneeDisplayName(null, roster)).toBeNull();
   });
 });

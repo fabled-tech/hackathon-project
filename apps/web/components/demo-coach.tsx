@@ -30,7 +30,7 @@ export const DEMO_TOUR_STEPS = [
     body: 'Curation picks primary sources and the finding cards appear. Only now is the analysis “complete” for reviewers.'
   },
   {
-    target: 'demo-coach-findings',
+    target: 'clearance-memo',
     title: 'Clearance Adjudicator',
     body: 'Two readings of “The Matrix” conflict. An ADK agent frames the hypotheses, one advocate per reading searches registries through Parallel, and Gemini writes the memo and assigns it.'
   },

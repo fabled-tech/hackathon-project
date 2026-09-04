@@ -26,6 +26,16 @@ describe('demo spotlight geometry', () => {
     ).toEqual({ top: 142, left: 40 });
   });
 
+  it('caps a tall findings column so the ring stays on screen', () => {
+    const pads = spotlightPads(
+      { top: 80, left: 40, width: 400, height: 2400 },
+      { width: 1200, height: 800 },
+      8
+    );
+    expect(pads.ring.height).toBeLessThanOrEqual(336);
+    expect(pads.ring.height).toBeLessThan(800);
+  });
+
   it('flips the tooltip above the ring near the bottom of the viewport', () => {
     const position = tooltipPosition(
       { top: 700, left: 40, width: 200, height: 80 },
