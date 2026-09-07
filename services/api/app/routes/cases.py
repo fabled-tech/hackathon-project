@@ -23,16 +23,16 @@ from app.models import (
     Case,
     CaseSummary,
     Finding,
+    PipelineStage,
     ProductionMember,
     StoredAsset,
 )
 from app.models.requests import (
     ALLOWED_ANALYSIS_FILE_CONTENT_TYPES,
-    ALLOWED_ASSET_CONTENT_TYPE,
     DOCX_CONTENT_TYPE,
     MAX_ANALYSIS_FILE_BYTES,
-    MAX_ASSET_BYTES,
     MAX_EXTRACTED_DOCUMENT_CHARS,
+    CaseStartMode,
     CreateCaseRequest,
     CreateThreadMessageRequest,
     UpdateFindingRequest,
@@ -150,6 +150,17 @@ async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
             raise HTTPException(status_code=404, detail="Production not found") from error
         ignored_keywords = production.ignore_keywords
         roster = production.roster
+    if payload.start_mode is CaseStartMode.FILED:
+        case = Case(
+            id=case_id,
+            script_text=payload.script_text,
+            created_at=datetime.now(UTC),
+            findings=[],
+            production_id=payload.production_id,
+            title=payload.title,
+            pipeline_stage=PipelineStage.FILED,
+        )
+        return await run_in_threadpool(services.case_repository.create, case)
     await _reserve_analysis(services)
     try:
         desk = await _analyze_desk(
@@ -171,8 +182,50 @@ async def create_case(payload: CreateCaseRequest, request: Request) -> Case:
         title=payload.title,
         thread=desk.thread,
         tool_calls=desk.tool_calls,
+        pipeline_stage=PipelineStage.ADJUDICATION,
     )
     return await run_in_threadpool(services.case_repository.create, case)
+
+
+@router.post("/{case_id}/advance", response_model=Case)
+async def advance_case(case_id: str, request: Request) -> Case:
+    services = _services(request)
+    try:
+        case = await run_in_threadpool(services.case_repository.get, case_id)
+    except CaseRepositoryNotFound as error:
+        raise HTTPException(status_code=404, detail="Case not found") from error
+    if case.pipeline_stage is PipelineStage.ADJUDICATION:
+        raise HTTPException(status_code=409, detail="This case is already fully analyzed.")
+    ignored_keywords: list[str] = []
+    roster: list[ProductionMember] = []
+    if case.production_id is not None:
+        try:
+            production = await run_in_threadpool(
+                services.production_repository.get, case.production_id
+            )
+        except ProductionRepositoryNotFound as error:
+            raise HTTPException(status_code=404, detail="Production not found") from error
+        ignored_keywords = production.ignore_keywords
+        roster = production.roster
+    reserved = False
+    if case.pipeline_stage is PipelineStage.FILED:
+        await _reserve_analysis(services)
+        reserved = True
+    try:
+        next_case = await services.agent_service.advance_pipeline(
+            case, ignored_keywords, roster
+        )
+    except AnalysisUnavailableError as error:
+        if reserved:
+            await _refund_analysis(services)
+        logger.warning("Pipeline advance failed during %s.", error.operation)
+        raise HTTPException(
+            status_code=503,
+            detail="RightsRadar analysis is temporarily unavailable. Please try again.",
+        ) from error
+    except ValueError as error:
+        raise HTTPException(status_code=409, detail=str(error)) from error
+    return await run_in_threadpool(services.case_repository.save, next_case)
 
 
 @router.post(
@@ -310,44 +363,11 @@ async def upload_asset(
     file: Annotated[UploadFile, File(json_schema_extra={"format": "binary"})],
     request: Request,
 ) -> Asset:
-    services = _services(request)
-    try:
-        await run_in_threadpool(services.case_repository.get, case_id)
-    except CaseRepositoryNotFound as error:
-        raise HTTPException(status_code=404, detail="Case not found") from error
-
-    if file.content_type != ALLOWED_ASSET_CONTENT_TYPE:
-        raise HTTPException(status_code=422, detail="Only text/plain assets are supported")
-    content = await file.read(MAX_ASSET_BYTES + 1)
-    if len(content) > MAX_ASSET_BYTES:
-        raise HTTPException(status_code=422, detail="Asset must not exceed 256 KiB")
-    if b"\x00" in content:
-        raise HTTPException(status_code=422, detail="Asset must contain valid UTF-8 text")
-    try:
-        content.decode("utf-8")
-    except UnicodeDecodeError as error:
-        raise HTTPException(
-            status_code=422, detail="Asset must contain valid UTF-8 text"
-        ) from error
-
-    asset = await run_in_threadpool(
-        services.asset_repository.store,
-        case_id,
-        AssetUpload(
-            filename=file.filename or "asset.txt",
-            content_type=ALLOWED_ASSET_CONTENT_TYPE,
-            content=content,
-        ),
+    del case_id, file, request
+    raise HTTPException(
+        status_code=410,
+        detail="Plain-text asset uploads are disabled.",
     )
-    try:
-        await run_in_threadpool(services.case_repository.increment_asset_count, case_id)
-    except CaseRepositoryNotFound as error:
-        await _delete_asset_after_increment_failure(services, asset)
-        raise HTTPException(status_code=404, detail="Case not found") from error
-    except Exception:
-        await _delete_asset_after_increment_failure(services, asset)
-        raise
-    return asset
 
 
 @router.get("/{case_id}/assets", response_model=list[Asset])

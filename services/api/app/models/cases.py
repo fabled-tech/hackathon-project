@@ -4,7 +4,7 @@ from typing import Any
 
 from pydantic import BaseModel, Field, model_validator
 
-from .analysis import Evidence, EvidenceSelection
+from .analysis import Evidence, EvidenceSelection, GeminiSignal, ResearchScratch
 from .memo import ClearanceMemo
 from .productions import FindingComment
 
@@ -43,6 +43,14 @@ class CaseThreadMessage(BaseModel):
     finding_id: str | None = None
     mentions: list[str] = Field(default_factory=list)
     created_at: datetime
+
+
+class PipelineStage(StrEnum):
+    FILED = "filed"
+    INTAKE = "intake"
+    RESEARCH = "research"
+    CURATION = "curation"
+    ADJUDICATION = "adjudication"
 
 
 class ReviewerStatus(StrEnum):
@@ -107,3 +115,6 @@ class Case(BaseModel):
     notes: str = ""
     thread: list[CaseThreadMessage] = Field(default_factory=list)
     tool_calls: list[ToolCallEvent] = Field(default_factory=list)
+    pipeline_stage: PipelineStage = PipelineStage.ADJUDICATION
+    intake_signals: list[GeminiSignal] = Field(default_factory=list)
+    research_scratch: list[ResearchScratch] = Field(default_factory=list)

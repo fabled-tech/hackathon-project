@@ -1,3 +1,5 @@
+from enum import StrEnum
+
 from pydantic import BaseModel, Field, field_validator
 
 from .cases import ReviewerStatus
@@ -23,10 +25,16 @@ MAX_ANALYSIS_FILE_BYTES = 10 * 1024 * 1024
 MAX_EXTRACTED_DOCUMENT_CHARS = 200_000
 
 
+class CaseStartMode(StrEnum):
+    COMPLETE = "complete"
+    FILED = "filed"
+
+
 class CreateCaseRequest(BaseModel):
     script_text: str = Field(min_length=1, max_length=20_000)
     production_id: str | None = None
     title: str = ""
+    start_mode: CaseStartMode = CaseStartMode.COMPLETE
 
 
 class UpdateFindingRequest(BaseModel):

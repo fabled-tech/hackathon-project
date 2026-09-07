@@ -1,3 +1,4 @@
+import asyncio
 from collections.abc import Sequence
 from datetime import datetime
 from time import perf_counter
@@ -13,16 +14,17 @@ from app.integrations import GeminiClient, ParallelSearchClient
 from app.models import (
     CaseThreadMessage,
     Evidence,
+    EvidenceCurationDecision,
     EvidenceSelection,
     Finding,
     ProductionMember,
     ReviewerStatus,
     ToolCallProvider,
 )
-from app.models.analysis import GeminiSignal, SearchResult
+from app.models.analysis import GeminiSignal, ResearchScratch, SearchResult
 
-_MAX_OBJECTIVES = 3
-_MAX_EXTRACT_URLS = 8
+_MAX_OBJECTIVES = 2
+_MAX_EXTRACT_URLS = 5
 
 
 class ResearchAgent:
@@ -40,15 +42,14 @@ class ResearchAgent:
         self._curation = curation
         self._adjudicator = adjudicator
 
-    async def research_lead(
+    async def collect_evidence(
         self,
         case_id: str,
         index: int,
         signal: GeminiSignal,
-        retrieved_at: datetime,
         roster: Sequence[ProductionMember],
         recorder: ToolCallRecorder,
-    ) -> tuple[Finding, list[CaseThreadMessage]]:
+    ) -> tuple[ResearchScratch, list[CaseThreadMessage]]:
         stakeholders = stakeholders_for_lead(signal.category, roster)
         mention_ids = [member.id for member in stakeholders]
         mention_text = _mention_line(stakeholders)
@@ -80,11 +81,12 @@ class ResearchAgent:
             )
         )
 
-        batches: list[list[SearchResult]] = []
-        for objective in objectives:
-            batches.append(
-                await self._search_objective(signal, session_id, objective, recorder)
+        batches = await asyncio.gather(
+            *(
+                self._search_objective(signal, session_id, objective, recorder)
+                for objective in objectives
             )
+        )
         search_results = _merge_search_results(batches, cap=_MAX_EXTRACT_URLS)
         messages.append(
             agent_message(
@@ -109,7 +111,6 @@ class ResearchAgent:
         extracted_results = await self._extract_if_needed(
             signal, search_results, session_id, recorder
         )
-        brief = ""
         if extracted_results:
             messages.append(
                 agent_message(
@@ -136,6 +137,48 @@ class ResearchAgent:
                 )
             )
 
+        return (
+            ResearchScratch(
+                index=index,
+                signal=signal,
+                extracted=extracted_results,
+                mention_ids=mention_ids,
+            ),
+            messages,
+        )
+
+    async def research_lead(
+        self,
+        case_id: str,
+        index: int,
+        signal: GeminiSignal,
+        retrieved_at: datetime,
+        roster: Sequence[ProductionMember],
+        recorder: ToolCallRecorder,
+    ) -> tuple[Finding, list[CaseThreadMessage]]:
+        scratch, messages = await self.collect_evidence(
+            case_id, index, signal, roster, recorder
+        )
+        finding, more = await self.compose_finding(
+            case_id, scratch, retrieved_at, roster, recorder, adjudicate=True
+        )
+        messages.extend(more)
+        return finding, messages
+
+    async def compose_finding(
+        self,
+        case_id: str,
+        scratch: ResearchScratch,
+        retrieved_at: datetime,
+        roster: Sequence[ProductionMember],
+        recorder: ToolCallRecorder,
+        *,
+        adjudicate: bool,
+    ) -> tuple[Finding, list[CaseThreadMessage]]:
+        signal = scratch.signal
+        extracted_results = scratch.extracted
+        mention_ids = list(scratch.mention_ids)
+        stakeholders = stakeholders_for_lead(signal.category, roster)
         finding_id = str(uuid4())
         decision = await self._curation.decide(signal, extracted_results, recorder)
         evidence = [
@@ -153,11 +196,18 @@ class ResearchAgent:
             rationale=decision.rationale,
             alternatives=[item for item in evidence if item is not primary],
         )
+        messages: list[CaseThreadMessage] = []
         memo = None
         adjudicator_messages: list[CaseThreadMessage] = []
-        if self._adjudicator is not None:
+        if adjudicate and self._adjudicator is not None:
             memo, adjudicator_messages = await self._adjudicator.adjudicate_lead(
-                case_id, index, signal, extracted_results, decision, roster, recorder
+                case_id,
+                scratch.index,
+                signal,
+                extracted_results,
+                decision,
+                roster,
+                recorder,
             )
         adjudicator_messages = [
             m.model_copy(update={"finding_id": finding_id}) for m in adjudicator_messages
@@ -193,6 +243,50 @@ class ResearchAgent:
         )
         messages.extend(adjudicator_messages)
         return finding, messages
+
+    async def adjudicate_finding(
+        self,
+        case_id: str,
+        finding: Finding,
+        scratch: ResearchScratch,
+        roster: Sequence[ProductionMember],
+        recorder: ToolCallRecorder,
+    ) -> tuple[Finding, list[CaseThreadMessage]]:
+        if self._adjudicator is None:
+            return finding, []
+        decision = EvidenceCurationDecision(
+            primary_url=finding.evidence.primary.source.url if finding.evidence.primary else None,
+            rationale=finding.evidence.rationale,
+        )
+        memo, adjudicator_messages = await self._adjudicator.adjudicate_lead(
+            case_id,
+            scratch.index,
+            scratch.signal,
+            scratch.extracted,
+            decision,
+            roster,
+            recorder,
+        )
+        adjudicator_messages = [
+            m.model_copy(update={"finding_id": finding.id}) for m in adjudicator_messages
+        ]
+        mention_ids = list(finding.stakeholder_ids)
+        assignee_id = memo.assigned_member_id
+        if assignee_id is not None and assignee_id not in mention_ids:
+            mention_ids = [*mention_ids, assignee_id]
+        assignee = (
+            next((member.name for member in roster if member.id == assignee_id), None)
+            if assignee_id
+            else None
+        )
+        updated = finding.model_copy(
+            update={
+                "memo": memo,
+                "assignee": assignee,
+                "stakeholder_ids": mention_ids,
+            }
+        )
+        return updated, adjudicator_messages
 
     async def _plan_objectives(
         self, signal: GeminiSignal, recorder: ToolCallRecorder

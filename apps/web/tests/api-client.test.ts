@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  advanceCase,
   createCase,
   createCaseFromFile,
   deleteCase,
@@ -328,6 +329,27 @@ describe('error handling', () => {
     );
 
     await expect(getCase('missing-id', 'http://api.test', fetcher)).rejects.toThrow('404');
+  });
+
+  it('advanceCase posts to the live pipeline stage route', async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(
+        JSON.stringify({
+          id: 'case-1',
+          script_text: 'filed',
+          created_at: '2026-09-04T00:00:00Z',
+          findings: [],
+          pipeline_stage: 'intake'
+        }),
+        { status: 200, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+    const result = await advanceCase('case-1', 'http://api.test', fetcher);
+    expect(result.pipeline_stage).toBe('intake');
+    expect(fetcher).toHaveBeenCalledWith(
+      'http://api.test/api/cases/case-1/advance',
+      expect.objectContaining({ method: 'POST' })
+    );
   });
 
   it('uploadAsset throws when the API returns a non-2xx status', async () => {

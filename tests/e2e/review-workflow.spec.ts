@@ -74,72 +74,7 @@ test('keeps the visible case usable after reopening another case fails', async (
   await expect(page.getByText('This case could not be reopened. Please try again.')).toBeVisible();
   await expect(scriptTextarea(page)).toHaveValue(visibleScript);
 
-  await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
-  await page.getByRole('button', { name: 'Upload asset' }).click();
-  await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
-
   await page.unroute(`**/api/cases/${failedCase.id}`);
-});
-
-test('ignores stale asset uploads after a newer case is selected', async ({ page }) => {
-  const olderScript = 'Stale upload older case: Nimbus Soda remains on the prop table.';
-  const newerScript = 'Stale upload newer case: a quiet scene plays in silence.';
-
-  await openCaseWorkspace(page);
-  await scriptTextarea(page).fill(olderScript);
-  const olderCaseResponse = page.waitForResponse(
-    (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
-  );
-  await page.getByRole('button', { name: 'Analyze script' }).click();
-  const olderCase = await (await olderCaseResponse).json();
-
-  await scriptTextarea(page).fill(newerScript);
-  const newerCaseResponse = page.waitForResponse(
-    (response) => response.url().endsWith('/api/cases') && response.request().method() === 'POST'
-  );
-  await page.getByRole('button', { name: 'Analyze script' }).click();
-  const newerCase = await (await newerCaseResponse).json();
-
-  await refreshRecentCasesButton(page).click();
-  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(olderScript) }).click();
-  await expect(scriptTextarea(page)).toHaveValue(olderScript);
-
-  let releaseOlderAssetsResponse: (() => void) | undefined;
-  let signalOlderAssetsRequestStarted: (() => void) | undefined;
-  const olderAssetsRequestStarted = new Promise<void>((resolve) => {
-    signalOlderAssetsRequestStarted = resolve;
-  });
-  await page.route(`**/api/cases/${olderCase.id}/assets`, async (route) => {
-    if (route.request().method() !== 'GET') {
-      await route.continue();
-      return;
-    }
-    signalOlderAssetsRequestStarted?.();
-    await new Promise<void>((release) => {
-      releaseOlderAssetsResponse = release;
-    });
-    await route.continue();
-  });
-
-  await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
-  await page.getByRole('button', { name: 'Upload asset' }).click();
-  await olderAssetsRequestStarted;
-  await page.getByTestId('recent-cases').getByRole('button', { name: new RegExp(newerScript) }).click();
-  await expect(scriptTextarea(page)).toHaveValue(newerScript);
-
-  const staleAssetsResponse = page.waitForResponse(
-    (response) =>
-      response.url().endsWith(`/api/cases/${olderCase.id}/assets`) &&
-      response.request().method() === 'GET'
-  );
-  releaseOlderAssetsResponse?.();
-  await staleAssetsResponse;
-  await expect(page.getByTestId('asset-list')).not.toContainText('production-note.txt');
-  await expect(page.getByTestId('finding-card')).toHaveCount(0);
-  await expect(scriptTextarea(page)).toHaveValue(newerScript);
-
-  await page.unroute(`**/api/cases/${olderCase.id}/assets`);
-  expect(newerCase.id).not.toBe(olderCase.id);
 });
 
 test('ignores stale case reopen responses after a newer case is selected', async ({ page }) => {
@@ -153,10 +88,6 @@ test('ignores stale case reopen responses after a newer case is selected', async
   );
   await page.getByRole('button', { name: 'Analyze script' }).click();
   const olderCase = await (await olderCaseResponse).json();
-
-  await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
-  await page.getByRole('button', { name: 'Upload asset' }).click();
-  await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
 
   await scriptTextarea(page).fill(newerScript);
   const newerCaseResponse = page.waitForResponse(
@@ -196,29 +127,10 @@ test('ignores stale case reopen responses after a newer case is selected', async
 
   await expect(scriptTextarea(page)).toHaveValue(newerScript);
   await expect(page.getByTestId('finding-card')).toHaveCount(0);
-  await expect(page.getByTestId('asset-list')).not.toContainText('production-note.txt');
-  await expect(page.getByTestId('asset-list')).toContainText(
-    'No plain-text production notes are attached yet.'
-  );
+  await expect(page.getByTestId('asset-list')).toHaveCount(0);
 
   await page.unroute(`**/api/cases/${olderCase.id}`);
   expect(newerCase.id).not.toBe(olderCase.id);
-});
-
-test('uploads a text asset and reopens it from recent cases', async ({ page }) => {
-  await openCaseWorkspace(page);
-  await scriptTextarea(page).fill('Nimbus Soda appears in a shot.');
-  await page.getByRole('button', { name: 'Analyze script' }).click();
-
-  await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
-  await page.getByRole('button', { name: 'Upload asset' }).click();
-  await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
-  await expect(page.getByTestId('asset-list')).toContainText('text/plain');
-
-  await refreshRecentCasesButton(page).click();
-  await page.getByTestId('recent-cases').getByRole('button').first().click();
-  await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
-  await expect(page.getByTestId('asset-list')).toContainText('text/plain');
 });
 
 test('reopens a different case with its script, reviewer status, and assets', async ({ page }) => {
@@ -232,10 +144,6 @@ test('reopens a different case with its script, reviewer status, and assets', as
   const originalFinding = page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' });
   await originalFinding.getByRole('button', { name: 'Dismiss' }).click();
   await expect(originalFinding).toContainText('Dismissed');
-
-  await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
-  await page.getByRole('button', { name: 'Upload asset' }).click();
-  await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
 
   await scriptTextarea(page).fill(newerScript);
   await page.getByRole('button', { name: 'Analyze script' }).click();
@@ -251,7 +159,6 @@ test('reopens a different case with its script, reviewer status, and assets', as
   await expect(page.getByTestId('finding-card').filter({ hasText: 'Nimbus Soda' })).toContainText(
     'Dismissed'
   );
-  await expect(page.getByTestId('asset-list')).toContainText('production-note.txt');
 });
 
 test('frames cited character leads as research assistance', async ({ page }) => {
@@ -324,30 +231,6 @@ test('shows an error banner when script submission fails', async ({ page }) => {
   await expect(page.getByTestId('agent-pipeline')).toContainText('RETRY NEEDED');
 
   await page.unroute('**/api/cases');
-});
-
-test('shows an error banner when asset upload fails', async ({ page }) => {
-  await openCaseWorkspace(page);
-  await scriptTextarea(page).fill('Nimbus Soda appears in the scene.');
-  await page.getByRole('button', { name: 'Analyze script' }).click();
-  await expect(page.getByTestId('finding-card').first()).toBeVisible();
-
-  await page.route('**/assets', async (route) => {
-    if (route.request().method() !== 'POST') {
-      await route.continue();
-      return;
-    }
-    await route.fulfill({ status: 413, contentType: 'application/json', body: '{}' });
-  });
-
-  await page.getByLabel('Attach plain-text asset').setInputFiles('tests/fixtures/production-note.txt');
-  await page.getByRole('button', { name: 'Upload asset' }).click();
-
-  await expect(
-    page.getByText('The asset could not be uploaded. Use a plain-text file no larger than 256 KiB.')
-  ).toBeVisible();
-
-  await page.unroute('**/assets');
 });
 
 test('shows an error banner when loading recent cases fails', async ({ page }) => {
@@ -442,25 +325,6 @@ test('analyze button is disabled when the script textarea is empty', async ({ pa
   await openCaseWorkspace(page);
   await scriptTextarea(page).fill('');
   await expect(page.getByRole('button', { name: 'Analyze script' })).toBeDisabled();
-});
-
-test('upload button is disabled when no file is selected', async ({ page }) => {
-  await openCaseWorkspace(page);
-  await scriptTextarea(page).fill('Nimbus Soda appears in the scene.');
-  await page.getByRole('button', { name: 'Analyze script' }).click();
-  await expect(page.getByTestId('finding-card').first()).toBeVisible();
-  await expect(page.getByRole('button', { name: 'Upload asset' })).toBeDisabled();
-});
-
-test('explains accepted production assets before upload', async ({ page }) => {
-  await openCaseWorkspace(page);
-  await scriptTextarea(page).fill('Nimbus Soda appears in the scene.');
-  await page.getByRole('button', { name: 'Analyze script' }).click();
-
-  await expect(page.getByText('script sides, continuity or clearance notes')).toBeVisible();
-  await expect(page.getByText('To analyze a PDF, DOCX, PNG, JPEG, or WebP file')).toBeVisible();
-  await expect(page.getByText('it is not analyzed')).toBeVisible();
-  await expect(page.getByText('UTF-8 .TXT · 256 KIB MAX')).toBeVisible();
 });
 
 test('filters production ignore phrases before creating findings', async ({ page }) => {

@@ -87,6 +87,7 @@ def build_services(settings: Settings) -> ApplicationServices:
         parallel = ParallelSdkClient(
             api_key=_require(settings.parallel_api_key, "RIGHTSRADAR_PARALLEL_API_KEY"),
             client_model=settings.gemini_model,
+            search_mode=settings.parallel_search_mode,
         )
     else:
         parallel = MockParallelSearchClient()

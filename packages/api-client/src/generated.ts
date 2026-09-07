@@ -40,7 +40,12 @@ export interface Case {
   notes?: string;
   thread?: CaseThreadMessage[];
   tool_calls?: ToolCallEvent[];
+  pipeline_stage?: PipelineStage;
+  intake_signals?: GeminiSignal[];
+  research_scratch?: ResearchScratch[];
 }
+
+export type CaseStartMode = "complete" | "filed";
 
 export interface CaseSummary {
   id: string;
@@ -78,6 +83,7 @@ export interface CreateCaseRequest {
   script_text: string;
   production_id?: string | null;
   title?: string;
+  start_mode?: CaseStartMode;
 }
 
 export interface CreateFindingCommentRequest {
@@ -136,6 +142,14 @@ export interface FindingComment {
   created_at: string;
 }
 
+export interface GeminiSignal {
+  category: string;
+  detected_item: string;
+  explanation: string;
+  confidence: number;
+  context_excerpt?: string;
+}
+
 export interface HTTPValidationError {
   detail?: ValidationError[];
 }
@@ -148,6 +162,8 @@ export interface Hypothesis {
 }
 
 export type MemoVerdict = "cleared" | "license_required" | "rewrite_recommended" | "needs_human";
+
+export type PipelineStage = "filed" | "intake" | "research" | "curation" | "adjudication";
 
 export interface Production {
   id: string;
@@ -194,7 +210,20 @@ export interface ProductionSummary {
   escalated_finding_count?: number;
 }
 
+export interface ResearchScratch {
+  index: number;
+  signal: GeminiSignal;
+  extracted?: SearchResult[];
+  mention_ids?: string[];
+}
+
 export type ReviewerStatus = "pending" | "accepted" | "dismissed" | "escalated";
+
+export interface SearchResult {
+  source: Source;
+  excerpt: string;
+  publish_date?: string | null;
+}
 
 export interface Source {
   title: string;
@@ -309,6 +338,14 @@ export function getCase(
   fetcher: ApiFetcher = fetch
 ): Promise<Case> {
   return request<Case>('/api/cases/' + encodeURIComponent(caseId), baseUrl, { method: 'GET' }, fetcher);
+}
+
+export function advanceCase(
+  caseId: string,
+  baseUrl: string,
+  fetcher: ApiFetcher = fetch
+): Promise<Case> {
+  return request<Case>('/api/cases/' + encodeURIComponent(caseId) + '/advance', baseUrl, { method: 'POST' }, fetcher);
 }
 
 export function deleteCase(

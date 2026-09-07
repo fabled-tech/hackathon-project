@@ -11,7 +11,14 @@ from app.agents.intake import IntakeAgent
 from app.agents.research import ResearchAgent
 from app.agents.trace import ToolCallRecorder
 from app.integrations import AdjudicatorClient, GeminiClient, ParallelSearchClient
-from app.models import CaseThreadMessage, Finding, ProductionMember, ToolCallEvent
+from app.models import (
+    Case,
+    CaseThreadMessage,
+    Finding,
+    PipelineStage,
+    ProductionMember,
+    ToolCallEvent,
+)
 from app.models.analysis import GeminiSignal
 
 
@@ -58,6 +65,13 @@ class AgentService(Protocol):
         ignored_keywords: Sequence[str] = (),
         roster: Sequence[ProductionMember] = (),
     ) -> AnalysisDeskResult: ...
+
+    async def advance_pipeline(
+        self,
+        case: Case,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
+    ) -> Case: ...
 
 
 def _contains_ignored_phrase(detected_item: str, ignored_keywords: Sequence[str]) -> bool:
@@ -195,6 +209,102 @@ class RightsClearanceAgentService:
         return AnalysisDeskResult(
             findings=findings, thread=thread, tool_calls=list(recorder.events)
         )
+
+    async def advance_pipeline(
+        self,
+        case: Case,
+        ignored_keywords: Sequence[str] = (),
+        roster: Sequence[ProductionMember] = (),
+    ) -> Case:
+        recorder = ToolCallRecorder(case.id, fixture=_is_fixture(self._gemini))
+        stage = case.pipeline_stage
+        if stage is PipelineStage.FILED:
+            signals = await self._intake.detect_text(case.script_text, recorder)
+            return case.model_copy(
+                update={
+                    "pipeline_stage": PipelineStage.INTAKE,
+                    "intake_signals": signals,
+                    "thread": [*case.thread, self._intake.announce(case.id, signals)],
+                    "tool_calls": [*case.tool_calls, *recorder.events],
+                }
+            )
+        if stage is PipelineStage.INTAKE:
+            indexed = [
+                (index, signal)
+                for index, signal in enumerate(case.intake_signals)
+                if not _contains_ignored_phrase(signal.detected_item, ignored_keywords)
+            ]
+            semaphore = asyncio.Semaphore(self._max_concurrency)
+
+            async def collect(index: int, signal: GeminiSignal):
+                async with semaphore:
+                    return await self._research.collect_evidence(
+                        case.id, index, signal, roster, recorder
+                    )
+
+            collected = await asyncio.gather(
+                *(collect(index, signal) for index, signal in indexed)
+            )
+            scratches = []
+            thread = list(case.thread)
+            for scratch, messages in collected:
+                scratches.append(scratch)
+                thread.extend(messages)
+            return case.model_copy(
+                update={
+                    "pipeline_stage": PipelineStage.RESEARCH,
+                    "research_scratch": scratches,
+                    "thread": thread,
+                    "tool_calls": [*case.tool_calls, *recorder.events],
+                }
+            )
+        if stage is PipelineStage.RESEARCH:
+            retrieved_at = datetime.now(UTC)
+            findings: list[Finding] = []
+            thread = list(case.thread)
+            for scratch in case.research_scratch:
+                finding, messages = await self._research.compose_finding(
+                    case.id,
+                    scratch,
+                    retrieved_at,
+                    roster,
+                    recorder,
+                    adjudicate=False,
+                )
+                findings.append(finding)
+                thread.extend(messages)
+            return case.model_copy(
+                update={
+                    "pipeline_stage": PipelineStage.CURATION,
+                    "findings": findings,
+                    "thread": thread,
+                    "tool_calls": [*case.tool_calls, *recorder.events],
+                }
+            )
+        if stage is PipelineStage.CURATION:
+            by_item = {item.signal.detected_item: item for item in case.research_scratch}
+            findings = []
+            thread = list(case.thread)
+            for finding in case.findings:
+                scratch = by_item.get(finding.detected_item)
+                if scratch is None:
+                    findings.append(finding)
+                    continue
+                updated, messages = await self._research.adjudicate_finding(
+                    case.id, finding, scratch, roster, recorder
+                )
+                findings.append(updated)
+                thread.extend(messages)
+            return case.model_copy(
+                update={
+                    "pipeline_stage": PipelineStage.ADJUDICATION,
+                    "findings": findings,
+                    "thread": thread,
+                    "tool_calls": [*case.tool_calls, *recorder.events],
+                    "research_scratch": [],
+                }
+            )
+        raise ValueError("pipeline already complete")
 
 
 def _is_fixture(provider: object) -> bool:

@@ -1,12 +1,12 @@
 'use client';
 
 import {
+  advanceCase,
   createCase,
   createProduction,
   deleteCase,
   deleteProduction,
   deleteProductionIcon,
-  getCase,
   listProductionCases,
   listProductions,
   uploadProductionIcon,
@@ -293,6 +293,7 @@ export function Dashboard() {
   const gateOpen = gateForcedOpen || storedDemoChoice === null;
   const [coachOpen, setCoachOpen] = useState(false);
   const [walkthroughBusy, setWalkthroughBusy] = useState(false);
+  const [stageBusy, setStageBusy] = useState(false);
   const [openedCase, setOpenedCase] = useState<Case | null>(null);
   const [demoFullCase, setDemoFullCase] = useState<Case | null>(null);
   const [demoStep, setDemoStep] = useState(0);
@@ -433,35 +434,20 @@ export function Dashboard() {
         );
       }
       const sample = DEMO_MATRIX_SCRIPT;
-      const existingCases = await listProductionCases(production.id, API_BASE_URL);
-      const extras = duplicateCaseIdsToRemove(existingCases);
-      if (extras.length > 0) {
-        await Promise.all(extras.map((caseId) => deleteCase(caseId, API_BASE_URL)));
-      }
-      const uniqueCases =
-        extras.length > 0
-          ? await listProductionCases(production.id, API_BASE_URL)
-          : existingCases;
-      const deskCases = await ensureFeaturedDemoCases(production.id, uniqueCases);
-      const reusable = deskCases.find(
-        (item) => normalizeDemoScript(item.script_text) === normalizeDemoScript(sample.script)
+      const nextCase = await createCase(
+        {
+          script_text: sample.script,
+          production_id: production.id,
+          title: sample.title,
+          start_mode: 'filed'
+        },
+        API_BASE_URL
       );
-      const nextCase = reusable
-        ? await getCase(reusable.id, API_BASE_URL)
-        : await createCase(
-            {
-              script_text: sample.script,
-              production_id: production.id,
-              title: sample.title
-            },
-            API_BASE_URL
-          );
       await refreshProductions();
       if (activeProductionId === production.id) {
         await refreshProductionCases(production.id);
       }
       setActiveProductionId(production.id);
-      // Hold the finished case off-screen; coach Next reveals Intake → Research → Curation.
       setDemoFullCase(nextCase);
       setOpenedCase(null);
       setDemoStep(0);
@@ -474,7 +460,37 @@ export function Dashboard() {
     } finally {
       setWalkthroughBusy(false);
     }
-  }, [activeProductionId, ensureFeaturedDemoCases, refreshProductionCases, refreshProductions]);
+  }, [activeProductionId, refreshProductionCases, refreshProductions]);
+
+  const runWalkthroughStage = useCallback(
+    async (nextStep: number) => {
+      if (!demoFullCase) {
+        setDemoStep(nextStep);
+        return;
+      }
+      // Steps 1-4 are live cloud stages. Step 5 (human) is local.
+      if (nextStep >= 1 && nextStep <= 4) {
+        setStageBusy(true);
+        setError(null);
+        setDemoStep(nextStep);
+        try {
+          const nextCase = await advanceCase(demoFullCase.id, API_BASE_URL);
+          setDemoFullCase(nextCase);
+          setProductionCases((current) =>
+            current.map((item) => (item.id === nextCase.id ? nextCase : item))
+          );
+        } catch {
+          setDemoStep(nextStep - 1);
+          setError('That stage could not run. Press Run next stage to try again.');
+        } finally {
+          setStageBusy(false);
+        }
+        return;
+      }
+      setDemoStep(nextStep);
+    },
+    [demoFullCase]
+  );
 
   const endWalkthrough = useCallback(() => {
     setCoachOpen(false);
@@ -528,7 +544,7 @@ export function Dashboard() {
     (async () => {
       try {
         let cases = await listProductionCases(activeProductionId, API_BASE_URL);
-        if (activeProduction?.title === DEMO_PRODUCTION_TITLE) {
+        if (activeProduction?.title === DEMO_PRODUCTION_TITLE && !demoFullCase && !coachOpen) {
           const extras = duplicateCaseIdsToRemove(cases);
           if (extras.length > 0) {
             await Promise.all(extras.map((caseId) => deleteCase(caseId, API_BASE_URL)));
@@ -549,7 +565,14 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [activeProduction?.title, activeProductionId, ensureFeaturedDemoCases, refreshProductions]);
+  }, [
+    activeProduction?.title,
+    activeProductionId,
+    coachOpen,
+    demoFullCase,
+    ensureFeaturedDemoCases,
+    refreshProductions
+  ]);
 
   async function submitProduction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -832,7 +855,7 @@ export function Dashboard() {
             focusTour={coachOpen}
             demoWalkthrough={
               demoFullCase && demoRevealStage
-                ? { fullCase: demoFullCase, stage: demoRevealStage }
+                ? { fullCase: demoFullCase, stage: demoRevealStage, pending: stageBusy }
                 : null
             }
             onCaseCreated={() => {
@@ -1118,7 +1141,8 @@ export function Dashboard() {
       {coachOpen ? (
         <DemoCoach
           stepIndex={demoStep}
-          onStepIndexChange={setDemoStep}
+          busy={stageBusy}
+          onStepIndexChange={(next) => void runWalkthroughStage(next)}
           onDismiss={endWalkthrough}
         />
       ) : null}

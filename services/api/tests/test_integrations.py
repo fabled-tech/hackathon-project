@@ -129,7 +129,7 @@ def test_search_then_extract_reuses_session_and_restricts_urls() -> None:
     assert extracted[0].excerpt == "Verified A\n\nMore A"
     assert fake.search_calls[0]["session_id"] == fake.extract_calls[0]["session_id"]
     assert fake.search_calls[0]["client_model"] == "gemini-2.5-flash"
-    assert fake.search_calls[0]["mode"] == "advanced"
+    assert fake.search_calls[0]["mode"] == "fast"
     assert len(fake.search_calls[0]["search_queries"]) == 3
     assert "Example Brand can is visible" in str(fake.search_calls[0]["objective"])
     assert fake.extract_calls[0]["urls"] == ["https://source.test/a", "https://source.test/b"]

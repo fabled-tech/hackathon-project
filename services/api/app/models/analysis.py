@@ -48,3 +48,12 @@ class SearchResult(BaseModel):
     source: Source
     excerpt: str
     publish_date: str | None = None
+
+
+class ResearchScratch(BaseModel):
+    """Persisted between walkthrough Research and Curation/Adjudication."""
+
+    index: int
+    signal: GeminiSignal
+    extracted: list[SearchResult] = Field(default_factory=list)
+    mention_ids: list[str] = Field(default_factory=list)

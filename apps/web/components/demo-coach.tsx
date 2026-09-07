@@ -51,11 +51,13 @@ function currentViewport() {
 export function DemoCoach({
   stepIndex,
   onStepIndexChange,
-  onDismiss
+  onDismiss,
+  busy = false
 }: {
   stepIndex: number;
   onStepIndexChange: (next: number) => void;
   onDismiss: () => void;
+  busy?: boolean;
 }) {
   const safeIndex = Math.min(Math.max(stepIndex, 0), DEMO_TOUR_STEPS.length - 1);
   const [pads, setPads] = useState<Pads | null>(null);
@@ -137,14 +139,16 @@ export function DemoCoach({
           <button
             type="button"
             data-testid="demo-coach-dismiss"
+            disabled={busy}
             onClick={onDismiss}
-            className="border-2 border-white bg-transparent px-2.5 py-1.5 font-display text-[9px] text-white"
+            className="border-2 border-white bg-transparent px-2.5 py-1.5 font-display text-[9px] text-white disabled:opacity-50"
           >
             Skip tour
           </button>
           <button
             type="button"
             data-testid="demo-coach-next"
+            disabled={busy}
             onClick={() => {
               if (isLast) {
                 onDismiss();
@@ -152,9 +156,9 @@ export function DemoCoach({
               }
               onStepIndexChange(safeIndex + 1);
             }}
-            className="border-2 border-ink bg-brand px-2.5 py-1.5 font-display text-[9px] text-ink shadow-press"
+            className="border-2 border-ink bg-brand px-2.5 py-1.5 font-display text-[9px] text-ink shadow-press disabled:opacity-70"
           >
-            {isLast ? 'Start working' : 'Run next stage'}
+            {busy ? 'Calling the cloud…' : isLast ? 'Start working' : 'Run next stage'}
           </button>
         </div>
       </aside>

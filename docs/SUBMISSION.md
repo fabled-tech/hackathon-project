@@ -41,9 +41,9 @@ Paste-ready copy lives in [`devpost-submission.md`](./devpost-submission.md).
 ## Day-of demo (do not burn the daily cap)
 
 1. Open the hosted app. Click **Walk The Matrix homage**.
-2. Press **Run next stage** five times. Open **Show agent tool log**.
+2. Press **Run next stage** and wait for **Calling the cloud…** to finish before the next press (four live stages, then your turn). Open **Show agent tool log**.
 3. Acting as Jordan, Accept or Dismiss one lead. Acting as Maya, Escalate and Hand to.
 4. Open `/health` in a tab and show `mode: cloud`.
-5. If the daily analysis cap (25/UTC day) is hit, walk the already-filed Matrix case. Existing cases stay readable.
+5. If the daily analysis cap (25/UTC day) is hit, open an already-analyzed case. Existing cases stay readable.
 
 Local rehearsal: `make dev` then http://127.0.0.1:3000 (mock fixtures, no keys).

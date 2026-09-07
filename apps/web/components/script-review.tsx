@@ -15,7 +15,6 @@ import {
   type ProductionMember,
   type ReviewerStatus,
   type ToolCallEvent,
-  uploadAsset,
   updateFindingMeta,
   updateFindingStatus
 } from '@rightsrader/api-client';
@@ -211,12 +210,14 @@ function AgentPipeline({
   status,
   result,
   revealStage,
+  pending = false,
   health
 }: {
   status: AgentWorkflowStatus;
   result: Case | null;
   /** When set (demo walkthrough), light stages one-by-one instead of all-complete. */
   revealStage?: DemoRevealStage | null;
+  pending?: boolean;
   health: ApiHealth | null;
 }) {
   const findings = result?.findings ?? [];
@@ -241,16 +242,16 @@ function AgentPipeline({
     : revealStage === 'human' ? (hasAdjudicator ? 3 : 2)
     : -1;
   const stages = [
-    { name: 'Gemini Intake', description: 'Vertex Gemini detects clearance leads.', icon: <Sparkles className="size-3.5" aria-hidden />, output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`, done: revealStage != null ? revealIndex >= 0 : threadHasAgent(thread, 'Intake') || status === 'complete' },
-    { name: 'Parallel Research', description: 'Vertex plan/brief plus Parallel Search xN and Extract.', icon: <Globe2 className="size-3.5" aria-hidden />, output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`, done: revealStage != null ? revealIndex >= 1 : threadHasAgent(thread, 'Research') || status === 'complete' },
-    { name: 'Gemini Curation', description: 'Vertex Gemini cites only extracted URLs.', icon: <FileSearch className="size-3.5" aria-hidden />, output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`, done: revealStage != null ? revealIndex >= 2 : threadHasAgent(thread, 'Curation') || status === 'complete' },
+    { name: 'Gemini Intake', description: 'Vertex Gemini detects clearance leads.', icon: <Sparkles className="size-3.5" aria-hidden />, output: `${findings.length} ${findings.length === 1 ? 'lead' : 'leads'} detected`, done: revealStage != null ? revealIndex > 0 || (revealIndex === 0 && !pending) : threadHasAgent(thread, 'Intake') || status === 'complete' },
+    { name: 'Parallel Research', description: 'Vertex plan/brief plus Parallel Search xN and Extract.', icon: <Globe2 className="size-3.5" aria-hidden />, output: `${citedSources} ${citedSources === 1 ? 'source' : 'sources'} verified`, done: revealStage != null ? revealIndex > 1 || (revealIndex === 1 && !pending) : threadHasAgent(thread, 'Research') || status === 'complete' },
+    { name: 'Gemini Curation', description: 'Vertex Gemini cites only extracted URLs.', icon: <FileSearch className="size-3.5" aria-hidden />, output: `${curatedSources} primary ${curatedSources === 1 ? 'source' : 'sources'} selected`, done: revealStage != null ? revealIndex > 2 || (revealIndex === 2 && !pending) : threadHasAgent(thread, 'Curation') || status === 'complete' },
     ...(hasAdjudicator
       ? [{
           name: 'Clearance Adjudicator',
           description: 'ADK agents argue competing readings on Parallel; Gemini writes a grounded Clearance Memo.',
           icon: <Scale className="size-3.5" aria-hidden />,
           output: `${memos} ${memos === 1 ? 'memo' : 'memos'} issued`,
-          done: revealStage != null ? revealIndex >= 3 : threadHasAgent(thread, 'Adjudicator') || status === 'complete'
+          done: revealStage != null ? revealIndex > 3 || (revealIndex === 3 && !pending) : threadHasAgent(thread, 'Adjudicator') || status === 'complete'
         }]
       : [])
   ];
@@ -827,10 +828,11 @@ export function ScriptReview({
   onCaseUpdated?: (caseResult: Case) => void;
   initialCase?: Case | null;
   focusTour?: boolean;
-  /** Staged Matrix (or other) walkthrough — parent advances revealStage on each coach Next. */
+  /** Live walkthrough — parent advances revealStage after each cloud stage call. */
   demoWalkthrough?: {
     fullCase: Case;
     stage: DemoRevealStage;
+    pending?: boolean;
   } | null;
 } = {}) {
   const [scriptText, setScriptText] = useState(
@@ -840,11 +842,9 @@ export function ScriptReview({
   const [showToolLog, setShowToolLog] = useState(false);
   const [caseResult, setCaseResult] = useState<Case | null>(initialCase);
   const [assets, setAssets] = useState<Asset[]>([]);
-  const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [analysisFile, setAnalysisFile] = useState<File | null>(null);
   const [recentCases, setRecentCases] = useState<CaseSummary[]>([]);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
   const [isAnalyzingFile, setIsAnalyzingFile] = useState(false);
   const [agentWorkflowStatus, setAgentWorkflowStatus] =
     useState<AgentWorkflowStatus>(initialCase ? 'complete' : 'idle');
@@ -853,7 +853,9 @@ export function ScriptReview({
     : caseResult;
   const workingCase = demoWalkthrough?.fullCase ?? caseResult;
   const displayWorkflowStatus: AgentWorkflowStatus = demoWalkthrough
-    ? workflowStatusForDemoReveal(demoWalkthrough.stage)
+    ? demoWalkthrough.pending
+      ? 'running'
+      : workflowStatusForDemoReveal(demoWalkthrough.stage)
     : agentWorkflowStatus;
   const pipelineCase = demoWalkthrough
     ? demoWalkthrough.stage === 'ready'
@@ -882,12 +884,10 @@ export function ScriptReview({
   const [isReplying, setIsReplying] = useState(false);
   const [stampBurstId, setStampBurstId] = useState<string | null>(null);
   const stampBurstTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const analysisFileInputRef = useRef<HTMLInputElement>(null);
   const caseOperationGeneration = useRef(0);
   const activeCaseIdRef = useRef<string | null>(initialCase?.id ?? null);
   const submissionGeneration = useRef(0);
-  const uploadGeneration = useRef(0);
   const fileAnalysisGeneration = useRef(0);
   const caseLoadingGeneration = useRef(0);
 
@@ -920,8 +920,6 @@ export function ScriptReview({
       setCaseResult(nextCase);
       setAgentWorkflowStatus('complete');
       setAssets([]);
-      setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
       onCaseCreated?.();
     } catch (caught) {
       if (caseOperationGeneration.current === operationGeneration) {
@@ -935,41 +933,6 @@ export function ScriptReview({
     } finally {
       if (submissionGeneration.current === requestGeneration) {
         setIsSubmitting(false);
-      }
-    }
-  }
-
-  async function submitAsset(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!caseResult || !selectedFile) return;
-    const caseId = caseResult.id;
-    const operationGeneration = caseOperationGeneration.current;
-    const requestGeneration = ++uploadGeneration.current;
-    setIsUploading(true);
-    setError(null);
-    try {
-      await uploadAsset(caseId, selectedFile, API_BASE_URL);
-      const nextAssets = await listAssets(caseId, API_BASE_URL);
-      if (
-        caseOperationGeneration.current !== operationGeneration ||
-        activeCaseIdRef.current !== caseId
-      ) {
-        return;
-      }
-
-      setAssets(nextAssets);
-      setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
-    } catch {
-      if (
-        caseOperationGeneration.current === operationGeneration &&
-        activeCaseIdRef.current === caseId
-      ) {
-        setError('The asset could not be uploaded. Use a plain-text file no larger than 256 KiB.');
-      }
-    } finally {
-      if (uploadGeneration.current === requestGeneration) {
-        setIsUploading(false);
       }
     }
   }
@@ -996,9 +959,7 @@ export function ScriptReview({
       setAgentWorkflowStatus('complete');
       setAssets(nextAssets);
       setAnalysisFile(null);
-      setSelectedFile(null);
       if (analysisFileInputRef.current) analysisFileInputRef.current.value = '';
-      if (fileInputRef.current) fileInputRef.current.value = '';
       onCaseCreated?.();
     } catch (caught) {
       if (caseOperationGeneration.current === operationGeneration) {
@@ -1044,8 +1005,6 @@ export function ScriptReview({
       setCaseResult(nextCase);
       setAgentWorkflowStatus('complete');
       setAssets(nextAssets);
-      setSelectedFile(null);
-      if (fileInputRef.current) fileInputRef.current.value = '';
     } catch {
       if (caseOperationGeneration.current === operationGeneration) {
         setError('This case could not be reopened. Please try again.');
@@ -1333,6 +1292,7 @@ export function ScriptReview({
                   status={displayWorkflowStatus}
                   result={pipelineCase}
                   revealStage={demoWalkthrough?.stage ?? null}
+                  pending={demoWalkthrough?.pending ?? false}
                   health={health}
                 />
               </div>
@@ -1610,106 +1570,35 @@ export function ScriptReview({
                   </div>
                 </div>
 
-                {focusTour ? null : (
+                {focusTour || assets.length === 0 ? null : (
                 <div>
                   <PixelLabel>03 · Attachments</PixelLabel>
                   <div className="mt-2">
                     <Panel>
                       <p className="font-pixel text-[8px] tracking-[0.16px] text-line-strong">
-                        STEP 3 / PRODUCTION NOTES
+                        ANALYZED PRODUCTION FILE
                       </p>
                       <h2 className="mt-2 font-display text-base text-paper [text-shadow:3px_3px_6px_rgb(0_0_0/0.5),2px_2px_0_#aab5c4,1px_1px_0_#aab5c4]">
-                        Attach a production note
+                        Stored with this case
                       </h2>
-
-                      <form
-                        onSubmit={submitAsset}
-                        className="mt-4 space-y-3 border-2 border-ink bg-exhibit p-[18px] shadow-card"
-                      >
-                        <label
-                          htmlFor="asset-file"
-                          className="block font-pixel text-[8px] tracking-[0.16px] text-line-strong"
-                        >
-                          ▸ Attach plain-text asset
-                        </label>
-                        <div
-                          id="asset-file-guidance"
-                          className="border-2 border-line bg-white px-3 py-2.5 text-[10.5px] leading-4 text-muted"
-                        >
-                          <p>
-                            <strong className="font-bold text-ink">Expected:</strong> a{' '}
-                            <code className="text-accent">.txt</code> export of script sides,
-                            continuity or clearance notes, prop and product-placement logs,
-                            character or likeness notes, or quote and music-cue lists.
-                          </p>
-                          <p className="mt-1.5">
-                            This attachment is stored with the case for human review; it is not
-                            analyzed. To analyze a PDF, DOCX, PNG, JPEG, or WebP file, use the
-                            production-file uploader above.
-                          </p>
-                        </div>
-                        <input
-                          ref={fileInputRef}
-                          id="asset-file"
-                          name="asset-file"
-                          type="file"
-                          accept="text/plain,.txt"
-                          aria-describedby="asset-file-guidance asset-file-limits"
-                          onChange={(event) => setSelectedFile(event.target.files?.[0] ?? null)}
-                          className="block w-full cursor-pointer border-2 border-dashed border-line-strong bg-white px-3 py-2.5 text-[11px] text-muted transition file:mr-3 file:cursor-pointer file:border-2 file:border-ink file:bg-brand file:px-2.5 file:py-1 file:font-display file:text-[9px] file:text-ink hover:border-cyan-pop focus:outline-none focus:ring-2 focus:ring-cyan-pop"
-                        />
-                        {selectedFile ? (
-                          <p
-                            className="flex items-center gap-2 text-[10.5px] font-bold text-ink"
-                            aria-live="polite"
-                          >
-                            <FileText className="size-3.5 shrink-0 text-accent" aria-hidden />
-                            Selected: {selectedFile.name} ({fileSizeLabel(selectedFile.size)})
-                          </p>
-                        ) : null}
-                        <div className="flex flex-wrap items-center justify-between gap-3">
-                          <span id="asset-file-limits" className="font-pixel text-[8px] text-muted">
-                            UTF-8 .TXT · 256 KIB MAX
-                          </span>
-                          <PrimaryButton disabled={!selectedFile || isUploading}>
-                            {isUploading ? (
-                              <>
-                                <Spinner /> Uploading…
-                              </>
-                            ) : (
-                              '▶ Upload asset'
-                            )}
-                          </PrimaryButton>
-                        </div>
-                      </form>
-
-                      <div className="mt-5" data-testid="asset-list" aria-live="polite">
-                        <h3 className="font-pixel text-[8px] uppercase tracking-[0.16px] text-line-strong">
-                          Attached assets
-                        </h3>
-                        {assets.length === 0 ? (
-                          <p className="mt-2 text-[11.5px] leading-[17.83px] text-lavender-soft">
-                            No plain-text production notes are attached yet.
-                          </p>
-                        ) : (
-                          <ul className="mt-2 space-y-2">
-                            {assets.map((asset) => (
-                              <li
-                                key={asset.id}
-                                className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border border-ink bg-white px-3 py-2.5"
-                              >
-                                <span className="flex min-w-0 items-center gap-2 text-[11px] font-bold text-ink">
-                                  <FileText className="size-3.5 shrink-0 text-accent" aria-hidden />
-                                  <span className="truncate">{asset.filename}</span>
-                                </span>
-                                <span className="text-[9.5px] text-muted">
-                                  {asset.content_type} · {fileSizeLabel(asset.byte_size)} ·{' '}
-                                  {formatDateTime(asset.created_at)}
-                                </span>
-                              </li>
-                            ))}
-                          </ul>
-                        )}
+                      <div className="mt-4" data-testid="asset-list" aria-live="polite">
+                        <ul className="space-y-2">
+                          {assets.map((asset) => (
+                            <li
+                              key={asset.id}
+                              className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 border border-ink bg-white px-3 py-2.5"
+                            >
+                              <span className="flex min-w-0 items-center gap-2 text-[11px] font-bold text-ink">
+                                <FileText className="size-3.5 shrink-0 text-accent" aria-hidden />
+                                <span className="truncate">{asset.filename}</span>
+                              </span>
+                              <span className="text-[9.5px] text-muted">
+                                {asset.content_type} · {fileSizeLabel(asset.byte_size)} ·{' '}
+                                {formatDateTime(asset.created_at)}
+                              </span>
+                            </li>
+                          ))}
+                        </ul>
                       </div>
                     </Panel>
                   </div>

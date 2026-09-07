@@ -202,7 +202,8 @@ def test_lead_research_is_bounded_and_preserves_detector_order() -> None:
 
     findings = asyncio.run(service.analyze("case-1", "A scene with three leads."))
 
-    assert parallel.max_active == 2
+    # Two leads at a time, two Parallel Search calls each.
+    assert parallel.max_active == 4
     assert parallel.sessions == {
         "rightsrader:case-1:0",
         "rightsrader:case-1:1",

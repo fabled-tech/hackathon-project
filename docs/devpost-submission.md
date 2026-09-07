@@ -51,7 +51,7 @@ determinations.
   and the grounded Judge that writes the Clearance Memo.
 - **ADK `LlmAgent` / `ParallelAgent`** (`google-adk`) for the Adjudicator: hypotheses first, then
   one advocate per hypothesis in parallel.
-- **`parallel-web` Search + Extract** for the main Research lanes (`advanced` Search, then one
+- **`parallel-web` Search + Extract** for the main Research lanes (`fast` Search, then one
   Extract on the merged shortlist) and for advocate `search_authoritative` calls pinned to
   registry domains.
 - **Parallel Web Search as Gemini grounding** on the Judge so the memo can cite grounding chunks,
@@ -74,8 +74,8 @@ what makes the tool log judge-visible instead of decorative.
 
 **Extract live-fetch latency.** Parallel Extract can take tens of seconds to fetch and excerpt
 pages. The API timeout is 90 s, Research stays bounded by `RIGHTSRADAR_PARALLEL_MAX_CONCURRENCY`,
-and the walkthrough reuses a pre-analyzed Matrix case so the demo does not spend the live budget
-after the first cloud run.
+and the walkthrough files a script-only Matrix case, then each **Run next stage** press runs
+one live cloud stage (Intake → Research → Curation → Adjudicator).
 
 **Cost cap.** Live Vertex + Parallel + ADK calls add up. New analyses increment a per-UTC-day
 Firestore quota (`RIGHTSRADAR_DAILY_ANALYSIS_CAP`). Once the cap is hit, new cases return 429

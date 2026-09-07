@@ -24,6 +24,8 @@ class CaseRepository(Protocol):
 
     def get(self, case_id: str) -> Case: ...
 
+    def save(self, case: Case) -> Case: ...
+
     def update_finding_status(
         self, case_id: str, finding_id: str, reviewer_status: ReviewerStatus
     ) -> Finding: ...
@@ -61,6 +63,12 @@ class InMemoryCaseRepository:
         self._cases: dict[str, Case] = {}
 
     def create(self, case: Case) -> Case:
+        self._cases[case.id] = case.model_copy(deep=True)
+        return case
+
+    def save(self, case: Case) -> Case:
+        if case.id not in self._cases:
+            raise CaseRepositoryNotFound(case.id)
         self._cases[case.id] = case.model_copy(deep=True)
         return case
 
@@ -192,6 +200,13 @@ class FirestoreCaseRepository:
 
     def create(self, case: Case) -> Case:
         self._collection.document(case.id).set(case.model_dump(mode="json"))
+        return case
+
+    def save(self, case: Case) -> Case:
+        document = self._collection.document(case.id)
+        if not document.get().exists:
+            raise CaseRepositoryNotFound(case.id)
+        document.set(case.model_dump(mode="json"))
         return case
 
     def get(self, case_id: str) -> Case:

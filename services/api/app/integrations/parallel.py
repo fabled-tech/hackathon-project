@@ -202,7 +202,12 @@ def _normalize_results(
 
 
 def parallel_search_kwargs(
-    signal: GeminiSignal, session_id: str, objective: str | None, client_model: str
+    signal: GeminiSignal,
+    session_id: str,
+    objective: str | None,
+    client_model: str,
+    *,
+    mode: str = "fast",
 ) -> dict[str, Any]:
     if objective:
         context = (signal.context_excerpt or "").strip()[:2_000]
@@ -212,7 +217,7 @@ def parallel_search_kwargs(
     return {
         "objective": research_objective,
         "search_queries": _build_search_queries(signal, objective),
-        "mode": "advanced",
+        "mode": mode,
         "max_chars_total": _MAX_CHARS_TOTAL,
         "session_id": session_id,
         "client_model": client_model,
@@ -249,8 +254,16 @@ def _sdk_results_to_payload(response: Any) -> Mapping[str, Any]:
 class ParallelSdkClient:
     """Parallel Search and Extract through the official parallel-web SDK."""
 
-    def __init__(self, api_key: str, client_model: str, *, client: Any | None = None) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        client_model: str,
+        *,
+        client: Any | None = None,
+        search_mode: str = "fast",
+    ) -> None:
         self._client_model = client_model
+        self._search_mode = search_mode
         self._owns_client = client is None
         self._client = client or self._build_client(api_key)
 
@@ -279,7 +292,14 @@ class ParallelSdkClient:
         self, signal: GeminiSignal, session_id: str, objective: str | None = None
     ) -> list[SearchResult]:
         payload = await self._call(
-            "search", **parallel_search_kwargs(signal, session_id, objective, self._client_model)
+            "search",
+            **parallel_search_kwargs(
+                signal,
+                session_id,
+                objective,
+                self._client_model,
+                mode=self._search_mode,
+            ),
         )
         return _normalize_results(payload)
 

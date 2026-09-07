@@ -49,8 +49,9 @@ function keepToolCall(call: ToolCallEvent, stage: DemoRevealStage): boolean {
 }
 
 /**
- * Slice a fully analyzed case so the desk/pipeline can play forward on each Next.
- * Findings (with evidence) appear only at curation+; memos at adjudication+.
+ * Hide later-stage desk chrome until that tutorial beat.
+ * Live walkthrough cases only contain data through the last cloud advance;
+ * this still masks findings until curation and memos until adjudication.
  */
 export function caseForDemoReveal(full: Case, stage: DemoRevealStage): Case | null {
   if (stage === 'ready') return null;

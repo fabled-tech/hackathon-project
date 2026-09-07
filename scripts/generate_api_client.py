@@ -430,6 +430,9 @@ def generate() -> str:
         ),
         "list_cases": _operation_by_id(schema, "list_cases_api_cases_get"),
         "get_case": _operation_by_id(schema, "get_case_api_cases__case_id__get"),
+        "advance_case": _operation_by_id(
+            schema, "advance_case_api_cases__case_id__advance_post"
+        ),
         "delete_case": _operation_by_id(
             schema, "delete_case_api_cases__case_id__delete"
         ),
@@ -516,6 +519,8 @@ async function request<T>(
 {render_upload("createCaseFromFile", operations["create_case_from_file"])}
 
 {render_get_case(operations["get_case"])}
+
+{render_get("advanceCase", operations["advance_case"])}
 
 {render_delete("deleteCase", operations["delete_case"])}
 

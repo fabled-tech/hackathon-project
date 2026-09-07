@@ -30,8 +30,9 @@ class Settings(BaseSettings):
     repository_mode: IntegrationMode = IntegrationMode.MOCK
     google_cloud_project: str | None = None
     google_cloud_location: str = "global"
-    gemini_model: str = "gemini-3.7-flash"
+    gemini_model: str = "gemini-2.5-flash"
     parallel_api_key: str | None = None
+    parallel_search_mode: Literal["turbo", "fast", "basic", "advanced"] = "fast"
     parallel_max_concurrency: int = Field(default=4, ge=1, le=16)
     firestore_collection: str = "rightsrader_cases"
     firestore_productions_collection: str = "rightsrader_productions"

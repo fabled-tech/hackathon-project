@@ -28,9 +28,9 @@ case keeps traceable web evidence and lets a reviewer dismiss or escalate each f
 Analyzed files are limited to 10 MiB and are stored privately with their case. DOCX text is
 extracted server-side; PDF and image files retain Gemini's visual and layout context. Parallel does
 not accept local file uploads or return image results, so it researches Gemini's detected text
-leads against web pages. Reviewers can also attach UTF-8 plain-text script sides, continuity or
-clearance notes, prop/product-placement logs, character or likeness notes, and quote/music-cue
-lists up to 256 KiB without analyzing them. The browser exposes only asset metadata.
+leads against web pages. Plain-text note uploads are disabled so the public desk cannot be used
+as a file dump. The browser exposes only metadata for files stored when a production file is
+analyzed.
 
 Each production can configure up to 50 case-insensitive whole-phrase ignore entries. Matching
 detected items are removed before Parallel research to suppress studio-owned or otherwise expected
@@ -42,7 +42,7 @@ Each production has a roster of real people (clearance, production, legal). Anal
 
 1. **IntakeAgent** (Vertex Gemini) detects leads and @mentions Research.
 2. **ResearchAgent** attaches roster stakeholders, then for each lead: Vertex `plan_queries`
-   (2–3 objectives), Parallel Search once per objective, Parallel Extract on the merged URL set,
+   (2 objectives), Parallel Search once per objective, Parallel Extract on the merged URL set,
    and Vertex `brief_stakeholders`. Clearance is always attached; production joins brand and
    franchise leads; legal joins likeness, quotes, music, and character leads.
 3. **CurationAgent** (Vertex Gemini `curate_evidence`) cites only extracted URLs, or refuses a
@@ -184,10 +184,10 @@ each one. RightsRadar then processes independent leads concurrently, bounded by
 `RIGHTSRADAR_PARALLEL_MAX_CONCURRENCY` (default `4`, max 4 concurrent leads). Each lead uses one
 provider session prefix `rightsrader:{case_id}:{index}` and runs:
 
-1. Vertex `plan_queries` — schema-constrained JSON list of 2–3 short search objectives (temperature 0).
-2. Parallel Search **once per objective** (`advanced` mode, scene context, configured Gemini model
-   as `client_model`). Max 3 objectives per lead. These are real Search calls, not a padded batch.
-3. URL normalization and deduplication across those searches (at most ~8 URLs, extract cap ~8k chars).
+1. Vertex `plan_queries` — schema-constrained JSON list of 2 short search objectives (temperature 0).
+2. Parallel Search **once per objective** (`fast` mode, scene context, configured Gemini model
+   as `client_model`). Max 2 objectives per lead. These are real Search calls, not a padded batch.
+3. URL normalization and deduplication across those searches (at most ~5 URLs, extract cap ~8k chars).
 4. One Parallel Extract request for the merged shortlist. Extract may partially succeed, but a lead
    fails safely when none of its shortlisted pages can be verified. Extract does not run before Search
    returns candidates.
