@@ -7,6 +7,7 @@ test.beforeEach(async ({ page }) => {
     window.localStorage.removeItem('rightsrader.demo.lastScriptId');
     window.localStorage.removeItem('rightsrader.demo.usedScriptIds');
     window.localStorage.removeItem('rightsrader.activeMemberId');
+    window.sessionStorage.setItem('rightsrader.demo.session', '1');
     window.localStorage.setItem('rightsrader.demo.choice', 'self-serve');
   });
 });

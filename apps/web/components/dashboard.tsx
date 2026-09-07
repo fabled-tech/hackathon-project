@@ -7,6 +7,7 @@ import {
   deleteCase,
   deleteProduction,
   deleteProductionIcon,
+  listCases,
   listProductionCases,
   listProductions,
   uploadProductionIcon,
@@ -54,10 +55,8 @@ import {
   DEMO_MATRIX_SCRIPT,
   DEMO_PRODUCTION_TITLE,
   DEMO_ROSTER,
-  duplicateCaseIdsToRemove,
   getDemoChoiceServerSnapshot,
-  missingFeaturedDemoScripts,
-  normalizeDemoScript,
+  markFreshDemoLaunch,
   readDemoChoice,
   subscribeDemoChoice,
   writeDemoChoice
@@ -72,6 +71,32 @@ import {
 import { verdictLabel } from '@/lib/memo';
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? 'http://127.0.0.1:8000';
+
+let sharedDeskReset: Promise<void> | null = null;
+
+async function resetSharedDemoDesk(): Promise<void> {
+  if (!sharedDeskReset) {
+    sharedDeskReset = (async () => {
+      const [productions, recent] = await Promise.all([
+        listProductions(API_BASE_URL),
+        listCases(50, API_BASE_URL)
+      ]);
+      await Promise.all(
+        recent.map((item) => deleteCase(item.id, API_BASE_URL).catch(() => undefined))
+      );
+      await Promise.all(
+        productions.map(async (production) => {
+          const cases = await listProductionCases(production.id, API_BASE_URL).catch(() => []);
+          await Promise.all(
+            cases.map((item) => deleteCase(item.id, API_BASE_URL).catch(() => undefined))
+          );
+          await deleteProduction(production.id, API_BASE_URL).catch(() => undefined);
+        })
+      );
+    })();
+  }
+  return sharedDeskReset;
+}
 
 const STATUS_LABELS: Record<ProductionStatus, string> = {
   development: 'Development',
@@ -365,20 +390,6 @@ export function Dashboard() {
     [activeProductionId]
   );
 
-  const ensureFeaturedDemoCases = useCallback(async (productionId: string, existing: Case[]) => {
-    const missing = missingFeaturedDemoScripts(existing);
-    if (missing.length === 0) {
-      return existing;
-    }
-    for (const sample of missing) {
-      await createCase(
-        { script_text: sample.script, production_id: productionId, title: sample.title },
-        API_BASE_URL
-      );
-    }
-    return listProductionCases(productionId, API_BASE_URL);
-  }, []);
-
   const refreshProductionCases = useCallback(async (productionId: string) => {
     setIsLoadingProductionCases(true);
     try {
@@ -421,18 +432,16 @@ export function Dashboard() {
     setWalkthroughBusy(true);
     setError(null);
     try {
-      const list = await listProductions(API_BASE_URL);
-      let production = list.find((item) => item.title === DEMO_PRODUCTION_TITLE) ?? null;
-      if (!production) {
-        production = await createProduction(
-          {
-            title: DEMO_PRODUCTION_TITLE,
-            studio: 'RightsRadar Demo Unit',
-            roster: DEMO_ROSTER
-          },
-          API_BASE_URL
-        );
-      }
+      sharedDeskReset = null;
+      await resetSharedDemoDesk();
+      const production = await createProduction(
+        {
+          title: DEMO_PRODUCTION_TITLE,
+          studio: 'RightsRadar Demo Unit',
+          roster: DEMO_ROSTER
+        },
+        API_BASE_URL
+      );
       const sample = DEMO_MATRIX_SCRIPT;
       const nextCase = await createCase(
         {
@@ -506,6 +515,17 @@ export function Dashboard() {
     (async () => {
       setIsLoadingProductions(true);
       try {
+        const freshLaunch = markFreshDemoLaunch(window.sessionStorage, window.localStorage);
+        if (freshLaunch || sharedDeskReset) {
+          await resetSharedDemoDesk();
+          if (cancelled) return;
+          setProductions([]);
+          setProductionCases([]);
+          setActiveProductionId(null);
+          setOpenedCase(null);
+          setView({ kind: 'home' });
+          return;
+        }
         const list = await listProductions(API_BASE_URL);
         if (cancelled) return;
         setProductions(list);
@@ -543,19 +563,7 @@ export function Dashboard() {
     let cancelled = false;
     (async () => {
       try {
-        let cases = await listProductionCases(activeProductionId, API_BASE_URL);
-        if (activeProduction?.title === DEMO_PRODUCTION_TITLE && !demoFullCase && !coachOpen) {
-          const extras = duplicateCaseIdsToRemove(cases);
-          if (extras.length > 0) {
-            await Promise.all(extras.map((caseId) => deleteCase(caseId, API_BASE_URL)));
-            cases = await listProductionCases(activeProductionId, API_BASE_URL);
-          }
-          const nextCases = await ensureFeaturedDemoCases(activeProductionId, cases);
-          if (nextCases !== cases || extras.length > 0) {
-            cases = nextCases;
-            await refreshProductions();
-          }
-        }
+        const cases = await listProductionCases(activeProductionId, API_BASE_URL);
         if (cancelled) return;
         setProductionCases(cases);
       } catch {
@@ -565,14 +573,7 @@ export function Dashboard() {
     return () => {
       cancelled = true;
     };
-  }, [
-    activeProduction?.title,
-    activeProductionId,
-    coachOpen,
-    demoFullCase,
-    ensureFeaturedDemoCases,
-    refreshProductions
-  ]);
+  }, [activeProductionId]);
 
   async function submitProduction(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();

@@ -1,10 +1,13 @@
 import { describe, expect, it } from 'vitest';
 import {
+  DEMO_CHOICE_KEY,
   DEMO_MATRIX_SCRIPT,
   DEMO_SCRIPTS,
+  DEMO_SESSION_KEY,
   DEMO_TWO_LEAD_SCRIPT,
   FEATURED_DEMO_SCRIPTS,
   duplicateCaseIdsToRemove,
+  markFreshDemoLaunch,
   missingFeaturedDemoScripts,
   pickSampleScript,
   recordUsedScriptIds
@@ -83,6 +86,27 @@ describe('demo sample-script picker', () => {
         }
       ])
     ).toEqual(['old-nimbus']);
+  });
+
+  it('treats the first tab load as a fresh shared-desk launch', () => {
+    const session = new Map<string, string>();
+    const local = new Map<string, string>([[DEMO_CHOICE_KEY, 'self-serve']]);
+    const sessionStore = {
+      getItem: (key: string) => session.get(key) ?? null,
+      setItem: (key: string, value: string) => {
+        session.set(key, value);
+      }
+    };
+    const localStore = {
+      removeItem: (key: string) => {
+        local.delete(key);
+      }
+    };
+
+    expect(markFreshDemoLaunch(sessionStore, localStore)).toBe(true);
+    expect(session.get(DEMO_SESSION_KEY)).toBe('1');
+    expect(local.has(DEMO_CHOICE_KEY)).toBe(false);
+    expect(markFreshDemoLaunch(sessionStore, localStore)).toBe(false);
   });
 
   it('avoids the last used id even after the unused pool is exhausted', () => {

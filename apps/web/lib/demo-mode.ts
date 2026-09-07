@@ -3,7 +3,9 @@ import type { ProductionMemberInput } from '@rightsrader/api-client';
 export const DEMO_CHOICE_KEY = 'rightsrader.demo.choice';
 export const DEMO_LAST_SCRIPT_KEY = 'rightsrader.demo.lastScriptId';
 export const DEMO_USED_SCRIPTS_KEY = 'rightsrader.demo.usedScriptIds';
+export const DEMO_SESSION_KEY = 'rightsrader.demo.session';
 export const DEMO_PRODUCTION_TITLE = 'RightsRadar Demo Desk';
+export const DEMO_ACTIVE_MEMBER_KEY = 'rightsrader.activeMemberId';
 
 export type DemoChoice = 'walkthrough' | 'self-serve';
 
@@ -219,6 +221,25 @@ export function writeDemoChoice(choice: DemoChoice): void {
   if (!canUseStorage()) return;
   window.localStorage.setItem(DEMO_CHOICE_KEY, choice);
   emitDemoChoiceChange();
+}
+
+/**
+ * First load of a browser tab is a new visitor on the shared desk.
+ * Later reloads in that tab keep the in-progress tour.
+ */
+export function markFreshDemoLaunch(
+  session: Pick<Storage, 'getItem' | 'setItem'> | null,
+  local: Pick<Storage, 'removeItem'> | null
+): boolean {
+  if (!session || !local) return false;
+  if (session.getItem(DEMO_SESSION_KEY)) return false;
+  session.setItem(DEMO_SESSION_KEY, '1');
+  local.removeItem(DEMO_CHOICE_KEY);
+  local.removeItem(DEMO_LAST_SCRIPT_KEY);
+  local.removeItem(DEMO_USED_SCRIPTS_KEY);
+  local.removeItem(DEMO_ACTIVE_MEMBER_KEY);
+  emitDemoChoiceChange();
+  return true;
 }
 
 export function readLastScriptId(): string | undefined {
