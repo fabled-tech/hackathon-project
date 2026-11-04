@@ -1,0 +1,98 @@
+{
+  "url": "http://127.0.0.1:5190/",
+  "errors": [],
+  "info": {
+    "chip": "Pre-processed real run, recorded Oct 25, 2026, 10:47 PM PT",
+    "validatorChip": "Validator report recorded Oct 25, 2026, 11:03 PM PT · WARN",
+    "visibleControls": [],
+    "lods": [
+      {
+        "level": 0,
+        "tris": 19200,
+        "manifestTris": 19200,
+        "format": "glb"
+      },
+      {
+        "level": 1,
+        "tris": 10000,
+        "manifestTris": 10000,
+        "format": "glb"
+      },
+      {
+        "level": 2,
+        "tris": 5000,
+        "manifestTris": 5000,
+        "format": "glb"
+      },
+      {
+        "level": 3,
+        "tris": 2000,
+        "manifestTris": 2000,
+        "format": "glb"
+      }
+    ],
+    "loadErrors": [],
+    "headline": "WARN\npass 10 · warn 2 · fail 0 · not checked 4 · total 16 · flagged 2\ncomplete: no (some checks not run)\nDEMO PLACEHOLDER VALUESProfile: DEMO PLACEHOLDER VALUES - not a real studio spec (static prop)\nManifest: <frozen-run>/manifest.json · 4 LODs listed\nUp axis (manifest check): source Y · export Z · FBX Z",
+    "normals": "✓\nPASS\nnormals.flipped\n· validator (authoritative)\nValidator (authoritative): 0 of 36,200 triangles flagged. Reversed winding: 0. Stored normals against face: 0. Flagged by both: 0. browser check: GLB preview, same definition: agrees (0 of 36,200).",
+    "license": {
+      "credit": "Helen Adams Keller by Onorio Ruotolo, 1916. National Portrait Gallery, Smithsonian Institution (NPG.75.16). 3D model via Smithsonian 3D, CC0.\nFabled is not affiliated with or endorsed by the Smithsonian Institution.",
+      "creditHref": "https://3d.si.edu/object/3d/helen-adams-keller:d8c64ccc-4ebc-11ea-b77f-2e728ce88125",
+      "leftCredit": "Helen Adams Keller by Onorio Ruotolo, 1916. National Portrait Gallery, Smithsonian Institution (NPG.75.16). 3D model via Smithsonian 3D, CC0.\nFabled is not affiliated with or endorsed by the Smithsonian Institution.",
+      "titleish": "Fabled · Sculpt to Unreal (prototype) | Fabled\nFrom sculpt to screen\nPROTOTYPE STAGE\nPre-processed real run, recorded Oct 25, 2026, 10:47 PM PT\nValidator report recorded Oct 25, 2026, 11:03 PM PT · WARN | 01 Sculpt | Sample asset: historical bust scan (CC0) | 02 Import profile | 03 Pre-import check | BROWSER CHECKS\ncomputed from loaded mesh | PIPELINE RUN\npre-processed real run | Sample asset: historical bust scan (CC0) | VALIDATOR REPORT\nfabled_validator 0.2.0 · real report (recorded)",
+      "logos": []
+    },
+    "validatorStatus": {
+      "report": "warn",
+      "shown": "warn",
+      "cls": "ostatus warn",
+      "tag": "DEMO PLACEHOLDER VALUES",
+      "profileTag": "DEMO PLACEHOLDER VALUES"
+    }
+  },
+  "requests": [
+    "http://127.0.0.1:5190/",
+    "http://127.0.0.1:5190/styles.css",
+    "http://127.0.0.1:5190/app.js",
+    "http://127.0.0.1:5190/loaders.js",
+    "http://127.0.0.1:5190/checks.js",
+    "http://127.0.0.1:5190/meshops.js",
+    "http://127.0.0.1:5190/viewer.js",
+    "http://127.0.0.1:5190/vendor/three/examples/jsm/loaders/OBJLoader.js",
+    "http://127.0.0.1:5190/vendor/three/examples/jsm/loaders/PLYLoader.js",
+    "http://127.0.0.1:5190/vendor/three/examples/jsm/loaders/STLLoader.js",
+    "http://127.0.0.1:5190/vendor/three/examples/jsm/loaders/GLTFLoader.js",
+    "http://127.0.0.1:5190/vendor/three/examples/jsm/controls/OrbitControls.js",
+    "http://127.0.0.1:5190/vendor/three/examples/jsm/loaders/FBXLoader.js",
+    "http://127.0.0.1:5190/vendor/three/examples/jsm/curves/NURBSCurve.js",
+    "http://127.0.0.1:5190/vendor/three/examples/jsm/utils/BufferGeometryUtils.js",
+    "http://127.0.0.1:5190/vendor/three/examples/jsm/libs/fflate.module.js",
+    "http://127.0.0.1:5190/vendor/three/build/three.module.js",
+    "http://127.0.0.1:5190/vendor/three/examples/jsm/curves/NURBSUtils.js",
+    "http://127.0.0.1:5190/demo-data/demo.json",
+    "http://127.0.0.1:5190/fonts/PlayfairDisplay.ttf",
+    "http://127.0.0.1:5190/demo-data/manifest.json",
+    "http://127.0.0.1:5190/demo-data/validator_profile.json",
+    "http://127.0.0.1:5190/fonts/Inter.ttf",
+    "http://127.0.0.1:5190/demo-data/validator_report.json",
+    "http://127.0.0.1:5190/demo-data/display/T_HelenKellerBust_N.webp",
+    "http://127.0.0.1:5190/demo-data/display/T_HelenKellerBust_ORM.webp",
+    "http://127.0.0.1:5190/demo-data/export/SM_HelenKellerBust_LOD0.glb",
+    "http://127.0.0.1:5190/demo-data/export/SM_HelenKellerBust_LOD1.glb",
+    "http://127.0.0.1:5190/demo-data/export/SM_HelenKellerBust_LOD2.glb",
+    "http://127.0.0.1:5190/demo-data/export/SM_HelenKellerBust_LOD3.glb",
+    "http://127.0.0.1:5190/demo-data/previews/compare_shaded_highpoly_vs_lod0.png",
+    "http://127.0.0.1:5190/demo-data/previews/closeup_wire_highpoly_vs_lod0.png",
+    "http://127.0.0.1:5190/demo-data/previews/lod_strip_wire.png",
+    "http://127.0.0.1:5190/demo-data/previews/normal_map_texture_1024.png",
+    "http://127.0.0.1:5190/demo-data/previews/ao_map_texture_1024.png",
+    "http://127.0.0.1:5190/demo-data/previews/normal_map_on_lod0.png",
+    "http://127.0.0.1:5190/demo-data/previews/compare_wire_highpoly_lod0_lodN.png",
+    "http://127.0.0.1:5190/demo-data/previews/uv_layout_lod0.png",
+    "http://127.0.0.1:5190/demo-data/previews/raw/lod0_shaded_normalmap.png",
+    "http://127.0.0.1:5190/demo-data/previews/raw/lod3_wire.png",
+    "http://127.0.0.1:5190/demo-data/previews/raw/lod0_wire.png",
+    "http://127.0.0.1:5190/demo-data/previews/raw/hp_shaded.png",
+    "http://127.0.0.1:5190/demo-data/validator_report.json",
+    "http://127.0.0.1:5190/demo-data/validator_profile.json"
+  ]
+}

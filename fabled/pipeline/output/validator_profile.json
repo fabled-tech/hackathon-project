@@ -1,0 +1,20 @@
+{
+  "_comment": "Pipeline smoke-test profile for a static bust prop. Example values chosen by the pipeline engineer, not a studio's real rules.",
+  "profile_name": "Fabled pipeline smoke test - static bust prop (example values)",
+  "profile_version": "0.1",
+  "asset_type": "prop",
+  "units": { "assumed_source_units": "cm", "trust_file_units": true, "expected_height_cm": { "min": 20, "max": 80 } },
+  "axes": { "up": "Z", "min_up_ratio": 0.9 },
+  "lods": { "triangle_budgets": [20000, 10000, 5000, 2000], "min_count": 4, "name_pattern": "(?i)(?:^|[_\\-. ])LOD(\\d+)$" },
+  "materials": { "max_count": 1, "required_texture_slots": ["Normal", "ORM"] },
+  "textures": {
+    "naming_regex": "^T_[A-Za-z0-9]+_(BC|N|ORM|E|M)\\.(png|tga|jpg|jpeg)$",
+    "slot_suffixes": { "BaseColor": "_BC", "Normal": "_N", "ORM": "_ORM" },
+    "require_power_of_two": true, "max_resolution": 4096
+  },
+  "uv": { "require_uv0": true, "udim": false, "tolerance": 0.0001 },
+  "texel_density": { "target_px_per_cm": 25.6, "tolerance_pct": 25, "severity": "warn", "reference_slot": "Normal" },
+  "geometry": { "max_degenerate_triangles": 0, "allow_open_boundaries": true },
+  "normals": { "max_flipped_faces": 0 },
+  "skeleton": { "required": false, "root_bone_name": "root", "bone_name_regex": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$", "require_all_meshes_skinned": false }
+}

@@ -1,0 +1,106 @@
+{
+  "_comment": "Fabled mesh pipeline config. Tri budgets are triangles AFTER triangulation (what Unreal counts).",
+  "asset_name": null,
+  "source_up_axis": "Y",
+  "_source_up_axis_note": "Used when fabled_profile.up_axis is absent. Y = source is Y-up (rotated to Z-up on import); Z = already Z-up.",
+  "source_units_to_m": 0.0254,
+  "_source_units_note": "Smithsonian lists the download as 'scale in mm', but the mesh measures 20.91 x 8.11 x 11.09 units (H x W x D). Catalogue dims for NPG.75.16 with base are 50.5 x 21.9 x 26.7 cm. mm would give a 2.1 cm bust and cm a 21 cm one; inches give 53.1 x 20.6 x 28.2 cm (within ~6% of the catalogue), so the file is treated as inches (0.0254 m/unit). This is an inference from measurements, not a documented unit.",
+  "reference_dims_cm": [
+    50.5,
+    21.9,
+    26.7
+  ],
+  "_reference_dims_note": "Catalogue H x W x D with base, from https://npg.si.edu/object/npg_NPG.75.16",
+  "expected_height_cm_range": [
+    20,
+    80
+  ],
+  "bake_source_max_tris": 0,
+  "_bake_source_note": "0 = bake from the full-resolution sculpt. Set e.g. 2000000 to pre-decimate the bake source if RAM is tight.",
+  "retopo_proxy_tris": 200000,
+  "retopo": {
+    "method_order": [
+      "quadriflow",
+      "voxel_quadriflow",
+      "voxel_decimate"
+    ],
+    "quadriflow_timeout_s": 600,
+    "quadriflow_seed": 0,
+    "voxel_size_fraction_of_height": 0.004,
+    "quadriflow_solve_heights_m": [
+      1.0,
+      10.0,
+      50.0,
+      200.0
+    ],
+    "_quadriflow_note": "QuadriFlow is run on a copy scaled so its largest dimension equals each solve height in turn (Blender's pre-check rejects small real-world-sized meshes); first height that QuadriFlow accepts wins."
+  },
+  "lods": [
+    {
+      "name": "LOD0",
+      "target_tris": 20000,
+      "screen_size": 1.0
+    },
+    {
+      "name": "LOD1",
+      "target_tris": 10000,
+      "screen_size": 0.5
+    },
+    {
+      "name": "LOD2",
+      "target_tris": 5000,
+      "screen_size": 0.25
+    },
+    {
+      "name": "LOD3",
+      "target_tris": 2000,
+      "screen_size": 0.125
+    }
+  ],
+  "lod_tolerance": 0.1,
+  "uv": {
+    "method": "smart_project",
+    "angle_limit_deg": 66.0,
+    "pack_margin_fraction": 0.004,
+    "overlap_check_resolution": 2048
+  },
+  "bake": {
+    "resolution": 2048,
+    "samples": 4,
+    "margin_px": 16,
+    "cage_extrusion_fraction_of_height": 0.01,
+    "max_ray_distance_fraction_of_height": 0.03,
+    "normal_convention": "DirectX",
+    "color_depth": "16",
+    "threads": 8,
+    "ao": {
+      "enabled": true,
+      "samples": 16,
+      "distance_fraction_of_height": 0.15,
+      "orm_roughness_constant": 0.6,
+      "orm_metallic_constant": 0.0,
+      "_note": "AO is baked from the high-poly onto LOD0 into ORM.R; roughness (G) and metallic (B) are constants, not measured."
+    }
+  },
+  "export": {
+    "unreal_units": "cm",
+    "axis_forward": "-Y",
+    "axis_up": "Z",
+    "mesh_smooth_type": "FACE",
+    "use_triangles": true,
+    "use_tspace": true
+  },
+  "previews": {
+    "resolution": 1024,
+    "samples": 24,
+    "camera_azimuth_deg": 15.0,
+    "camera_elevation_deg": 8.0,
+    "closeup_center_frac": 0.77,
+    "closeup_height_frac": 0.5
+  },
+  "limits": {
+    "max_rss_mb": 10500,
+    "min_mem_available_mb": 700
+  },
+  "_asset_name_note": "null = derived from the input file stem (sanitised for Unreal names). Override with --asset-name or by setting this key."
+}

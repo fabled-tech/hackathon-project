@@ -1,0 +1,74 @@
+{
+  "file": "HK_NPG_75_16-full_resolution-obj.obj",
+  "name": "Helen Adams Keller (bust), Onorio Ruotolo, 1916, plaster and paint. National Portrait Gallery NPG.75.16. Smithsonian 3D scan, full-resolution OBJ",
+  "url": "https://npg.si.edu/object/npg_NPG.75.16",
+  "record_urls": {
+    "npg_object_page": "https://npg.si.edu/object/npg_NPG.75.16",
+    "smithsonian_3d_viewer": "https://3d-api.si.edu/voyager/3d_package:d8c64ccc-4ebc-11ea-b77f-2e728ce88125",
+    "smithsonian_3d_object_page": "https://3d.si.edu/object/3d/helen-adams-keller:d8c64ccc-4ebc-11ea-b77f-2e728ce88125",
+    "download": "https://3d-api.si.edu/content/document/3d_package:d8c64ccc-4ebc-11ea-b77f-2e728ce88125/resources/HK_NPG_75_16-full_resolution-obj.zip",
+    "open_access_api_guid": "http://n2t.net/ark:/65665/sm4868329f5-a9c2-4734-bbdd-08fdd60ab0a4"
+  },
+  "license": "CC0",
+  "attribution": "Helen Adams Keller by Onorio Ruotolo, 1916. National Portrait Gallery, Smithsonian Institution (NPG.75.16). 3D model from Smithsonian 3D (3d.si.edu). CC0: attribution not required; given as the Smithsonian requests.",
+  "credit_line": "National Portrait Gallery, Smithsonian Institution",
+  "downloaded": "2026-10-25",
+  "zip_bytes": 193816980,
+  "obj_bytes": 748898350,
+  "license_as_stated": "Restrictions & Rights: CC0 / 'CCO - Creative Commons (CC0 1.0) This media is in the public domain (free of copyright restrictions). You can copy, modify, and distribute this work without contacting the Smithsonian.'",
+  "license_url": "https://npg.si.edu/object/npg_NPG.75.16",
+  "license_terms_url": "https://creativecommons.org/publicdomain/zero/1.0/",
+  "catalogue_dimensions_verbatim": [
+    "Without Base: 27.3 \u00d7 21.9 \u00d7 18.4 cm (10 3/4 \u00d7 8 5/8 \u00d7 7 1/4\")",
+    "Base: 23.2 \u00d7 17.8 \u00d7 18.4 cm (9 1/8 \u00d7 7 \u00d7 7 1/4\")",
+    "With Base: 50.5 \u00d7 21.9 \u00d7 26.7 cm (19 7/8 \u00d7 8 5/8 \u00d7 10 1/2\")"
+  ],
+  "catalogue_dimensions_source": "https://npg.si.edu/object/npg_NPG.75.16 (fetched 2026-10-25)",
+  "units": {
+    "smithsonian_download_label": "Full resolution 3D mesh, obj, scale in mm (per Open Access API resource title)",
+    "raw_obj_bbox_source_units_xyz": [
+      8.1116,
+      20.907,
+      11.089
+    ],
+    "raw_obj_up_axis": "Y (tallest extent is Y; the OBJ was written by Blender 2.80 with its default Y-up OBJ convention)",
+    "candidates": [
+      {
+        "unit": "mm (as labelled)",
+        "height_cm": 2.09,
+        "verdict": "rejected: a 2 cm bust contradicts the catalogue"
+      },
+      {
+        "unit": "cm",
+        "height_cm": 20.91,
+        "dims_cm_HWD": [
+          20.91,
+          8.11,
+          11.09
+        ],
+        "verdict": "rejected: too small vs 50.5 cm with base, and width 8.1 cm vs 21.9 cm"
+      },
+      {
+        "unit": "inch",
+        "height_cm": 53.1,
+        "dims_cm_HWD": [
+          53.11,
+          20.6,
+          28.17
+        ],
+        "verdict": "used: within 5% (H), 6% (W), 5% (D) of the catalogue's with-base 50.5 x 21.9 x 26.7 cm"
+      }
+    ],
+    "base_in_scan": "Yes. The renders show the head on a rectangular plinth, so the 'With Base' catalogue dimensions are the right comparison.",
+    "pipeline_uses": {
+      "source_units_to_m": 0.0254,
+      "reason": "inch is the only candidate that matches all three catalogue dimensions within ~6%"
+    },
+    "needs_human_confirmation": true
+  },
+  "license_evidence": [
+    "npg.si.edu/object/npg_NPG.75.16 (fetched 2026-10-25): 'Restrictions & Rights: CC0'; each media block: 'CCO - Creative Commons (CC0 1.0) ... public domain'.",
+    "Smithsonian Open Access API (api.si.edu/openaccess, fetched 2026-10-25): 3D media 3d_package:d8c64ccc-4ebc-11ea-b77f-2e728ce88125 on record npg_NPG.75.16 has usage.access='CC0' and empty usage.text (no extra restrictions).",
+    "The 3d.si.edu object page returned HTTP 403 to this box, so its wording was not read directly."
+  ]
+}

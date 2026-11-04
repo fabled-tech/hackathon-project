@@ -1,0 +1,616 @@
+{
+  "manifest_summary": {
+    "asset": "HelenKellerBust",
+    "status": "ok",
+    "error": null,
+    "created_at": "2026-11-03T19:53:39-08:00"
+  },
+  "blender_version": "native-numpy-engine-0.1",
+  "input": {
+    "sculpt_path": "../../ui/samples/fabled_sample_head.glb",
+    "sculpt_path_abs": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/ui/samples/fabled_sample_head.glb",
+    "format": "glb",
+    "bytes": null,
+    "triangles": 327680,
+    "vertices": 163842,
+    "dims_cm": [
+      51.06,
+      55.99,
+      53.09
+    ],
+    "source_url": null,
+    "license": null,
+    "attribution": null
+  },
+  "source": {},
+  "config_used": {
+    "_comment": "Fabled mesh pipeline config. Tri budgets are triangles AFTER triangulation (what Unreal counts).",
+    "asset_name": "HelenKellerBust",
+    "source_up_axis": "Y",
+    "_source_up_axis_note": "Used when fabled_profile.up_axis is absent. Y = source is Y-up (rotated to Z-up on import); Z = already Z-up.",
+    "source_units_to_m": 0.0254,
+    "_source_units_note": "Smithsonian lists the download as 'scale in mm', but the mesh measures 20.91 x 8.11 x 11.09 units (H x W x D). Catalogue dims for NPG.75.16 with base are 50.5 x 21.9 x 26.7 cm. mm would give a 2.1 cm bust and cm a 21 cm one; inches give 53.1 x 20.6 x 28.2 cm (within ~6% of the catalogue), so the file is treated as inches (0.0254 m/unit). This is an inference from measurements, not a documented unit.",
+    "reference_dims_cm": [
+      50.5,
+      21.9,
+      26.7
+    ],
+    "_reference_dims_note": "Catalogue H x W x D with base, from https://npg.si.edu/object/npg_NPG.75.16",
+    "expected_height_cm_range": [
+      20,
+      80
+    ],
+    "bake_source_max_tris": 0,
+    "_bake_source_note": "0 = bake from the full-resolution sculpt. Set e.g. 2000000 to pre-decimate the bake source if RAM is tight.",
+    "retopo_proxy_tris": 200000,
+    "retopo": {
+      "method_order": [
+        "quadriflow",
+        "voxel_quadriflow",
+        "voxel_decimate"
+      ],
+      "quadriflow_timeout_s": 600,
+      "quadriflow_seed": 0,
+      "voxel_size_fraction_of_height": 0.004,
+      "quadriflow_solve_heights_m": [
+        1.0,
+        10.0,
+        50.0,
+        200.0
+      ],
+      "_quadriflow_note": "QuadriFlow is run on a copy scaled so its largest dimension equals each solve height in turn (Blender's pre-check rejects small real-world-sized meshes); first height that QuadriFlow accepts wins."
+    },
+    "lods": [
+      {
+        "name": "LOD0",
+        "target_tris": 20000,
+        "screen_size": 1.0
+      },
+      {
+        "name": "LOD1",
+        "target_tris": 10000,
+        "screen_size": 0.5
+      },
+      {
+        "name": "LOD2",
+        "target_tris": 5000,
+        "screen_size": 0.25
+      },
+      {
+        "name": "LOD3",
+        "target_tris": 2000,
+        "screen_size": 0.125
+      }
+    ],
+    "lod_tolerance": 0.1,
+    "uv": {
+      "method": "smart_project",
+      "angle_limit_deg": 66.0,
+      "pack_margin_fraction": 0.004,
+      "overlap_check_resolution": 2048
+    },
+    "bake": {
+      "resolution": 2048,
+      "samples": 4,
+      "margin_px": 16,
+      "cage_extrusion_fraction_of_height": 0.01,
+      "max_ray_distance_fraction_of_height": 0.03,
+      "normal_convention": "DirectX",
+      "color_depth": "16",
+      "threads": 8,
+      "ao": {
+        "enabled": true,
+        "samples": 16,
+        "distance_fraction_of_height": 0.15,
+        "orm_roughness_constant": 0.6,
+        "orm_metallic_constant": 0.0,
+        "_note": "AO is baked from the high-poly onto LOD0 into ORM.R; roughness (G) and metallic (B) are constants, not measured."
+      }
+    },
+    "export": {
+      "unreal_units": "cm",
+      "axis_forward": "-Y",
+      "axis_up": "Z",
+      "mesh_smooth_type": "FACE",
+      "use_triangles": true,
+      "use_tspace": true
+    },
+    "previews": {
+      "resolution": 1024,
+      "samples": 24,
+      "camera_azimuth_deg": 15.0,
+      "camera_elevation_deg": 8.0,
+      "closeup_center_frac": 0.77,
+      "closeup_height_frac": 0.5
+    },
+    "limits": {
+      "max_rss_mb": 10500,
+      "min_mem_available_mb": 700
+    },
+    "_asset_name_note": "null = derived from the input file stem (sanitised for Unreal names). Override with --asset-name or by setting this key."
+  },
+  "driver": {
+    "step_runs": {
+      "01": [
+        {
+          "label": "01_import",
+          "script": "01_import.py",
+          "returncode": 0,
+          "wall_s": 0.04,
+          "peak_rss_mb": 240,
+          "killed": null,
+          "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/01_import.log"
+        }
+      ],
+      "02": [
+        {
+          "label": "02_quadriflow",
+          "script": "02_quadriflow.py",
+          "returncode": 0,
+          "wall_s": 0.56,
+          "peak_rss_mb": 240,
+          "killed": null,
+          "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/02_quadriflow.log"
+        }
+      ],
+      "03": [
+        {
+          "label": "03_uv_unwrap",
+          "script": "03_uv_unwrap.py",
+          "returncode": 0,
+          "wall_s": 0.0,
+          "peak_rss_mb": 240,
+          "killed": null,
+          "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/03_uv_unwrap.log"
+        }
+      ],
+      "04": [
+        {
+          "label": "04_lod_generation",
+          "script": "04_lod_generation.py",
+          "returncode": 0,
+          "wall_s": 0.21,
+          "peak_rss_mb": 240,
+          "killed": null,
+          "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/04_lod_generation.log"
+        }
+      ],
+      "05": [
+        {
+          "label": "05_texture_bake",
+          "script": "05_texture_bake.py",
+          "returncode": 0,
+          "wall_s": 0.26,
+          "peak_rss_mb": 240,
+          "killed": null,
+          "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/05_texture_bake.log"
+        }
+      ],
+      "06": [
+        {
+          "label": "06_fbx_export",
+          "script": "06_fbx_export.py",
+          "returncode": 0,
+          "wall_s": 0.03,
+          "peak_rss_mb": 240,
+          "killed": null,
+          "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/06_fbx_export.log"
+        }
+      ],
+      "07": [
+        {
+          "label": "07_previews",
+          "script": "07_previews.py",
+          "returncode": 0,
+          "wall_s": 1.06,
+          "peak_rss_mb": 240,
+          "killed": null,
+          "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/07_previews.log"
+        }
+      ],
+      "08": [
+        {
+          "label": "08_preview_composites",
+          "script": "08_preview_composites.py",
+          "returncode": 0,
+          "wall_s": 0.05,
+          "peak_rss_mb": 240,
+          "killed": null,
+          "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/08_preview_composites.log"
+        }
+      ]
+    },
+    "validator_profile": true,
+    "retopo_method_used": "quadriflow",
+    "retopo_attempts": [
+      {
+        "method": "quadriflow",
+        "success": true,
+        "error": null
+      }
+    ]
+  },
+  "step01_import": {
+    "input_path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/ui/samples/fabled_sample_head.glb",
+    "input_format": ".glb",
+    "source_has_armature": false,
+    "highpoly": {
+      "verts": 163842,
+      "faces": 327680,
+      "tris": 327680,
+      "dims_m": [
+        0.51062,
+        0.5599,
+        0.53089
+      ],
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "welded": {
+        "non_manifold_edges": 0,
+        "boundary_edges": 0,
+        "non_manifold_verts": 0,
+        "loose_parts": 1,
+        "loose_part_vert_counts": [
+          163842
+        ]
+      }
+    },
+    "scale_check": {
+      "up_axis_used": "Y",
+      "source_units_to_m": 0.015512,
+      "height_cm_after_conversion": 53.09,
+      "expected_height_cm_range": [
+        20,
+        80
+      ],
+      "status": "ok",
+      "reference_comparison": {
+        "dims_cm": [
+          51.062,
+          55.99,
+          53.089
+        ]
+      }
+    }
+  },
+  "step02_prep": {
+    "stage": "prep",
+    "source_tris": 327680,
+    "proxy_decimated": true,
+    "proxy_repair": {
+      "faces_removed_nonmanifold": 0,
+      "holes_filled_faces": 0,
+      "passes": 1
+    }
+  },
+  "step02_retopo": {
+    "stage": "quadriflow",
+    "success": true,
+    "lod0": {
+      "verts": 9329,
+      "faces": 18636,
+      "tris": 18636,
+      "quads": 0,
+      "ngons": 0,
+      "dims_m": [
+        0.50826,
+        0.55673,
+        0.52892
+      ],
+      "non_manifold_edges": 0,
+      "boundary_edges": 0
+    }
+  },
+  "retopo_method_used": "quadriflow",
+  "step03_uv": {
+    "island_count": 64,
+    "flipped_uv_faces": 0,
+    "faces_outside_0_1": 0,
+    "overlap_pixels_between_islands": 0,
+    "overlap_check_resolution": 2048,
+    "uv_utilization_pct": 18.32,
+    "uv_area_sum": 0.18325,
+    "surface_area_cm2": 7329.82,
+    "texel_density_px_per_cm_at_bake_res": 10.24
+  },
+  "step04_lods": {
+    "lods": [
+      {
+        "name": "LOD0",
+        "target_tris": 20000,
+        "actual_tris": 18636,
+        "verts": 9329,
+        "delta_pct": -6.82,
+        "within_tolerance": true,
+        "uv_islands": 64,
+        "source": "retopo"
+      },
+      {
+        "name": "LOD1",
+        "target_tris": 10000,
+        "actual_tris": 9334,
+        "verts": 4681,
+        "delta_pct": -6.66,
+        "within_tolerance": true,
+        "uv_islands": 64,
+        "source": "LOD0"
+      },
+      {
+        "name": "LOD2",
+        "target_tris": 5000,
+        "actual_tris": 4493,
+        "verts": 2270,
+        "delta_pct": -10.14,
+        "within_tolerance": true,
+        "uv_islands": 64,
+        "source": "LOD0"
+      },
+      {
+        "name": "LOD3",
+        "target_tris": 2000,
+        "actual_tris": 1836,
+        "verts": 928,
+        "delta_pct": -8.2,
+        "within_tolerance": true,
+        "uv_islands": 64,
+        "source": "LOD0"
+      }
+    ]
+  },
+  "step05_bake": {
+    "texture_path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/T_HelenKellerBust_N.png",
+    "resolution": 2048,
+    "normal_convention": "DirectX",
+    "base_color": null,
+    "base_color_note": "the source has no colour data",
+    "orm": {
+      "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/T_HelenKellerBust_ORM.png",
+      "resolution": 2048,
+      "channels": {
+        "r": {
+          "source": "ambient_occlusion"
+        },
+        "g": {
+          "source": "constant",
+          "constant": 0.6
+        },
+        "b": {
+          "source": "constant",
+          "constant": 0.0
+        }
+      }
+    }
+  },
+  "step06_export": {
+    "files": [
+      {
+        "lod": "LOD0",
+        "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD0.fbx",
+        "bytes": 2985856,
+        "object": "SM_HelenKellerBust_LOD0",
+        "kind": "per_lod_fbx"
+      },
+      {
+        "lod": "LOD1",
+        "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD1.fbx",
+        "bytes": 1497600,
+        "object": "SM_HelenKellerBust_LOD1",
+        "kind": "per_lod_fbx"
+      },
+      {
+        "lod": "LOD2",
+        "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD2.fbx",
+        "bytes": 723264,
+        "object": "SM_HelenKellerBust_LOD2",
+        "kind": "per_lod_fbx"
+      },
+      {
+        "lod": "LOD3",
+        "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD3.fbx",
+        "bytes": 297824,
+        "object": "SM_HelenKellerBust_LOD3",
+        "kind": "per_lod_fbx"
+      },
+      {
+        "lod": "ALL",
+        "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust.fbx",
+        "bytes": 5498400,
+        "object": "SM_HelenKellerBust",
+        "kind": "combined_fbx_lodgroup"
+      }
+    ],
+    "glb_files": [
+      {
+        "lod": "LOD0",
+        "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD0.glb",
+        "bytes": 3358768,
+        "verification": {
+          "bbox_cm_xyz_yup": [
+            51.062,
+            53.089,
+            55.99
+          ],
+          "height_cm_along_Y": 53.089
+        }
+      },
+      {
+        "lod": "LOD1",
+        "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD1.glb",
+        "bytes": 1907656,
+        "verification": {}
+      },
+      {
+        "lod": "LOD2",
+        "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD2.glb",
+        "bytes": 1152456,
+        "verification": {}
+      },
+      {
+        "lod": "LOD3",
+        "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD3.glb",
+        "bytes": 737952,
+        "verification": {}
+      }
+    ],
+    "verification": [
+      {
+        "kind": "combined_fbx_lodgroup",
+        "is_binary_fbx": true,
+        "has_lodgroup_node": true,
+        "dims_cm_reimported": [
+          51.062,
+          55.99,
+          53.089
+        ],
+        "texture_files_referenced": [
+          "T_HelenKellerBust_N.png",
+          "T_HelenKellerBust_ORM.png"
+        ],
+        "fbx_global_settings": {
+          "UpAxis": 2,
+          "UnitScaleFactor": 1.0
+        }
+      }
+    ]
+  },
+  "step07_previews": {
+    "rendered": 9
+  },
+  "previews": [
+    {
+      "path": "previews/compare_shaded_highpoly_vs_lod0.png",
+      "label": "High-poly sculpt vs LOD0 shaded"
+    },
+    {
+      "path": "previews/lod_strip_wire.png",
+      "label": "LOD0 vs lowest LOD wireframe"
+    },
+    {
+      "path": "previews/uv_layout_lod0.png",
+      "label": "LOD0 UV layout"
+    },
+    {
+      "path": "previews/normal_map_texture_1024.png",
+      "label": "Baked tangent-space normal map"
+    },
+    {
+      "path": "previews/ao_map_texture_1024.png",
+      "label": "Baked ORM (AO / Roughness / Metallic)"
+    },
+    {
+      "path": "previews/raw/hp_shaded.png",
+      "label": "High-poly sculpt (render)"
+    },
+    {
+      "path": "previews/raw/lod0_shaded_normalmap.png",
+      "label": "LOD0 + baked normal map"
+    },
+    {
+      "path": "previews/raw/lod0_wire.png",
+      "label": "LOD0 wireframe"
+    },
+    {
+      "path": "previews/raw/lod3_wire.png",
+      "label": "LOD3 wireframe"
+    }
+  ],
+  "warnings": [
+    "Source units inferred, not documented: source_units_to_m=0.0254 -> height 53.09 cm. Smithsonian lists the download as 'scale in mm', but the mesh measures 20.91 x 8.11 x 11.09 units (H x W x D). Catalogue dims for NPG.75.16 with base are 50.5 x 21.9 x 26.7 cm. mm would give a 2.1 cm bust and cm a 21 cm one; inches give 53.1 x 20.6 x 28.2 cm (within ~6% of the catalogue), so the file is treated as inches (0.0254 m/unit). This is an inference from measurements, not a documented unit.",
+    "Static mesh only: the source has no rig/armature and the pipeline does not do skinning (step 'skinning' = not_implemented).",
+    "ORM roughness (G=0.6) and metallic (B=0.0) are constants, not measured; only R (AO) is baked.",
+    "No base colour texture: the source has no colour data, so base_color is null.",
+    "Unreal import not tested: the LodGroup in the combined FBX is written via a runtime patch to Blender's exporter and has only been verified by re-importing into Blender."
+  ],
+  "manual_steps": [
+    "Retopology ran QuadriFlow (automatic quad remesh) on a decimated, repaired proxy of the sculpt. It is not artist retopo: edge loops do not follow facial anatomy or deformation lines. Fine for a static prop, not yet for an animated character.",
+    "UV seams come from Smart UV Project (angle-based), not artist-placed: 64 islands, 18.32% of UV space used.",
+    "LOD1+ are collapse-decimated from LOD0 (triangles) and reuse LOD0's normal map/ORM; no per-LOD bake.",
+    "No base colour: the source has no colour texture. ORM roughness/metallic are constants; only AO (R) is baked.",
+    "The FBX references T_*_ORM.png in the roughness/metallic slots (Blender's exporter has no packed-ORM/AO slot); the Unreal material must pick R/G/B channels. No Unreal material graph is generated.",
+    "Unreal import (scale, LodGroup pickup, material hookup) has NOT been tested in Unreal Editor.",
+    "No collision mesh, no lightmap UV channel, no skeleton/skinning (static mesh only).",
+    "Source units are inferred (inches) from catalogue dimensions; needs human confirmation (see SOURCE.json)."
+  ],
+  "output_files": [
+    {
+      "path": "export/SM_HelenKellerBust.fbx",
+      "bytes": 5498400
+    },
+    {
+      "path": "export/SM_HelenKellerBust_LOD0.fbx",
+      "bytes": 2985856
+    },
+    {
+      "path": "export/SM_HelenKellerBust_LOD0.glb",
+      "bytes": 3358768
+    },
+    {
+      "path": "export/SM_HelenKellerBust_LOD1.fbx",
+      "bytes": 1497600
+    },
+    {
+      "path": "export/SM_HelenKellerBust_LOD1.glb",
+      "bytes": 1907656
+    },
+    {
+      "path": "export/SM_HelenKellerBust_LOD2.fbx",
+      "bytes": 723264
+    },
+    {
+      "path": "export/SM_HelenKellerBust_LOD2.glb",
+      "bytes": 1152456
+    },
+    {
+      "path": "export/SM_HelenKellerBust_LOD3.fbx",
+      "bytes": 297824
+    },
+    {
+      "path": "export/SM_HelenKellerBust_LOD3.glb",
+      "bytes": 737952
+    },
+    {
+      "path": "export/T_HelenKellerBust_N.png",
+      "bytes": 283224
+    },
+    {
+      "path": "export/T_HelenKellerBust_ORM.png",
+      "bytes": 166463
+    },
+    {
+      "path": "previews/ao_map_texture_1024.png",
+      "bytes": 60671
+    },
+    {
+      "path": "previews/compare_shaded_highpoly_vs_lod0.png",
+      "bytes": 93195
+    },
+    {
+      "path": "previews/lod_strip_wire.png",
+      "bytes": 86223
+    },
+    {
+      "path": "previews/normal_map_texture_1024.png",
+      "bytes": 114702
+    },
+    {
+      "path": "previews/uv_layout_lod0.png",
+      "bytes": 8445
+    },
+    {
+      "path": "previews/raw/hp_shaded.png",
+      "bytes": 67172
+    },
+    {
+      "path": "previews/raw/lod0_shaded_normalmap.png",
+      "bytes": 23645
+    },
+    {
+      "path": "previews/raw/lod0_wire.png",
+      "bytes": 57734
+    },
+    {
+      "path": "previews/raw/lod3_wire.png",
+      "bytes": 24834
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "_comment": "EXAMPLE VALUES ONLY. Not a real studio's rules. Replace with the pilot studio's actual import spec. Every field is documented in README.md > Import profile.",
+  "profile_name": "Example Studio - UE5 character (example values)",
+  "profile_version": "0.1",
+  "asset_type": "character",
+  "units": {
+    "assumed_source_units": "cm",
+    "trust_file_units": true,
+    "expected_height_cm": { "min": 150, "max": 220 }
+  },
+  "axes": { "up": "Y", "min_up_ratio": 0.9 },
+  "lods": {
+    "triangle_budgets": [60000, 30000, 15000, 7500],
+    "min_count": 1,
+    "name_pattern": "(?i)(?:^|[_\\-. ])LOD(\\d+)$"
+  },
+  "materials": {
+    "max_count": 4,
+    "required_texture_slots": ["BaseColor", "Normal", "ORM"]
+  },
+  "textures": {
+    "naming_regex": "^T_[A-Za-z0-9]+_(BC|N|ORM|E|M)\\.(png|tga|jpg|jpeg)$",
+    "slot_suffixes": { "BaseColor": "_BC", "Normal": "_N", "ORM": "_ORM" },
+    "require_power_of_two": true,
+    "max_resolution": 4096
+  },
+  "uv": { "require_uv0": true, "udim": false, "tolerance": 0.0001 },
+  "texel_density": { "target_px_per_cm": 10.24, "tolerance_pct": 25, "severity": "warn", "reference_slot": "BaseColor" },
+  "geometry": { "max_degenerate_triangles": 0, "allow_open_boundaries": true },
+  "normals": { "max_flipped_faces": 0 },
+  "skeleton": {
+    "required": true,
+    "root_bone_name": "root",
+    "bone_name_regex": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+    "require_all_meshes_skinned": false
+  }
+}

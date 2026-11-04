@@ -1,0 +1,683 @@
+{
+  "schema_version": "0.2.0",
+  "tool": {
+    "name": "fabled_validator",
+    "version": "0.2.0"
+  },
+  "generated_at": "2026-10-26T06:03:52Z",
+  "generated_at_local": "2026-10-25T23:03:52-07:00",
+  "generated_at_display": "2026-10-25 23:03 PDT",
+  "asset": {
+    "path": "/workspace/fabled-demos/prototype/validator/fixtures/synthetic_pipeline_out_missing_lod/SM_SyntheticProxy.fbx",
+    "file_name": "SM_SyntheticProxy.fbx",
+    "format": "fbx",
+    "sha256": "39c228a78b6e99bd9082b74c28f703b41f51e26f1bc6082521e2de41d5e8e6d2",
+    "size_bytes": 764176,
+    "synthetic_fixture": true,
+    "referenced_files": [
+      {
+        "path": "/workspace/fabled-demos/prototype/validator/fixtures/synthetic_pipeline_out_missing_lod/textures/T_SyntheticProxy_BC.png",
+        "role": "texture (DiffuseColor)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/validator/fixtures/synthetic_pipeline_out_missing_lod/textures/T_SyntheticProxy_N.png",
+        "role": "texture (NormalMap)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/validator/fixtures/synthetic_pipeline_out_missing_lod/textures/T_SyntheticProxy_ORM.png",
+        "role": "texture (ShininessExponent)",
+        "exists": true
+      }
+    ]
+  },
+  "profile": {
+    "name": "DEMO PLACEHOLDER VALUES - not a real studio spec",
+    "path": "/workspace/fabled-demos/prototype/validator/profiles/demo_placeholder.json",
+    "sha256": "92323c1f1098af384418578a14f740d58bf4241e268a5316cbb4a388278562ed"
+  },
+  "manifest": {
+    "path": "/workspace/fabled-demos/prototype/validator/fixtures/synthetic_pipeline_out_missing_lod/manifest.json",
+    "schema": "fabled.pipeline.manifest/0.1",
+    "asset_name": "SyntheticProxy",
+    "combined_fbx": "/workspace/fabled-demos/prototype/validator/fixtures/synthetic_pipeline_out_missing_lod/SM_SyntheticProxy.fbx",
+    "lod_count": 4,
+    "readable": true,
+    "error": null
+  },
+  "overall_status": "fail",
+  "complete": false,
+  "summary": {
+    "pass": 13,
+    "warn": 0,
+    "fail": 1,
+    "not_checked": 2,
+    "total": 16,
+    "flagged": 1
+  },
+  "checks": [
+    {
+      "id": "scale",
+      "group": "Scale & orientation",
+      "title": "Scale (bounding-box height)",
+      "status": "pass",
+      "message": "Height 180.0 cm is inside 150\u2013220 cm.",
+      "measured": {
+        "height_cm": 180.0,
+        "height_file_units": 180.0,
+        "up_axis_used": "Y",
+        "cm_per_file_unit": 1.0,
+        "unit_basis": "FBX GlobalSettings UnitScaleFactor = 1 (cm per unit)",
+        "bbox_extent_cm": [
+          64.0,
+          180.0,
+          24.0
+        ]
+      },
+      "expected": {
+        "height_cm_min": 150,
+        "height_cm_max": 220
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "up_axis",
+      "group": "Scale & orientation",
+      "title": "Up axis",
+      "status": "pass",
+      "message": "Tallest extent is along Y; Y extent is 2.81\u00d7 the widest other axis (heuristic).",
+      "measured": {
+        "extent_file_units": {
+          "X": 64.0,
+          "Y": 180.0,
+          "Z": 24.0
+        },
+        "tallest_axis": "Y",
+        "up_to_widest_other_ratio": 2.812,
+        "declared_up_axis": "Y",
+        "declared_by": "FBX GlobalSettings UpAxis=1 UpAxisSign=1"
+      },
+      "expected": {
+        "up_axis": "Y",
+        "min_up_ratio": 0.9
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "normals",
+      "group": "Normals",
+      "title": "Flipped / inconsistent normals",
+      "status": "pass",
+      "message": "All 6,120 triangles wind consistently with neighbours and stored normals.",
+      "measured": {
+        "triangles_checked": 6120,
+        "faces_flagged": 0,
+        "faces_winding_inconsistent": 0,
+        "faces_stored_normal_against_face": 0,
+        "fully_inverted_shells": 0,
+        "non_orientable_conflicts": 0,
+        "meshes_with_stored_normals": 4,
+        "meshes": 4,
+        "reversed_winding": 0,
+        "stored_normals_against_face": 0,
+        "flagged_by_both": 0
+      },
+      "expected": {
+        "max_flipped_faces": 0
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "non_manifold",
+      "group": "Geometry",
+      "title": "Non-manifold geometry",
+      "status": "pass",
+      "message": "No edge is shared by more than two triangles. All shells are closed.",
+      "measured": {
+        "non_manifold_edges": 0,
+        "open_boundary_edges": 0,
+        "faces_on_non_manifold_edges": 0
+      },
+      "expected": {
+        "non_manifold_edges": 0,
+        "allow_open_boundaries": true
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "degenerate_triangles",
+      "group": "Geometry",
+      "title": "Degenerate triangles",
+      "status": "pass",
+      "message": "No zero-area or repeated-vertex triangles.",
+      "measured": {
+        "degenerate_triangles": 0,
+        "repeated_vertex": 0,
+        "zero_area": 0
+      },
+      "expected": {
+        "max_degenerate_triangles": 0
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "triangle_budget",
+      "group": "Geometry",
+      "title": "Triangle budget per LOD",
+      "status": "pass",
+      "message": "Within budget: LOD0 4,608/60,000, LOD1 1,152/30,000, LOD2 288/15,000, LOD3 72/7,500.",
+      "measured": {
+        "lod_count": 4,
+        "triangles_per_lod": {
+          "LOD0": 4608,
+          "LOD1": 1152,
+          "LOD2": 288,
+          "LOD3": 72
+        }
+      },
+      "expected": {
+        "triangle_budgets": {
+          "LOD0": 60000,
+          "LOD1": 30000,
+          "LOD2": 15000,
+          "LOD3": 7500
+        },
+        "min_lod_count": 1
+      },
+      "items": [
+        {
+          "lod": 0,
+          "triangles": 4608,
+          "budget": 60000,
+          "result": "ok"
+        },
+        {
+          "lod": 1,
+          "triangles": 1152,
+          "budget": 30000,
+          "result": "ok"
+        },
+        {
+          "lod": 2,
+          "triangles": 288,
+          "budget": 15000,
+          "result": "ok"
+        },
+        {
+          "lod": 3,
+          "triangles": 72,
+          "budget": 7500,
+          "result": "ok"
+        }
+      ],
+      "items_total": 4
+    },
+    {
+      "id": "skeleton_binding",
+      "group": "Skeleton",
+      "title": "Skeleton root & skin binding",
+      "status": "not_checked",
+      "message": "Skeleton not required by profile; the asset has no bones or skin, so nothing was measured.",
+      "measured": {
+        "bone_count": 0,
+        "root_bones": [],
+        "skins": 0,
+        "skinned_meshes": 0,
+        "skinned_meshes_without_skin": 0,
+        "unskinned_meshes": 4
+      },
+      "expected": {
+        "required": false,
+        "root_bone_name": "root"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "bone_naming",
+      "group": "Skeleton",
+      "title": "Bone naming",
+      "status": "not_checked",
+      "message": "Skeleton not required by profile; the asset has no bones to check.",
+      "measured": {
+        "bone_count": 0
+      },
+      "expected": {
+        "bone_name_regex": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_files",
+      "group": "Textures & materials",
+      "title": "Missing textures",
+      "status": "pass",
+      "message": "All 3 referenced texture(s) found.",
+      "measured": {
+        "textures_referenced": 3,
+        "missing": 0,
+        "embedded": 0
+      },
+      "expected": {},
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_slots",
+      "group": "Textures & materials",
+      "title": "Required texture slots",
+      "status": "pass",
+      "message": "All 1 material(s) have Normal, BaseColor, ORM.",
+      "measured": {
+        "materials_used": 1,
+        "materials_missing_slots": 0,
+        "materials_missing_recommended_slots": 0,
+        "texture_links": [
+          {
+            "material": "M_SyntheticProxy",
+            "file": "T_SyntheticProxy_BC.png",
+            "slot": "BaseColor",
+            "linked_via": [
+              "DiffuseColor"
+            ],
+            "property_slot": "BaseColor",
+            "rule": "name suffix _BC (linked via DiffuseColor)"
+          },
+          {
+            "material": "M_SyntheticProxy",
+            "file": "T_SyntheticProxy_N.png",
+            "slot": "Normal",
+            "linked_via": [
+              "NormalMap"
+            ],
+            "property_slot": "Normal",
+            "rule": "name suffix _N (linked via NormalMap)"
+          },
+          {
+            "material": "M_SyntheticProxy",
+            "file": "T_SyntheticProxy_ORM.png",
+            "slot": "ORM",
+            "linked_via": [
+              "ShininessExponent",
+              "ReflectionFactor"
+            ],
+            "property_slot": "ORM",
+            "rule": "name suffix _ORM (linked via ShininessExponent, ReflectionFactor)"
+          }
+        ],
+        "unreal_orm_note": "Packed ORM linked through Roughness/Metallic-type FBX properties. Whether Unreal's FBX importer wires one packed texture into separate AO/Roughness/Metallic channels is UNVERIFIED here (no Unreal Editor on this box); plan on a material that splits the R/G/B channels."
+      },
+      "expected": {
+        "required_texture_slots": [
+          "Normal"
+        ],
+        "recommended_texture_slots": [
+          "BaseColor",
+          "ORM"
+        ]
+      },
+      "items": [
+        {
+          "material": "M_SyntheticProxy",
+          "slots_present": [
+            "BaseColor",
+            "Normal",
+            "ORM"
+          ],
+          "missing": [],
+          "missing_recommended": []
+        }
+      ],
+      "items_total": 1
+    },
+    {
+      "id": "texture_naming",
+      "group": "Textures & materials",
+      "title": "Texture naming",
+      "status": "pass",
+      "message": "All 3 texture reference(s) follow the naming convention.",
+      "measured": {
+        "texture_references": 3,
+        "bad": 0
+      },
+      "expected": {
+        "naming_regex": "^T_[A-Za-z0-9]+_(BC|N|ORM|E|M)\\.(png|tga|jpg|jpeg)$",
+        "slot_suffixes": {
+          "BaseColor": "_BC",
+          "Normal": "_N",
+          "ORM": "_ORM"
+        }
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_size",
+      "group": "Textures & materials",
+      "title": "Texture size (power of two, max res)",
+      "status": "pass",
+      "message": "3 texture(s) checked: power of two; \u2264 4096 px (largest 2048 px).",
+      "measured": {
+        "textures_measured": 3,
+        "textures_not_measured": 0,
+        "sizes": {
+          "T_SyntheticProxy_BC.png": "2048x2048",
+          "T_SyntheticProxy_N.png": "2048x2048",
+          "T_SyntheticProxy_ORM.png": "2048x2048"
+        }
+      },
+      "expected": {
+        "require_power_of_two": true,
+        "max_resolution": 4096
+      },
+      "items": [
+        {
+          "file": "T_SyntheticProxy_BC.png",
+          "size": "2048x2048",
+          "problems": []
+        },
+        {
+          "file": "T_SyntheticProxy_N.png",
+          "size": "2048x2048",
+          "problems": []
+        },
+        {
+          "file": "T_SyntheticProxy_ORM.png",
+          "size": "2048x2048",
+          "problems": []
+        }
+      ],
+      "items_total": 3
+    },
+    {
+      "id": "material_count",
+      "group": "Textures & materials",
+      "title": "Material count",
+      "status": "pass",
+      "message": "1 material(s) used (max 4).",
+      "measured": {
+        "materials_used": 1,
+        "materials_defined": 1,
+        "triangles_without_material": 0,
+        "names": [
+          "M_SyntheticProxy"
+        ]
+      },
+      "expected": {
+        "max_count": 4
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "uv_layout",
+      "group": "UVs",
+      "title": "UV0 present & in range",
+      "status": "pass",
+      "message": "UV0 on all 6,120 triangles, all inside 0\u20131.",
+      "measured": {
+        "triangles": 6120,
+        "faces_without_uv0": 0,
+        "faces_out_of_range": 0
+      },
+      "expected": {
+        "require_uv0": true,
+        "udim": false,
+        "range": "[0,1]"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texel_density",
+      "group": "UVs",
+      "title": "Texel density",
+      "status": "pass",
+      "message": "M_SyntheticProxy 9.63 px/cm (target 10.24 \u00b125%).",
+      "measured": {
+        "materials_measured": 1,
+        "materials_not_measured": 0,
+        "px_per_cm": {
+          "M_SyntheticProxy": 9.635
+        },
+        "cm_per_file_unit": 1.0
+      },
+      "expected": {
+        "target_px_per_cm": 10.24,
+        "tolerance_pct": 25.0,
+        "range_px_per_cm": [
+          7.68,
+          12.8
+        ],
+        "reference_slot": "BaseColor",
+        "measured_on": "LOD0"
+      },
+      "items": [
+        {
+          "material": "M_SyntheticProxy",
+          "texture": "T_SyntheticProxy_BC.png",
+          "texture_size": "2048x2048",
+          "px_per_cm": 9.635,
+          "face_p5": 9.635,
+          "face_p95": 9.635,
+          "surface_cm2": 29404.0,
+          "uv_area": 0.65078,
+          "in_range": true
+        }
+      ],
+      "items_total": 1
+    },
+    {
+      "id": "manifest",
+      "group": "Pipeline manifest",
+      "title": "Pipeline manifest",
+      "status": "fail",
+      "message": "LOD2 file not found: SM_SyntheticProxy_LOD2.fbx.",
+      "measured": {
+        "manifest_path": "/workspace/fabled-demos/prototype/validator/fixtures/synthetic_pipeline_out_missing_lod/manifest.json",
+        "schema": "fabled.pipeline.manifest/0.1",
+        "steps": {
+          "synthetic_generation": "automated"
+        },
+        "pipeline_warnings": [],
+        "combined_fbx": "/workspace/fabled-demos/prototype/validator/fixtures/synthetic_pipeline_out_missing_lod/SM_SyntheticProxy.fbx",
+        "combined_triangles_per_lod": {
+          "LOD0": 4608,
+          "LOD1": 1152,
+          "LOD2": 288,
+          "LOD3": 72
+        },
+        "lod_count": 4,
+        "textures_listed": 3,
+        "problems_fail": 1,
+        "problems_warn": 0,
+        "problems_fail_list": [
+          "LOD2 file not found: SM_SyntheticProxy_LOD2.fbx"
+        ],
+        "problems_warn_list": []
+      },
+      "expected": {
+        "schema": "fabled.pipeline.manifest/0.1",
+        "paths": "relative to the manifest's directory"
+      },
+      "items": [
+        {
+          "lod": 0,
+          "path": "SM_SyntheticProxy_LOD0.fbx",
+          "manifest_triangles": 4608,
+          "combined_fbx_triangles": 4608,
+          "file_triangles": 4608,
+          "budget_triangles": 60000,
+          "profile_budget": 60000,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": []
+        },
+        {
+          "lod": 1,
+          "path": "SM_SyntheticProxy_LOD1.fbx",
+          "manifest_triangles": 1152,
+          "combined_fbx_triangles": 1152,
+          "file_triangles": 1152,
+          "budget_triangles": 30000,
+          "profile_budget": 30000,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": []
+        },
+        {
+          "lod": 2,
+          "path": "SM_SyntheticProxy_LOD2.fbx",
+          "manifest_triangles": 288,
+          "combined_fbx_triangles": 288,
+          "file_triangles": null,
+          "budget_triangles": 15000,
+          "profile_budget": 15000,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": null,
+          "problems": [
+            "file missing"
+          ]
+        },
+        {
+          "lod": 3,
+          "path": "SM_SyntheticProxy_LOD3.glb",
+          "manifest_triangles": 72,
+          "combined_fbx_triangles": 72,
+          "file_triangles": 72,
+          "budget_triangles": 7500,
+          "profile_budget": 7500,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": []
+        },
+        {
+          "texture_slot": "base_color",
+          "path": "textures/T_SyntheticProxy_BC.png",
+          "exists": true,
+          "problems": []
+        },
+        {
+          "texture_slot": "normal",
+          "path": "textures/T_SyntheticProxy_N.png",
+          "exists": true,
+          "problems": []
+        },
+        {
+          "texture_slot": "orm",
+          "path": "textures/T_SyntheticProxy_ORM.png",
+          "exists": true,
+          "problems": []
+        }
+      ],
+      "items_total": 7
+    }
+  ],
+  "asset_stats": {
+    "meshes": [
+      {
+        "name": "_LOD0",
+        "lod": 0,
+        "triangles": 4608,
+        "vertices": 2316,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      },
+      {
+        "name": "_LOD1",
+        "lod": 1,
+        "triangles": 1152,
+        "vertices": 588,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      },
+      {
+        "name": "_LOD2",
+        "lod": 2,
+        "triangles": 288,
+        "vertices": 156,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      },
+      {
+        "name": "_LOD3",
+        "lod": 3,
+        "triangles": 72,
+        "vertices": 48,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      }
+    ],
+    "triangles_total": 6120,
+    "bbox_min": [
+      -32.0,
+      0.0,
+      -12.0
+    ],
+    "bbox_max": [
+      32.0,
+      180.0,
+      12.0
+    ],
+    "materials": [
+      {
+        "name": "M_SyntheticProxy",
+        "textures": [
+          {
+            "slot": "BaseColor",
+            "source_key": "DiffuseColor",
+            "file": "T_SyntheticProxy_BC.png",
+            "exists": true,
+            "embedded": false,
+            "size": "2048x2048",
+            "linked_via": [
+              "DiffuseColor"
+            ],
+            "slot_rule": "name suffix _BC (linked via DiffuseColor)"
+          },
+          {
+            "slot": "Normal",
+            "source_key": "NormalMap",
+            "file": "T_SyntheticProxy_N.png",
+            "exists": true,
+            "embedded": false,
+            "size": "2048x2048",
+            "linked_via": [
+              "NormalMap"
+            ],
+            "slot_rule": "name suffix _N (linked via NormalMap)"
+          },
+          {
+            "slot": "ORM",
+            "source_key": "ShininessExponent+ReflectionFactor",
+            "file": "T_SyntheticProxy_ORM.png",
+            "exists": true,
+            "embedded": false,
+            "size": "2048x2048",
+            "linked_via": [
+              "ShininessExponent",
+              "ReflectionFactor"
+            ],
+            "slot_rule": "name suffix _ORM (linked via ShininessExponent, ReflectionFactor)"
+          }
+        ]
+      }
+    ],
+    "bones": 0
+  },
+  "notes": [
+    "FBX binary version 7400"
+  ],
+  "error": null
+}

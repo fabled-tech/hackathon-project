@@ -1,0 +1,101 @@
+{
+  "step_runs": {
+    "01": [
+      {
+        "label": "01_import",
+        "script": "01_import.py",
+        "returncode": 0,
+        "wall_s": 0.06,
+        "peak_rss_mb": 240,
+        "killed": null,
+        "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/01_import.log"
+      }
+    ],
+    "02": [
+      {
+        "label": "02_quadriflow",
+        "script": "02_quadriflow.py",
+        "returncode": 0,
+        "wall_s": 0.64,
+        "peak_rss_mb": 240,
+        "killed": null,
+        "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/02_quadriflow.log"
+      }
+    ],
+    "03": [
+      {
+        "label": "03_uv_unwrap",
+        "script": "03_uv_unwrap.py",
+        "returncode": 0,
+        "wall_s": 0.0,
+        "peak_rss_mb": 240,
+        "killed": null,
+        "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/03_uv_unwrap.log"
+      }
+    ],
+    "04": [
+      {
+        "label": "04_lod_generation",
+        "script": "04_lod_generation.py",
+        "returncode": 0,
+        "wall_s": 0.23,
+        "peak_rss_mb": 240,
+        "killed": null,
+        "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/04_lod_generation.log"
+      }
+    ],
+    "05": [
+      {
+        "label": "05_texture_bake",
+        "script": "05_texture_bake.py",
+        "returncode": 0,
+        "wall_s": 0.34,
+        "peak_rss_mb": 240,
+        "killed": null,
+        "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/05_texture_bake.log"
+      }
+    ],
+    "06": [
+      {
+        "label": "06_fbx_export",
+        "script": "06_fbx_export.py",
+        "returncode": 0,
+        "wall_s": 0.05,
+        "peak_rss_mb": 240,
+        "killed": null,
+        "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/06_fbx_export.log"
+      }
+    ],
+    "07": [
+      {
+        "label": "07_previews",
+        "script": "07_previews.py",
+        "returncode": 0,
+        "wall_s": 1.13,
+        "peak_rss_mb": 240,
+        "killed": null,
+        "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/07_previews.log"
+      }
+    ],
+    "08": [
+      {
+        "label": "08_preview_composites",
+        "script": "08_preview_composites.py",
+        "returncode": 0,
+        "wall_s": 0.05,
+        "peak_rss_mb": 240,
+        "killed": null,
+        "log": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/logs/08_preview_composites.log"
+      }
+    ]
+  },
+  "validator_profile": true,
+  "retopo_method_used": "quadriflow",
+  "retopo_attempts": [
+    {
+      "method": "quadriflow",
+      "success": true,
+      "error": null
+    }
+  ]
+}

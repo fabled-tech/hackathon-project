@@ -1,0 +1,24 @@
+{
+  "texture_path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/T_HelenKellerBust_N.png",
+  "resolution": 2048,
+  "normal_convention": "DirectX",
+  "base_color": null,
+  "base_color_note": "the source has no colour data",
+  "orm": {
+    "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/T_HelenKellerBust_ORM.png",
+    "resolution": 2048,
+    "channels": {
+      "r": {
+        "source": "ambient_occlusion"
+      },
+      "g": {
+        "source": "constant",
+        "constant": 0.6
+      },
+      "b": {
+        "source": "constant",
+        "constant": 0.0
+      }
+    }
+  }
+}

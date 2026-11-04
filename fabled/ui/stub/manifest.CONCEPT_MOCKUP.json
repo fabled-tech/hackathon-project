@@ -1,0 +1,29 @@
+{
+  "schema": "fabled.pipeline.manifest/0.1",
+  "concept_mockup": true,
+  "concept_mockup_note": "CONCEPT MOCKUP. Stub served by prototype/ui/server.mjs because no pipeline CLI was found in prototype/pipeline/. Not Fabled output. Triangle counts are null on purpose: the UI computes counts only from meshes it actually loads.",
+  "job_id": null,
+  "created_at": null,
+  "tool": { "name": "fabled-pipeline (stub)", "version": null, "blender_version": null },
+  "input": { "sculpt_path": null, "format": null, "triangles": null, "vertices": null },
+  "profile": null,
+  "outputs": {
+    "lods": [
+      { "level": 0, "path": null, "format": null, "triangles": null, "vertices": null, "budget_triangles": null, "screen_size": null, "has_uvs": null },
+      { "level": 1, "path": null, "format": null, "triangles": null, "vertices": null, "budget_triangles": null, "screen_size": null, "has_uvs": null },
+      { "level": 2, "path": null, "format": null, "triangles": null, "vertices": null, "budget_triangles": null, "screen_size": null, "has_uvs": null },
+      { "level": 3, "path": null, "format": null, "triangles": null, "vertices": null, "budget_triangles": null, "screen_size": null, "has_uvs": null }
+    ],
+    "combined_fbx": null,
+    "uv_layout_png": null,
+    "textures": { "base_color": null, "normal": null, "orm": null }
+  },
+  "steps": [
+    { "name": "retopology", "status": "not_implemented" },
+    { "name": "uv_unwrap", "status": "not_implemented" },
+    { "name": "lod_generation", "status": "not_implemented" },
+    { "name": "bake", "status": "not_implemented" },
+    { "name": "material_hookup", "status": "not_implemented" }
+  ],
+  "warnings": ["CONCEPT MOCKUP: pipeline not connected"]
+}

@@ -1,0 +1,378 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://fabled.local/schema/report/0.2.0",
+  "title": "Fabled pre-import check report",
+  "description": "Output of `python -m fabled_validator check ... --json-only` and of fabled_validator.validate(). schema_version follows semver: additive fields bump minor, renamed/removed fields bump major. 0.2.0 (additive over 0.1.0): optional `manifest` check (only present when --manifest is given, always last), optional top-level `manifest` object, error type `manifest_error`, asset.path/file_name may be null only in error reports where no asset could be found.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "tool",
+    "generated_at",
+    "asset",
+    "profile",
+    "overall_status",
+    "complete",
+    "summary",
+    "checks",
+    "error"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "pattern": "^0\\.(1|2)\\.[0-9]+$",
+      "description": "0.1.0 reports remain valid; this tool now emits 0.2.0"
+    },
+    "tool": {
+      "type": "object",
+      "required": [
+        "name",
+        "version"
+      ],
+      "properties": {
+        "name": {
+          "const": "fabled_validator"
+        },
+        "version": {
+          "type": "string"
+        }
+      }
+    },
+    "generated_at": {
+      "type": "string",
+      "description": "UTC, ISO 8601 with Z"
+    },
+    "generated_at_local": {
+      "type": "string",
+      "description": "Box-local time with UTC offset"
+    },
+    "generated_at_display": {
+      "type": "string"
+    },
+    "asset": {
+      "type": "object",
+      "required": [
+        "path",
+        "file_name",
+        "format",
+        "sha256",
+        "size_bytes",
+        "synthetic_fixture",
+        "referenced_files"
+      ],
+      "properties": {
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "file_name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "format": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "description": "obj | gltf | glb | fbx, or the raw extension when unsupported"
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "size_bytes": {
+          "type": [
+            "integer",
+            "null"
+          ]
+        },
+        "synthetic_fixture": {
+          "type": "boolean",
+          "description": "true when the file name or its parent folder starts with synthetic_"
+        },
+        "referenced_files": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "path",
+              "role",
+              "exists"
+            ],
+            "properties": {
+              "path": {
+                "type": "string"
+              },
+              "role": {
+                "type": "string"
+              },
+              "exists": {
+                "type": "boolean"
+              }
+            }
+          }
+        }
+      }
+    },
+    "profile": {
+      "type": "object",
+      "required": [
+        "name",
+        "path",
+        "sha256"
+      ],
+      "properties": {
+        "name": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "path": {
+          "type": [
+            "string",
+            "null"
+          ]
+        },
+        "sha256": {
+          "type": [
+            "string",
+            "null"
+          ]
+        }
+      }
+    },
+    "overall_status": {
+      "enum": [
+        "pass",
+        "warn",
+        "fail",
+        "error"
+      ],
+      "description": "fail if any check fails, else warn if any warns, else pass. not_checked never makes it fail or pass - see `complete`."
+    },
+    "complete": {
+      "type": "boolean",
+      "description": "true when no check is not_checked"
+    },
+    "summary": {
+      "type": "object",
+      "required": [
+        "pass",
+        "warn",
+        "fail",
+        "not_checked",
+        "total",
+        "flagged"
+      ],
+      "properties": {
+        "pass": {
+          "type": "integer"
+        },
+        "warn": {
+          "type": "integer"
+        },
+        "fail": {
+          "type": "integer"
+        },
+        "not_checked": {
+          "type": "integer"
+        },
+        "total": {
+          "type": "integer"
+        },
+        "flagged": {
+          "type": "integer",
+          "description": "warn + fail"
+        }
+      }
+    },
+    "checks": {
+      "type": "array",
+      "description": "Always in this fixed order when not an error: scale, up_axis, normals, non_manifold, degenerate_triangles, triangle_budget, skeleton_binding, bone_naming, texture_files, texture_slots, texture_naming, texture_size, material_count, uv_layout, texel_density, then `manifest` when a manifest was given",
+      "items": {
+        "$ref": "#/$defs/check"
+      }
+    },
+    "asset_stats": {
+      "type": [
+        "object",
+        "null"
+      ]
+    },
+    "notes": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "error": {
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "type",
+            "message"
+          ],
+          "properties": {
+            "type": {
+              "enum": [
+                "unsupported_format",
+                "parse_error",
+                "profile_error",
+                "error",
+                "manifest_error"
+              ]
+            },
+            "message": {
+              "type": "string"
+            }
+          }
+        }
+      ]
+    },
+    "manifest": {
+      "description": "Present (non-null) only when a pipeline manifest was given",
+      "oneOf": [
+        {
+          "type": "null"
+        },
+        {
+          "type": "object",
+          "required": [
+            "path",
+            "schema",
+            "asset_name",
+            "readable"
+          ],
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "schema": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "asset_name": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "combined_fbx": {
+              "type": [
+                "string",
+                "null"
+              ]
+            },
+            "lod_count": {
+              "type": "integer"
+            },
+            "readable": {
+              "type": "boolean"
+            },
+            "error": {
+              "type": [
+                "string",
+                "null"
+              ]
+            }
+          }
+        }
+      ]
+    }
+  },
+  "$defs": {
+    "check": {
+      "type": "object",
+      "required": [
+        "id",
+        "group",
+        "title",
+        "status",
+        "message",
+        "measured",
+        "expected",
+        "items",
+        "items_total"
+      ],
+      "properties": {
+        "id": {
+          "enum": [
+            "scale",
+            "up_axis",
+            "normals",
+            "non_manifold",
+            "degenerate_triangles",
+            "triangle_budget",
+            "skeleton_binding",
+            "bone_naming",
+            "texture_files",
+            "texture_slots",
+            "texture_naming",
+            "texture_size",
+            "material_count",
+            "uv_layout",
+            "texel_density",
+            "manifest"
+          ]
+        },
+        "group": {
+          "enum": [
+            "Scale & orientation",
+            "Normals",
+            "Geometry",
+            "Skeleton",
+            "Textures & materials",
+            "UVs",
+            "Pipeline manifest"
+          ]
+        },
+        "title": {
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "pass",
+            "warn",
+            "fail",
+            "not_checked"
+          ]
+        },
+        "message": {
+          "type": "string",
+          "description": "One plain sentence for the UI"
+        },
+        "measured": {
+          "type": "object",
+          "description": "Values measured from the file in this run; keys vary per check"
+        },
+        "expected": {
+          "type": "object",
+          "description": "The profile values the check compared against"
+        },
+        "items": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          },
+          "description": "Offending or per-entity rows, capped at 25"
+        },
+        "items_total": {
+          "type": "integer"
+        }
+      }
+    }
+  }
+}

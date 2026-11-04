@@ -1,0 +1,696 @@
+{
+  "schema_version": "0.2.0",
+  "tool": {
+    "name": "fabled_validator",
+    "version": "0.2.0"
+  },
+  "generated_at": "2026-10-26T06:03:51Z",
+  "generated_at_local": "2026-10-25T23:03:51-07:00",
+  "generated_at_display": "2026-10-25 23:03 PDT",
+  "asset": {
+    "path": "/workspace/fabled-demos/prototype/validator/fixtures/synthetic_storyboard_two_flags.gltf",
+    "file_name": "synthetic_storyboard_two_flags.gltf",
+    "format": "gltf",
+    "sha256": "6b5e749862034d917755ef9322ce0a40ef3bd9456402e53d7ffd3e345812a7a7",
+    "size_bytes": 8722,
+    "synthetic_fixture": true,
+    "referenced_files": [
+      {
+        "path": "/workspace/fabled-demos/prototype/validator/fixtures/synthetic_storyboard_two_flags.bin",
+        "role": "buffer (.bin)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/validator/fixtures/textures/T_Body_BC.png",
+        "role": "texture (baseColorTexture)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/validator/fixtures/textures/T_Body_N.png",
+        "role": "texture (normalTexture)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/validator/fixtures/textures/T_Body_ORM.png",
+        "role": "texture (metallicRoughnessTexture)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/validator/fixtures/textures/T_Head_BC.png",
+        "role": "texture (baseColorTexture)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/validator/fixtures/textures/T_Head_N.png",
+        "role": "texture (normalTexture)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/validator/fixtures/textures/T_Head_ORM.png",
+        "role": "texture (metallicRoughnessTexture)",
+        "exists": true
+      }
+    ]
+  },
+  "profile": {
+    "name": "Example Studio - UE5 character (example values)",
+    "path": "/workspace/fabled-demos/prototype/validator/profiles/example_studio.json",
+    "sha256": "e45244fb7772e5083a0d2efa6e6830c6bd0f25ec3722e5e3d3014913da03f950"
+  },
+  "manifest": null,
+  "overall_status": "fail",
+  "complete": false,
+  "summary": {
+    "pass": 12,
+    "warn": 0,
+    "fail": 2,
+    "not_checked": 1,
+    "total": 15,
+    "flagged": 2
+  },
+  "checks": [
+    {
+      "id": "scale",
+      "group": "Scale & orientation",
+      "title": "Scale (bounding-box height)",
+      "status": "fail",
+      "message": "Height 18,000 cm is outside 150\u2013220 cm. Scaling \u00f7100 gives 180.0 cm (values look like centimeters in a meters file).",
+      "measured": {
+        "height_cm": 18000.0,
+        "height_file_units": 180.0,
+        "up_axis_used": "Y",
+        "cm_per_file_unit": 100.0,
+        "unit_basis": "glTF 2.0 spec: 1 unit = 1 meter",
+        "bbox_extent_cm": [
+          6400.0,
+          18000.0,
+          2400.0
+        ],
+        "fix_hints": [
+          {
+            "operation": "\u00f7100",
+            "factor": 0.01,
+            "reason": "values look like centimeters in a meters file",
+            "height_cm_after": 180.0
+          }
+        ]
+      },
+      "expected": {
+        "height_cm_min": 150,
+        "height_cm_max": 220
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "up_axis",
+      "group": "Scale & orientation",
+      "title": "Up axis",
+      "status": "pass",
+      "message": "Tallest extent is along Y; Y extent is 2.81\u00d7 the widest other axis (heuristic).",
+      "measured": {
+        "extent_file_units": {
+          "X": 64.0,
+          "Y": 180.0,
+          "Z": 24.0
+        },
+        "tallest_axis": "Y",
+        "up_to_widest_other_ratio": 2.812,
+        "declared_up_axis": "Y",
+        "declared_by": "glTF 2.0 spec: +Y up"
+      },
+      "expected": {
+        "up_axis": "Y",
+        "min_up_ratio": 0.9
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "normals",
+      "group": "Normals",
+      "title": "Flipped / inconsistent normals",
+      "status": "fail",
+      "message": "128 of 4,896 triangles flagged \u2014 reversed winding: 128; stored normals against face: 128 (128 in both).",
+      "measured": {
+        "triangles_checked": 4896,
+        "faces_flagged": 128,
+        "faces_winding_inconsistent": 128,
+        "faces_stored_normal_against_face": 128,
+        "fully_inverted_shells": 0,
+        "non_orientable_conflicts": 0,
+        "meshes_with_stored_normals": 2,
+        "meshes": 2,
+        "reversed_winding": 128,
+        "stored_normals_against_face": 128,
+        "flagged_by_both": 128
+      },
+      "expected": {
+        "max_flipped_faces": 0
+      },
+      "items": [
+        {
+          "mesh": "SK_Character_LOD0",
+          "faces_flagged": 128,
+          "winding_flipped": 128,
+          "stored_normals_against_face": 128,
+          "inconsistent_edges": 32,
+          "fully_inverted_shells": 0,
+          "orientation_conflicts": 0
+        }
+      ],
+      "items_total": 1
+    },
+    {
+      "id": "non_manifold",
+      "group": "Geometry",
+      "title": "Non-manifold geometry",
+      "status": "pass",
+      "message": "No edge is shared by more than two triangles. All shells are closed.",
+      "measured": {
+        "non_manifold_edges": 0,
+        "open_boundary_edges": 0,
+        "faces_on_non_manifold_edges": 0
+      },
+      "expected": {
+        "non_manifold_edges": 0,
+        "allow_open_boundaries": true
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "degenerate_triangles",
+      "group": "Geometry",
+      "title": "Degenerate triangles",
+      "status": "pass",
+      "message": "No zero-area or repeated-vertex triangles.",
+      "measured": {
+        "degenerate_triangles": 0,
+        "repeated_vertex": 0,
+        "zero_area": 0
+      },
+      "expected": {
+        "max_degenerate_triangles": 0
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "triangle_budget",
+      "group": "Geometry",
+      "title": "Triangle budget per LOD",
+      "status": "pass",
+      "message": "Within budget: LOD0 4,608/60,000, LOD1 288/30,000.",
+      "measured": {
+        "lod_count": 2,
+        "triangles_per_lod": {
+          "LOD0": 4608,
+          "LOD1": 288
+        }
+      },
+      "expected": {
+        "triangle_budgets": {
+          "LOD0": 60000,
+          "LOD1": 30000,
+          "LOD2": 15000,
+          "LOD3": 7500
+        },
+        "min_lod_count": 1
+      },
+      "items": [
+        {
+          "lod": 0,
+          "triangles": 4608,
+          "budget": 60000,
+          "result": "ok"
+        },
+        {
+          "lod": 1,
+          "triangles": 288,
+          "budget": 30000,
+          "result": "ok"
+        }
+      ],
+      "items_total": 2
+    },
+    {
+      "id": "skeleton_binding",
+      "group": "Skeleton",
+      "title": "Skeleton root & skin binding",
+      "status": "pass",
+      "message": "Root 'root' is the single top bone; 2 skinned mesh(es) bound to 1 skin(s) under it.",
+      "measured": {
+        "bone_count": 8,
+        "root_bones": [
+          "root"
+        ],
+        "skins": 1,
+        "skinned_meshes": 2,
+        "skinned_meshes_without_skin": 0,
+        "unskinned_meshes": 0
+      },
+      "expected": {
+        "required": true,
+        "root_bone_name": "root"
+      },
+      "items": [
+        {
+          "skin": "SK_Character_Skin",
+          "joints": 8,
+          "bound_meshes": [
+            "SK_Character_LOD1",
+            "SK_Character_LOD0"
+          ]
+        }
+      ],
+      "items_total": 1
+    },
+    {
+      "id": "bone_naming",
+      "group": "Skeleton",
+      "title": "Bone naming",
+      "status": "pass",
+      "message": "All 8 bone names match the convention.",
+      "measured": {
+        "bone_count": 8,
+        "bad_names": 0
+      },
+      "expected": {
+        "bone_name_regex": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_files",
+      "group": "Textures & materials",
+      "title": "Missing textures",
+      "status": "pass",
+      "message": "All 6 referenced texture(s) found.",
+      "measured": {
+        "textures_referenced": 6,
+        "missing": 0,
+        "embedded": 0
+      },
+      "expected": {},
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_slots",
+      "group": "Textures & materials",
+      "title": "Required texture slots",
+      "status": "pass",
+      "message": "All 2 material(s) have BaseColor, Normal, ORM.",
+      "measured": {
+        "materials_used": 2,
+        "materials_missing_slots": 0,
+        "materials_missing_recommended_slots": 0,
+        "texture_links": [
+          {
+            "material": "M_Body",
+            "file": "T_Body_BC.png",
+            "slot": "BaseColor",
+            "linked_via": [
+              "baseColorTexture"
+            ],
+            "property_slot": "BaseColor",
+            "rule": "name suffix _BC (linked via baseColorTexture)"
+          },
+          {
+            "material": "M_Body",
+            "file": "T_Body_N.png",
+            "slot": "Normal",
+            "linked_via": [
+              "normalTexture"
+            ],
+            "property_slot": "Normal",
+            "rule": "name suffix _N (linked via normalTexture)"
+          },
+          {
+            "material": "M_Body",
+            "file": "T_Body_ORM.png",
+            "slot": "ORM",
+            "linked_via": [
+              "metallicRoughnessTexture"
+            ],
+            "property_slot": "ORM",
+            "rule": "name suffix _ORM (linked via metallicRoughnessTexture)"
+          },
+          {
+            "material": "M_Head",
+            "file": "T_Head_BC.png",
+            "slot": "BaseColor",
+            "linked_via": [
+              "baseColorTexture"
+            ],
+            "property_slot": "BaseColor",
+            "rule": "name suffix _BC (linked via baseColorTexture)"
+          },
+          {
+            "material": "M_Head",
+            "file": "T_Head_N.png",
+            "slot": "Normal",
+            "linked_via": [
+              "normalTexture"
+            ],
+            "property_slot": "Normal",
+            "rule": "name suffix _N (linked via normalTexture)"
+          },
+          {
+            "material": "M_Head",
+            "file": "T_Head_ORM.png",
+            "slot": "ORM",
+            "linked_via": [
+              "metallicRoughnessTexture"
+            ],
+            "property_slot": "ORM",
+            "rule": "name suffix _ORM (linked via metallicRoughnessTexture)"
+          }
+        ]
+      },
+      "expected": {
+        "required_texture_slots": [
+          "BaseColor",
+          "Normal",
+          "ORM"
+        ],
+        "recommended_texture_slots": []
+      },
+      "items": [
+        {
+          "material": "M_Body",
+          "slots_present": [
+            "BaseColor",
+            "Normal",
+            "ORM"
+          ],
+          "missing": [],
+          "missing_recommended": []
+        },
+        {
+          "material": "M_Head",
+          "slots_present": [
+            "BaseColor",
+            "Normal",
+            "ORM"
+          ],
+          "missing": [],
+          "missing_recommended": []
+        }
+      ],
+      "items_total": 2
+    },
+    {
+      "id": "texture_naming",
+      "group": "Textures & materials",
+      "title": "Texture naming",
+      "status": "pass",
+      "message": "All 6 texture reference(s) follow the naming convention.",
+      "measured": {
+        "texture_references": 6,
+        "bad": 0
+      },
+      "expected": {
+        "naming_regex": "^T_[A-Za-z0-9]+_(BC|N|ORM|E|M)\\.(png|tga|jpg|jpeg)$",
+        "slot_suffixes": {
+          "BaseColor": "_BC",
+          "Normal": "_N",
+          "ORM": "_ORM"
+        }
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_size",
+      "group": "Textures & materials",
+      "title": "Texture size (power of two, max res)",
+      "status": "pass",
+      "message": "6 texture(s) checked: power of two; \u2264 4096 px (largest 2048 px).",
+      "measured": {
+        "textures_measured": 6,
+        "textures_not_measured": 0,
+        "sizes": {
+          "T_Body_BC.png": "2048x2048",
+          "T_Body_N.png": "2048x2048",
+          "T_Body_ORM.png": "2048x2048",
+          "T_Head_BC.png": "1024x1024",
+          "T_Head_N.png": "1024x1024",
+          "T_Head_ORM.png": "1024x1024"
+        }
+      },
+      "expected": {
+        "require_power_of_two": true,
+        "max_resolution": 4096
+      },
+      "items": [
+        {
+          "file": "T_Body_BC.png",
+          "size": "2048x2048",
+          "problems": []
+        },
+        {
+          "file": "T_Body_N.png",
+          "size": "2048x2048",
+          "problems": []
+        },
+        {
+          "file": "T_Body_ORM.png",
+          "size": "2048x2048",
+          "problems": []
+        },
+        {
+          "file": "T_Head_BC.png",
+          "size": "1024x1024",
+          "problems": []
+        },
+        {
+          "file": "T_Head_N.png",
+          "size": "1024x1024",
+          "problems": []
+        },
+        {
+          "file": "T_Head_ORM.png",
+          "size": "1024x1024",
+          "problems": []
+        }
+      ],
+      "items_total": 6
+    },
+    {
+      "id": "material_count",
+      "group": "Textures & materials",
+      "title": "Material count",
+      "status": "pass",
+      "message": "2 material(s) used (max 4).",
+      "measured": {
+        "materials_used": 2,
+        "materials_defined": 2,
+        "triangles_without_material": 0,
+        "names": [
+          "M_Body",
+          "M_Head"
+        ]
+      },
+      "expected": {
+        "max_count": 4
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "uv_layout",
+      "group": "UVs",
+      "title": "UV0 present & in range",
+      "status": "pass",
+      "message": "UV0 on all 4,896 triangles, all inside 0\u20131.",
+      "measured": {
+        "triangles": 4896,
+        "faces_without_uv0": 0,
+        "faces_out_of_range": 0
+      },
+      "expected": {
+        "require_uv0": true,
+        "udim": false,
+        "range": "[0,1]"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texel_density",
+      "group": "UVs",
+      "title": "Texel density",
+      "status": "not_checked",
+      "message": "Skipped until scale passes \u2014 world size is wrong, so px/cm would be off by the same factor.",
+      "measured": {
+        "materials_measured": 2,
+        "materials_not_measured": 0,
+        "px_per_cm": {
+          "M_Body": 0.099,
+          "M_Head": 0.102
+        },
+        "cm_per_file_unit": 100.0
+      },
+      "expected": {
+        "target_px_per_cm": 10.24,
+        "tolerance_pct": 25.0,
+        "range_px_per_cm": [
+          7.68,
+          12.8
+        ],
+        "reference_slot": "BaseColor",
+        "measured_on": "LOD0"
+      },
+      "items": [
+        {
+          "material": "M_Body",
+          "texture": "T_Body_BC.png",
+          "texture_size": "2048x2048",
+          "px_per_cm": 0.099,
+          "face_p5": 0.099,
+          "face_p95": 0.099,
+          "surface_cm2": 262560000.0,
+          "uv_area": 0.61761,
+          "in_range": false
+        },
+        {
+          "material": "M_Head",
+          "texture": "T_Head_BC.png",
+          "texture_size": "1024x1024",
+          "px_per_cm": 0.102,
+          "face_p5": 0.102,
+          "face_p95": 0.102,
+          "surface_cm2": 31480000.0,
+          "uv_area": 0.3148,
+          "in_range": false
+        }
+      ],
+      "items_total": 2
+    }
+  ],
+  "asset_stats": {
+    "meshes": [
+      {
+        "name": "SK_Character_LOD1",
+        "lod": 1,
+        "triangles": 288,
+        "vertices": 324,
+        "skinned": true,
+        "has_uv0": true,
+        "has_normals": true
+      },
+      {
+        "name": "SK_Character_LOD0",
+        "lod": 0,
+        "triangles": 4608,
+        "vertices": 2916,
+        "skinned": true,
+        "has_uv0": true,
+        "has_normals": true
+      }
+    ],
+    "triangles_total": 4896,
+    "bbox_min": [
+      -32.0,
+      0.0,
+      -12.0
+    ],
+    "bbox_max": [
+      32.0,
+      180.0,
+      12.0
+    ],
+    "materials": [
+      {
+        "name": "M_Body",
+        "textures": [
+          {
+            "slot": "BaseColor",
+            "source_key": "baseColorTexture",
+            "file": "T_Body_BC.png",
+            "exists": true,
+            "embedded": false,
+            "size": "2048x2048",
+            "linked_via": [
+              "baseColorTexture"
+            ],
+            "slot_rule": "name suffix _BC (linked via baseColorTexture)"
+          },
+          {
+            "slot": "Normal",
+            "source_key": "normalTexture",
+            "file": "T_Body_N.png",
+            "exists": true,
+            "embedded": false,
+            "size": "2048x2048",
+            "linked_via": [
+              "normalTexture"
+            ],
+            "slot_rule": "name suffix _N (linked via normalTexture)"
+          },
+          {
+            "slot": "ORM",
+            "source_key": "metallicRoughnessTexture",
+            "file": "T_Body_ORM.png",
+            "exists": true,
+            "embedded": false,
+            "size": "2048x2048",
+            "linked_via": [
+              "metallicRoughnessTexture"
+            ],
+            "slot_rule": "name suffix _ORM (linked via metallicRoughnessTexture)"
+          }
+        ]
+      },
+      {
+        "name": "M_Head",
+        "textures": [
+          {
+            "slot": "BaseColor",
+            "source_key": "baseColorTexture",
+            "file": "T_Head_BC.png",
+            "exists": true,
+            "embedded": false,
+            "size": "1024x1024",
+            "linked_via": [
+              "baseColorTexture"
+            ],
+            "slot_rule": "name suffix _BC (linked via baseColorTexture)"
+          },
+          {
+            "slot": "Normal",
+            "source_key": "normalTexture",
+            "file": "T_Head_N.png",
+            "exists": true,
+            "embedded": false,
+            "size": "1024x1024",
+            "linked_via": [
+              "normalTexture"
+            ],
+            "slot_rule": "name suffix _N (linked via normalTexture)"
+          },
+          {
+            "slot": "ORM",
+            "source_key": "metallicRoughnessTexture",
+            "file": "T_Head_ORM.png",
+            "exists": true,
+            "embedded": false,
+            "size": "1024x1024",
+            "linked_via": [
+              "metallicRoughnessTexture"
+            ],
+            "slot_rule": "name suffix _ORM (linked via metallicRoughnessTexture)"
+          }
+        ]
+      }
+    ],
+    "bones": 8
+  },
+  "notes": [
+    "generator: fabled validator fixtures/make_fixtures.py (SYNTHETIC TEST FIXTURE)"
+  ],
+  "error": null
+}

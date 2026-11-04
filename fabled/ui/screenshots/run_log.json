@@ -1,0 +1,118 @@
+{
+  "url": "http://127.0.0.1:5180/",
+  "sample": "/workspace/fabled-demos/prototype/ui/samples/fabled_sample_head.glb",
+  "errors": [],
+  "logs": [],
+  "summary": {
+    "pipeline": "Pipeline: stub (CONCEPT MOCKUP)",
+    "validator": "Validator: connected",
+    "mockupBadgeVisible": false,
+    "rightBadgeVisible": false,
+    "left": "8,504,655 tris (from pipeline manifest; input not loaded in browser)",
+    "right": "20,224 tris · 10,114 verts (computed from loaded GLB) · budget 20,000 · manifest says 20,224",
+    "lods": [
+      {
+        "level": 0,
+        "tris": 20224,
+        "budget": 20000,
+        "source": "pipeline"
+      },
+      {
+        "level": 1,
+        "tris": 10000,
+        "budget": 10000,
+        "source": "pipeline"
+      },
+      {
+        "level": 2,
+        "tris": 5000,
+        "budget": 5000,
+        "source": "pipeline"
+      },
+      {
+        "level": 3,
+        "tris": 2000,
+        "budget": 2000,
+        "source": "pipeline"
+      }
+    ],
+    "browserChecks": [
+      "true\tscale.height_range\tHeight 53.11 cm (0.531 units × 100 cm/unit × scale 1, Y-up). Profile expects 20–80 cm for \"Bust / head prop\".",
+      "true\tnormals.consistent_winding\tWinding is consistent across 20,224 triangles (1 connected part).",
+      "true\tmesh.manifold\t0 open (boundary) edges, 0 non-manifold edges.",
+      "true\tmesh.degenerate_triangles\t0 zero-area triangles.",
+      "true\tskeleton.binding\tProfile imports as a static mesh; no skeleton required.",
+      "null\tmesh.input_triangles\tHigh-poly input has 8,504,655 triangles according to the pipeline manifest (input not loaded in the browser).",
+      "false\tlod.budget.lod0\t20,224 triangles vs manifest budget 20,000.",
+      "true\tlod.budget.lod1\t10,000 triangles vs manifest budget 10,000.",
+      "true\tlod.budget.lod2\t5,000 triangles vs manifest budget 5,000.",
+      "true\tlod.budget.lod3\t2,000 triangles vs manifest budget 2,000.",
+      "false\tuv.texel_density\tAverage texel density 2,820 px/m at 2048px (UV area 0.617, surface 0.3253 m²). Target 1024 px/m ±15%.",
+      "null\tmaterials.textures\tTexture slots found in file: normalMap, roughnessMap, metalnessMap, aoMap.",
+      "null\tpipeline.step.skinning\tPipeline step \"skinning\" is not implemented yet.",
+      "null\tpipeline.step.unreal_import_test\tPipeline step \"unreal_import_test\" is not implemented yet."
+    ],
+    "summary": "2 flagged (1 error, 1 warning) · 8 passed · 4 info\nBrowser checks on LOD0 · SM_HelenKellerBust_LOD0.glb · 10:34:13 PM · profile \"Studio default (example)\""
+  },
+  "fixture": {
+    "lods": [
+      {
+        "level": 0,
+        "path": "export/SM_HelenKellerBust_LOD0.glb",
+        "format": "glb",
+        "tris": 20224,
+        "manifestTris": 20224,
+        "budget": 20000
+      },
+      {
+        "level": 1,
+        "path": "export/SM_HelenKellerBust_LOD1.glb",
+        "format": "glb",
+        "tris": 10000,
+        "manifestTris": 10000,
+        "budget": 10000
+      },
+      {
+        "level": 2,
+        "path": "export/SM_HelenKellerBust_LOD2.glb",
+        "format": "glb",
+        "tris": 5000,
+        "manifestTris": 5000,
+        "budget": 5000
+      },
+      {
+        "level": 3,
+        "path": "export/SM_HelenKellerBust_LOD3.glb",
+        "format": "glb",
+        "tris": 2000,
+        "manifestTris": 2000,
+        "budget": 2000
+      }
+    ],
+    "loadErrors": [],
+    "validatorSource": "fabled_validator 0.2.0 · real report",
+    "validatorNote": "Profile file: profiles/demo_placeholder_prop.json · Checked pipeline manifest: manifest.json · exit 1",
+    "validatorHeadline": "FAIL\npass 8 · warn 2 · fail 2 · not checked 4 · total 16 · flagged 4\ncomplete: no (some checks not run)\nDEMO PLACEHOLDER VALUESProfile: DEMO PLACEHOLDER VALUES - not a real studio spec (static prop)\nManifest: pipeline/output/manifest.json · 4 LODs listed",
+    "credit": "Source: Helen Adams Keller (bust), Onorio Ruotolo, 1916, plaster and paint. National Portrait Gallery NPG.75.16. Smithsonian 3D scan, full-resolution OBJ · https://npg.si.edu/object/npg_NPG.75.16 · License: CC0",
+    "rightBadge": null,
+    "globalBadge": null,
+    "validatorChecks": [
+      "pass\tscale\tScale (bounding-box height): Height 53.1 cm is inside 20–80 cm.",
+      "not_checked\tup_axis\tUp axis: Height heuristic only applies to asset_type 'character'.",
+      "fail\tnormals\tFlipped / inconsistent normals: 9 of 37,224 triangles face the wrong way.",
+      "pass\tnon_manifold\tNon-manifold geometry: No edge is shared by more than two triangles. All shells are closed.",
+      "pass\tdegenerate_triangles\tDegenerate triangles: No zero-area or repeated-vertex triangles.",
+      "fail\ttriangle_budget\tTriangle budget per LOD: LOD0 20,224 > 20,000.",
+      "not_checked\tskeleton_binding\tSkeleton root & skin binding: Skeleton not required by profile; the asset has no bones or skin, so nothing was measured.",
+      "not_checked\tbone_naming\tBone naming: Skeleton not required by profile; the asset has no bones to check.",
+      "pass\ttexture_files\tMissing textures: All 2 referenced texture(s) found.",
+      "warn\ttexture_slots\tRequired texture slots: Required slots present (Normal); recommended missing: M_HelenKellerBust has no BaseColor.",
+      "pass\ttexture_naming\tTexture naming: All 2 texture reference(s) follow the naming convention.",
+      "pass\ttexture_size\tTexture size (power of two, max res): 2 texture(s) are power of two and ≤ 4096 px (largest 2048).",
+      "pass\tmaterial_count\tMaterial count: 1 material(s) used (max 4).",
+      "pass\tuv_layout\tUV0 present & in range: UV0 on all 37,224 triangles, all inside 0–1.",
+      "not_checked\ttexel_density\tTexel density: No studio texel target set; measured (information only): M_HelenKellerBust 28.20 px/cm.",
+      "warn\tmanifest\tPipeline manifest: steps not automated: material_setup_unreal=manual, skinning=not_implemented, unreal_import_test=not_implemented; pipeline warnings (6): Source units inferred, not documented: source_units_to_m=0.0254 -> height 53.1 cm. Smithsonian lists the download as … | ORM roughness (G=0.6) and metallic (B=0.0) are constants, not measured; only R (AO) is baked. | No base colour texture: the source scan has no colour data, so base_color is null. …."
+    ]
+  }
+}

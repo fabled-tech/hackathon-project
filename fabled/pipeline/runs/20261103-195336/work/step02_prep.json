@@ -1,0 +1,10 @@
+{
+  "stage": "prep",
+  "source_tris": 327680,
+  "proxy_decimated": true,
+  "proxy_repair": {
+    "faces_removed_nonmanifold": 0,
+    "holes_filled_faces": 0,
+    "passes": 1
+  }
+}

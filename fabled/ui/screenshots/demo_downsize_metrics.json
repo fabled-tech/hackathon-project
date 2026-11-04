@@ -1,0 +1,105 @@
+{
+  "b_webp_stripped_vs_a_original": {
+    "max_abs": 0.0,
+    "mean_abs_object": 0.0,
+    "pixels_differing": 0,
+    "ssim": 1.0
+  },
+  "a_app_path_vs_r_gltfloader_reference": {
+    "max_abs": 112.0,
+    "mean_abs_object": 0.08806169590298185,
+    "pixels_differing": 1334,
+    "ssim": 0.999047
+  },
+  "a_with_maps_vs_n_without_maps": {
+    "max_abs": 173.0,
+    "mean_abs_object": 5.4079288834337165,
+    "pixels_differing": 231759,
+    "ssim": 0.95745
+  },
+  "control_green_flipped_vs_r_reference": {
+    "max_abs": 156.0,
+    "mean_abs_object": 5.469630031773757,
+    "pixels_differing": 226515,
+    "ssim": 0.941353
+  },
+  "banding": {
+    "brow_eyes": {
+      "a_original": {
+        "unique_levels": 159,
+        "zero_gradient_fraction": 0.0081,
+        "lum_range": [
+          41.181,
+          198.55499999999998
+        ]
+      },
+      "b_webp_stripped": {
+        "unique_levels": 159,
+        "zero_gradient_fraction": 0.0081,
+        "lum_range": [
+          41.181,
+          198.55499999999998
+        ]
+      },
+      "box_y0_y1_x0_x1": [
+        130,
+        250,
+        410,
+        570
+      ]
+    },
+    "mouth_cheek": {
+      "a_original": {
+        "unique_levels": 146,
+        "zero_gradient_fraction": 0.0037,
+        "lum_range": [
+          33.067,
+          179.55499999999998
+        ]
+      },
+      "b_webp_stripped": {
+        "unique_levels": 146,
+        "zero_gradient_fraction": 0.0037,
+        "lum_range": [
+          33.067,
+          179.55499999999998
+        ]
+      },
+      "box_y0_y1_x0_x1": [
+        300,
+        420,
+        330,
+        450
+      ]
+    },
+    "plinth_flat_face": {
+      "a_original": {
+        "unique_levels": 155,
+        "zero_gradient_fraction": 0.2046,
+        "lum_range": [
+          49.995999999999995,
+          239.611
+        ]
+      },
+      "b_webp_stripped": {
+        "unique_levels": 155,
+        "zero_gradient_fraction": 0.2046,
+        "lum_range": [
+          49.995999999999995,
+          239.611
+        ]
+      },
+      "box_y0_y1_x0_x1": [
+        720,
+        860,
+        270,
+        430
+      ]
+    }
+  },
+  "object_pixels": 254193,
+  "size": [
+    900,
+    900
+  ]
+}

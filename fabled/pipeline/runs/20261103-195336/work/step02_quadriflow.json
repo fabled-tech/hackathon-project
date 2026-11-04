@@ -1,0 +1,18 @@
+{
+  "stage": "quadriflow",
+  "success": true,
+  "lod0": {
+    "verts": 9329,
+    "faces": 18636,
+    "tris": 18636,
+    "quads": 0,
+    "ngons": 0,
+    "dims_m": [
+      0.50826,
+      0.55673,
+      0.52892
+    ],
+    "non_manifold_edges": 0,
+    "boundary_edges": 0
+  }
+}

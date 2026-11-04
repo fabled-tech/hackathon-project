@@ -1,0 +1,418 @@
+{
+  "schema": "fabled.pipeline.manifest/0.1",
+  "concept_mockup": false,
+  "job_id": "output",
+  "created_at": "2026-11-03T20:44:03-08:00",
+  "asset": "HelenKellerBust",
+  "status": "ok",
+  "error": null,
+  "path_rule": "all paths are relative to the --out folder (this manifest's directory); *_abs fields are absolute",
+  "up_axis": "Y",
+  "export_up_axis": "Z",
+  "axes_note": "up_axis = the SOURCE file's up axis (rotated to Z-up on import). export_up_axis = the exported FBX's up axis, read back from its GlobalSettings.UpAxis. GLBs are +Y up per the glTF spec.",
+  "exported_size": {
+    "fbx_bbox_cm_xyz_zup": [
+      51.062,
+      55.99,
+      53.089
+    ],
+    "fbx_height_cm": 53.089,
+    "glb_lod0_bbox_cm_xyz_yup": [
+      51.062,
+      53.089,
+      55.99
+    ],
+    "glb_lod0_height_cm": 53.089,
+    "reference": {
+      "dims_cm": [
+        51.062,
+        55.99,
+        53.089
+      ]
+    }
+  },
+  "fbx_texture_files_referenced": [
+    "T_HelenKellerBust_N.png",
+    "T_HelenKellerBust_ORM.png"
+  ],
+  "units": {
+    "unit_scale_factor": 1.0,
+    "unit_scale_factor_source": "read back from export/SM_<asset>.fbx GlobalSettings",
+    "unreal_units": "cm",
+    "source_units_to_m": 0.015512,
+    "source_units_to_m_note": "as configured",
+    "config_source_units_to_m": 0.0254,
+    "target_height_cm": null
+  },
+  "combined_fbx": "export/SM_HelenKellerBust.fbx",
+  "combined_fbx_is_binary": true,
+  "combined_fbx_has_lodgroup": true,
+  "lods": [
+    {
+      "level": 0,
+      "path": "export/SM_HelenKellerBust_LOD0.fbx",
+      "triangles": 18636,
+      "budget_triangles": 20000
+    },
+    {
+      "level": 1,
+      "path": "export/SM_HelenKellerBust_LOD1.fbx",
+      "triangles": 9334,
+      "budget_triangles": 10000
+    },
+    {
+      "level": 2,
+      "path": "export/SM_HelenKellerBust_LOD2.fbx",
+      "triangles": 4493,
+      "budget_triangles": 5000
+    },
+    {
+      "level": 3,
+      "path": "export/SM_HelenKellerBust_LOD3.fbx",
+      "triangles": 1836,
+      "budget_triangles": 2000
+    }
+  ],
+  "profile": "validator_profile.json",
+  "pipeline_config": "config_used.json",
+  "textures": [
+    {
+      "material": "M_HelenKellerBust",
+      "base_color": null,
+      "normal": "export/T_HelenKellerBust_N.png",
+      "orm": "export/T_HelenKellerBust_ORM.png"
+    }
+  ],
+  "orm_channels": {
+    "r": {
+      "source": "ambient_occlusion"
+    },
+    "g": {
+      "source": "constant",
+      "constant": 0.6
+    },
+    "b": {
+      "source": "constant",
+      "constant": 0.0
+    }
+  },
+  "base_color_bake_holes": null,
+  "pre_export_selfcheck": null,
+  "detail_geometry": null,
+  "source": {
+    "name": null,
+    "url": null,
+    "license": null,
+    "license_url": null,
+    "attribution": null,
+    "record_urls": null,
+    "source_json": null,
+    "units_needs_human_confirmation": null
+  },
+  "tool": {
+    "name": "fabled-pipeline",
+    "version": "0.1",
+    "blender_version": "native-numpy-engine-0.1"
+  },
+  "input": {
+    "sculpt_path": "../../ui/samples/fabled_sample_head.glb",
+    "sculpt_path_abs": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/ui/samples/fabled_sample_head.glb",
+    "format": "glb",
+    "bytes": null,
+    "triangles": 327680,
+    "vertices": 163842,
+    "dims_cm": [
+      51.06,
+      55.99,
+      53.09
+    ],
+    "source_url": null,
+    "license": null,
+    "attribution": null
+  },
+  "outputs": {
+    "lods": [
+      {
+        "level": 0,
+        "name": "LOD0",
+        "mesh_name": "SM_HelenKellerBust_LOD0",
+        "path": "export/SM_HelenKellerBust_LOD0.fbx",
+        "format": "fbx",
+        "glb": "export/SM_HelenKellerBust_LOD0.glb",
+        "triangles": 18636,
+        "vertices": 9329,
+        "budget_triangles": 20000,
+        "delta_pct": -6.82,
+        "within_tolerance": true,
+        "screen_size": 1.0,
+        "has_uvs": true,
+        "uv_islands": 64,
+        "fbx_bytes": 2985856,
+        "glb_bytes": 3358768,
+        "source": "retopo"
+      },
+      {
+        "level": 1,
+        "name": "LOD1",
+        "mesh_name": "SM_HelenKellerBust_LOD1",
+        "path": "export/SM_HelenKellerBust_LOD1.fbx",
+        "format": "fbx",
+        "glb": "export/SM_HelenKellerBust_LOD1.glb",
+        "triangles": 9334,
+        "vertices": 4681,
+        "budget_triangles": 10000,
+        "delta_pct": -6.66,
+        "within_tolerance": true,
+        "screen_size": 0.5,
+        "has_uvs": true,
+        "uv_islands": 64,
+        "fbx_bytes": 1497600,
+        "glb_bytes": 1907656,
+        "source": "LOD0"
+      },
+      {
+        "level": 2,
+        "name": "LOD2",
+        "mesh_name": "SM_HelenKellerBust_LOD2",
+        "path": "export/SM_HelenKellerBust_LOD2.fbx",
+        "format": "fbx",
+        "glb": "export/SM_HelenKellerBust_LOD2.glb",
+        "triangles": 4493,
+        "vertices": 2270,
+        "budget_triangles": 5000,
+        "delta_pct": -10.14,
+        "within_tolerance": true,
+        "screen_size": 0.25,
+        "has_uvs": true,
+        "uv_islands": 64,
+        "fbx_bytes": 723264,
+        "glb_bytes": 1152456,
+        "source": "LOD0"
+      },
+      {
+        "level": 3,
+        "name": "LOD3",
+        "mesh_name": "SM_HelenKellerBust_LOD3",
+        "path": "export/SM_HelenKellerBust_LOD3.fbx",
+        "format": "fbx",
+        "glb": "export/SM_HelenKellerBust_LOD3.glb",
+        "triangles": 1836,
+        "vertices": 928,
+        "budget_triangles": 2000,
+        "delta_pct": -8.2,
+        "within_tolerance": true,
+        "screen_size": 0.125,
+        "has_uvs": true,
+        "uv_islands": 64,
+        "fbx_bytes": 297824,
+        "glb_bytes": 737952,
+        "source": "LOD0"
+      }
+    ],
+    "combined_fbx": "export/SM_HelenKellerBust.fbx",
+    "uv_layout_png": "previews/uv_layout_lod0.png",
+    "textures": {
+      "base_color": null,
+      "normal": "export/T_HelenKellerBust_N.png",
+      "orm": "export/T_HelenKellerBust_ORM.png"
+    },
+    "previews": [
+      {
+        "path": "previews/compare_shaded_highpoly_vs_lod0.png",
+        "label": "High-poly sculpt vs LOD0 shaded"
+      },
+      {
+        "path": "previews/lod_strip_wire.png",
+        "label": "LOD0 vs lowest LOD wireframe"
+      },
+      {
+        "path": "previews/uv_layout_lod0.png",
+        "label": "LOD0 UV layout"
+      },
+      {
+        "path": "previews/normal_map_texture_1024.png",
+        "label": "Baked tangent-space normal map"
+      },
+      {
+        "path": "previews/ao_map_texture_1024.png",
+        "label": "Baked ORM (AO / Roughness / Metallic)"
+      },
+      {
+        "path": "previews/raw/hp_shaded.png",
+        "label": "High-poly sculpt (render)"
+      },
+      {
+        "path": "previews/raw/lod0_shaded_normalmap.png",
+        "label": "LOD0 + baked normal map"
+      },
+      {
+        "path": "previews/raw/lod0_wire.png",
+        "label": "LOD0 wireframe"
+      },
+      {
+        "path": "previews/raw/lod3_wire.png",
+        "label": "LOD3 wireframe"
+      }
+    ]
+  },
+  "stages": {
+    "highpoly": {
+      "tris": 327680,
+      "verts": 163842,
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "loose_parts_unwelded": null,
+      "welded": {
+        "non_manifold_edges": 0,
+        "boundary_edges": 0,
+        "non_manifold_verts": 0,
+        "loose_parts": 1,
+        "loose_part_vert_counts": [
+          163842
+        ]
+      }
+    },
+    "source_materials": null,
+    "retopo_proxy": {
+      "tris": null,
+      "verts": null
+    },
+    "lod0_retopo_quads": {
+      "faces": 18636,
+      "quads": 0,
+      "tris": 18636,
+      "verts": 9329
+    },
+    "uv": {
+      "island_count": 64,
+      "overlap_pixels_between_islands": 0,
+      "flipped_uv_faces": 0,
+      "uv_utilization_pct": 18.32,
+      "texel_density_px_per_cm_at_bake_res": 10.24
+    },
+    "bake": {
+      "resolution": 2048,
+      "normal_convention": "DirectX",
+      "bake_source_tris": null,
+      "bake_target_tris": null
+    }
+  },
+  "steps": [
+    {
+      "name": "import_measure",
+      "status": "automated",
+      "method": "Blender importer (.glb), up axis Y, units x0.0254",
+      "runtime_s": 0.06,
+      "peak_rss_mb": 240
+    },
+    {
+      "name": "retopology",
+      "status": "automated",
+      "method": "quadriflow (on 200k-tri repaired proxy)",
+      "runtime_s": 0.64,
+      "peak_rss_mb": 240
+    },
+    {
+      "name": "uv_unwrap",
+      "status": "automated",
+      "method": "smart_uv_project + pack_islands",
+      "runtime_s": 0.0,
+      "peak_rss_mb": 240
+    },
+    {
+      "name": "lod_generation",
+      "status": "automated",
+      "method": "collapse decimate from LOD0 to tri budgets",
+      "runtime_s": 0.23,
+      "peak_rss_mb": 240
+    },
+    {
+      "name": "texture_bake",
+      "status": "automated",
+      "method": "Cycles CPU: normal (tangent, DirectX) + AO -> ORM.R",
+      "runtime_s": 0.34,
+      "peak_rss_mb": 240
+    },
+    {
+      "name": "fbx_export",
+      "status": "automated",
+      "method": "binary FBX 7400, cm, Z-up/-Y fwd, LodGroup combined + per-LOD FBX/GLB",
+      "runtime_s": 0.05,
+      "peak_rss_mb": 240
+    },
+    {
+      "name": "previews",
+      "status": "automated",
+      "method": "Cycles CPU renders + Pillow composites",
+      "runtime_s": 1.13,
+      "peak_rss_mb": 240
+    },
+    {
+      "name": "material_setup_unreal",
+      "status": "manual",
+      "method": "FBX references T_*_N / T_*_ORM; Unreal material graph not generated",
+      "runtime_s": null
+    },
+    {
+      "name": "skinning",
+      "status": "not_implemented",
+      "method": "static meshes only; the source has no rig/armature",
+      "runtime_s": null
+    },
+    {
+      "name": "unreal_import_test",
+      "status": "not_implemented",
+      "method": "not run (no Unreal Editor on this box)",
+      "runtime_s": null
+    }
+  ],
+  "runtimes_s": {
+    "01": 0.06,
+    "02": 0.64,
+    "03": 0.0,
+    "04": 0.23,
+    "05": 0.34,
+    "06": 0.05,
+    "07": 1.13,
+    "08": 0.05
+  },
+  "runtimes_note": "Wall-clock seconds on this machine (8 vCPU, ~15 GB RAM, CPU only), including Blender start-up and .blend load per step. Not a comparison with artist time.",
+  "warnings": [
+    "Source units inferred, not documented: source_units_to_m=0.0254 -> height 53.09 cm. Smithsonian lists the download as 'scale in mm', but the mesh measures 20.91 x 8.11 x 11.09 units (H x W x D). Catalogue dims for NPG.75.16 with base are 50.5 x 21.9 x 26.7 cm. mm would give a 2.1 cm bust and cm a 21 cm one; inches give 53.1 x 20.6 x 28.2 cm (within ~6% of the catalogue), so the file is treated as inches (0.0254 m/unit). This is an inference from measurements, not a documented unit.",
+    "Static mesh only: the source has no rig/armature and the pipeline does not do skinning (step 'skinning' = not_implemented).",
+    "ORM roughness (G=0.6) and metallic (B=0.0) are constants, not measured; only R (AO) is baked.",
+    "No base colour texture: the source has no colour data, so base_color is null.",
+    "Unreal import not tested: the LodGroup in the combined FBX is written via a runtime patch to Blender's exporter and has only been verified by re-importing into Blender."
+  ],
+  "manual_steps": [
+    "Retopology ran QuadriFlow (automatic quad remesh) on a decimated, repaired proxy of the sculpt. It is not artist retopo: edge loops do not follow facial anatomy or deformation lines. Fine for a static prop, not yet for an animated character.",
+    "UV seams come from Smart UV Project (angle-based), not artist-placed: 64 islands, 18.32% of UV space used.",
+    "LOD1+ are collapse-decimated from LOD0 (triangles) and reuse LOD0's normal map/ORM; no per-LOD bake.",
+    "No base colour: the source has no colour texture. ORM roughness/metallic are constants; only AO (R) is baked.",
+    "The FBX references T_*_ORM.png in the roughness/metallic slots (Blender's exporter has no packed-ORM/AO slot); the Unreal material must pick R/G/B channels. No Unreal material graph is generated.",
+    "Unreal import (scale, LodGroup pickup, material hookup) has NOT been tested in Unreal Editor.",
+    "No collision mesh, no lightmap UV channel, no skeleton/skinning (static mesh only).",
+    "Source units are inferred (inches) from catalogue dimensions; needs human confirmation (see SOURCE.json)."
+  ],
+  "report": "report.json",
+  "validator": {
+    "command": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/validator/.venv/bin/python -m fabled_validator check export/SM_HelenKellerBust.fbx --profile validator_profile.json --manifest manifest.json --json-only",
+    "cwd": "prototype/validator",
+    "report": "validator_report.json",
+    "exit_code": 1,
+    "overall_status": "warn",
+    "complete": false,
+    "check_counts": {
+      "pass": 10,
+      "not_checked": 3,
+      "warn": 3
+    },
+    "failed_checks": [],
+    "warn_checks": [
+      "normals",
+      "texel_density",
+      "manifest"
+    ],
+    "runtime_s": 0.22
+  }
+}

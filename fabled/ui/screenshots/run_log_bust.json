@@ -1,0 +1,126 @@
+{
+  "url": "http://127.0.0.1:5178/",
+  "sample": "/workspace/fabled-demos/prototype/ui/samples/fabled_sample_head.glb",
+  "errors": [],
+  "logs": [],
+  "summary": {
+    "pipeline": "Pipeline: connected",
+    "validator": "Validator: connected",
+    "mockupBadgeVisible": false,
+    "rightBadgeVisible": false,
+    "left": "8,504,655 tris (from pipeline manifest; input not loaded in browser)",
+    "right": "19,200 tris · 9,602 verts (computed from loaded GLB) · budget 20,000 · manifest says 19,200",
+    "lods": [
+      {
+        "level": 0,
+        "tris": 19200,
+        "budget": 20000,
+        "source": "pipeline"
+      },
+      {
+        "level": 1,
+        "tris": 10000,
+        "budget": 10000,
+        "source": "pipeline"
+      },
+      {
+        "level": 2,
+        "tris": 5000,
+        "budget": 5000,
+        "source": "pipeline"
+      },
+      {
+        "level": 3,
+        "tris": 2000,
+        "budget": 2000,
+        "source": "pipeline"
+      }
+    ],
+    "browserChecks": [
+      "true\tscale.height_range\tHeight measured 53.1 cm from the file (source units inferred) (0.531 units × 100 cm/unit × scale 1, Y-up measured on the GLB preview, which is Y-up/metres by glTF spec; the validator reads the FBX Z-up in cm). Profile used expects 20–80 cm for \"prop\".",
+      "true\tnormals.flipped\tValidator (authoritative): 0 of 36,200 triangles flagged. Reversed winding: 0. Stored normals against face: 0. Flagged by both: 0. browser check: GLB preview, same definition: agrees (0 of 36,200).",
+      "true\tmesh.manifold\t0 open (boundary) edges, 0 non-manifold edges.",
+      "true\tmesh.degenerate_triangles\t0 zero-area triangles.",
+      "true\tskeleton.binding\tProfile imports as a static mesh; no skeleton required.",
+      "null\tmesh.input_triangles\tHigh-poly input has 8,504,655 triangles according to the pipeline manifest (input not loaded in the browser).",
+      "true\tlod.budget.lod0\t19,200 triangles vs manifest budget 20,000.",
+      "true\tlod.budget.lod1\t10,000 triangles vs manifest budget 10,000.",
+      "true\tlod.budget.lod2\t5,000 triangles vs manifest budget 5,000.",
+      "true\tlod.budget.lod3\t2,000 triangles vs manifest budget 2,000.",
+      "null\tuv.texel_density\tNo texel density target in the profile used, so not checked. Measured (information only): 28.84 px/cm at 2048px (UV area 0.644, surface 0.3245 m²).",
+      "null\tmaterials.textures\tTexture slots found in file: normalMap, roughnessMap, metalnessMap, aoMap.",
+      "null\tpipeline.step.skinning\tPipeline step \"skinning\" is not implemented yet.",
+      "null\tpipeline.step.unreal_import_test\tPipeline step \"unreal_import_test\" is not implemented yet."
+    ],
+    "summary": "No blocking issues · 9 passed · 5 info\nBrowser checks on LOD0 · SM_HelenKellerBust_LOD0.glb · 11:08:28 PM · profile used: \"DEMO PLACEHOLDER VALUES - not a real studio spec (static prop)\" · normals row shows the validator figure (authoritative)"
+  },
+  "fixture": {
+    "openedDir": "Opened /workspace/fabled-demos/prototype/pipeline/runs/20261025-224413 (read-only).",
+    "lods": [
+      {
+        "level": 0,
+        "path": "export/SM_HelenKellerBust_LOD0.glb",
+        "format": "glb",
+        "tris": 19200,
+        "manifestTris": 19200,
+        "budget": 20000
+      },
+      {
+        "level": 1,
+        "path": "export/SM_HelenKellerBust_LOD1.glb",
+        "format": "glb",
+        "tris": 10000,
+        "manifestTris": 10000,
+        "budget": 10000
+      },
+      {
+        "level": 2,
+        "path": "export/SM_HelenKellerBust_LOD2.glb",
+        "format": "glb",
+        "tris": 5000,
+        "manifestTris": 5000,
+        "budget": 5000
+      },
+      {
+        "level": 3,
+        "path": "export/SM_HelenKellerBust_LOD3.glb",
+        "format": "glb",
+        "tris": 2000,
+        "manifestTris": 2000,
+        "budget": 2000
+      }
+    ],
+    "loadErrors": [],
+    "validatorSource": "fabled_validator 0.2.0 · real report",
+    "validatorNote": "Profile file: profiles/demo_placeholder_prop.json · Checked pipeline manifest: manifest.json · exit 1",
+    "validatorHeadline": "WARN\npass 10 · warn 2 · fail 0 · not checked 4 · total 16 · flagged 2\ncomplete: no (some checks not run)\nDEMO PLACEHOLDER VALUESProfile: DEMO PLACEHOLDER VALUES - not a real studio spec (static prop)\nManifest: runs/20261025-224413/manifest.json · 4 LODs listed\nUp axis (manifest check): source Y · export Z · FBX Z",
+    "credit": "Helen Adams Keller by Onorio Ruotolo, 1916. National Portrait Gallery, Smithsonian Institution (NPG.75.16). 3D model via Smithsonian 3D, CC0.\nFabled is not affiliated with or endorsed by the Smithsonian Institution.",
+    "rightBadge": null,
+    "globalBadge": null,
+    "validatorChecks": [
+      "pass\tscale\tScale (bounding-box height): Height 53.1 cm is inside 20–80 cm.",
+      "not_checked\tup_axis\tUp axis: Height heuristic only applies to asset_type 'character'.",
+      "pass\tnormals\tFlipped / inconsistent normals: All 36,200 triangles wind consistently with neighbours and stored normals.",
+      "pass\tnon_manifold\tNon-manifold geometry: No edge is shared by more than two triangles. All shells are closed.",
+      "pass\tdegenerate_triangles\tDegenerate triangles: No zero-area or repeated-vertex triangles.",
+      "pass\ttriangle_budget\tTriangle budget per LOD: Within budget: LOD0 19,200/20,000, LOD1 10,000/10,000, LOD2 5,000/5,000, LOD3 2,000/2,000.",
+      "not_checked\tskeleton_binding\tSkeleton root & skin binding: Skeleton not required by profile; the asset has no bones or skin, so nothing was measured.",
+      "not_checked\tbone_naming\tBone naming: Skeleton not required by profile; the asset has no bones to check.",
+      "pass\ttexture_files\tMissing textures: All 2 referenced texture(s) found.",
+      "warn\ttexture_slots\tRequired texture slots: Required slots present (Normal); recommended missing: M_HelenKellerBust has no BaseColor.",
+      "pass\ttexture_naming\tTexture naming: All 2 texture reference(s) follow the naming convention.",
+      "pass\ttexture_size\tTexture size (power of two, max res): 2 texture(s) checked: power of two; ≤ 4096 px (largest 2048 px).",
+      "pass\tmaterial_count\tMaterial count: 1 material(s) used (max 4).",
+      "pass\tuv_layout\tUV0 present & in range: UV0 on all 36,200 triangles, all inside 0–1.",
+      "not_checked\ttexel_density\tTexel density: No studio texel target set; measured (information only): M_HelenKellerBust 28.84 px/cm.",
+      "warn\tmanifest\tPipeline manifest: 2 problems",
+      "undefined\tundefined\t",
+      "undefined\tundefined\t",
+      "undefined\tundefined\t",
+      "undefined\tundefined\t",
+      "undefined\tundefined\t",
+      "undefined\tundefined\t",
+      "undefined\tundefined\t"
+    ]
+  }
+}

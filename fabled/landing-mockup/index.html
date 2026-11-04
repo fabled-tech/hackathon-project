@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><title>Fabled (CONCEPT MOCKUP)</title>
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<style>
+:root{--cream:#f6efe3;--paper:#fffaf2;--brown:#5a3e2b;--ink:#2b1f16;--accent:#b5652a;--muted:#8a7562;--ok:#3f7a4a;--warn:#b8860b;--bad:#a8402f}
+*{box-sizing:border-box}body{margin:0;font-family:Georgia,"Times New Roman",serif;background:var(--cream);color:var(--ink)}
+.banner{background:var(--bad);color:#fff;text-align:center;font:600 13px/1 system-ui,sans-serif;letter-spacing:.08em;padding:9px}
+nav{display:flex;justify-content:space-between;align-items:center;padding:20px 56px;font-family:system-ui,sans-serif}
+.logo{font:700 26px Georgia,serif;color:var(--brown)}nav a{color:var(--brown);margin-left:26px;text-decoration:none;font-size:15px}
+.hero{display:grid;grid-template-columns:1.05fr 1fr;gap:48px;padding:36px 56px 56px;align-items:center}
+h1{font-size:50px;line-height:1.08;margin:0 0 18px;color:var(--brown)}
+.sub{font:18px/1.5 system-ui,sans-serif;color:var(--ink);max-width:520px}
+.cta{display:inline-block;margin-top:24px;background:var(--accent);color:#fff;padding:14px 26px;border-radius:8px;font:600 16px system-ui,sans-serif;text-decoration:none}
+.note{font:13px system-ui,sans-serif;color:var(--muted);margin-top:12px}
+.card{background:var(--paper);border:1px solid #e2d4c0;border-radius:14px;padding:22px;box-shadow:0 8px 24px rgba(90,62,43,.12);font-family:system-ui,sans-serif;position:relative}
+.tag{position:absolute;top:-11px;right:16px;background:var(--bad);color:#fff;font:700 11px system-ui;padding:4px 8px;border-radius:4px;letter-spacing:.06em}
+.card h3{margin:0 0 4px;font-size:16px;color:var(--brown)}.card .meta{font-size:13px;color:var(--muted);margin-bottom:14px}
+.row{display:flex;justify-content:space-between;padding:9px 0;border-top:1px solid #eee3d3;font-size:14px}
+.pill{font-weight:700;font-size:12px;padding:3px 9px;border-radius:999px;color:#fff}.p{background:var(--ok)}.w{background:var(--warn)}.f{background:var(--bad)}
+.how{background:var(--paper);padding:48px 56px;display:grid;grid-template-columns:repeat(3,1fr);gap:28px;font-family:system-ui,sans-serif}
+.how h4{font:700 19px Georgia,serif;color:var(--brown);margin:8px 0}.how p{font-size:15px;line-height:1.5;margin:0}.n{color:var(--accent);font-weight:700}
+.engines{padding:30px 56px;text-align:center;font:15px system-ui,sans-serif;color:var(--muted)}.engines b{color:var(--brown);margin:0 14px}
+.pricing{padding:20px 56px 50px;display:grid;grid-template-columns:repeat(3,1fr);gap:22px;font-family:system-ui,sans-serif}
+.tier{background:var(--paper);border:1px solid #e2d4c0;border-radius:12px;padding:22px}.tier h5{margin:0;font:700 18px Georgia,serif;color:var(--brown)}
+.price{font:700 30px Georgia,serif;margin:8px 0}.price small{font:14px system-ui;color:var(--muted)}.tier p{font-size:14px;line-height:1.45;margin:0}
+footer{padding:22px 56px;font:13px system-ui,sans-serif;color:var(--muted);border-top:1px solid #e2d4c0}
+</style></head><body>
+<div class="banner">CONCEPT MOCKUP. NOT A LIVE PRODUCT. ALL SCREENS AND DATA BELOW ARE EXAMPLES.</div>
+<nav><div class="logo">Fabled</div><div><a>How it works</a><a>Pricing</a><a>Pilot program</a></div></nav>
+<section class="hero">
+ <div>
+  <h1>From sculpt to screen,<br>without the import surprises.</h1>
+  <p class="sub">Upload a finished sculpt from Blender, Maya or ZBrush. Fabled handles retopo, UVs, LODs and materials, then checks the asset against your studio's own import rules before it ever reaches Unity, Unreal, Godot or your custom engine.</p>
+  <a class="cta">Apply for a paid pilot</a>
+  <p class="note">Built for indie studios that outsource some of their art. Prototype stage.</p>
+ </div>
+ <div class="card"><span class="tag">EXAMPLE DATA</span>
+  <h3>Pre-import check: knight_hero_v3.fbx</h3>
+  <div class="meta">Profile: My Studio / Unreal / characters (example)</div>
+  <div class="row"><span>Scale matches studio units</span><span class="pill f">FIX</span></div>
+  <div class="row"><span>Normals facing out</span><span class="pill w">1 FLIPPED</span></div>
+  <div class="row"><span>Bound to studio skeleton</span><span class="pill p">PASS</span></div>
+  <div class="row"><span>Textures hooked to material</span><span class="pill p">PASS</span></div>
+  <div class="row"><span>LOD chain within budget</span><span class="pill p">PASS</span></div>
+  <div class="row"><span>Texel density in range</span><span class="pill p">PASS</span></div>
+ </div>
+</section>
+<section class="how">
+ <div><span class="n">01</span><h4>Drop in the sculpt</h4><p>Pick your studio's import profile: scale, skeleton, texel density and LOD budget.</p></div>
+ <div><span class="n">02</span><h4>Get an engine-ready asset</h4><p>Clean mesh, UVs, LODs and a hooked-up material. Rigging isn't covered.</p></div>
+ <div><span class="n">03</span><h4>Catch problems before handoff</h4><p>Your vendor sees the same check, and notes stay with the asset instead of in email.</p></div>
+</section>
+<div class="engines">Exports planned for <b>Unity</b><b>Unreal</b><b>Godot</b><b>Custom engines</b></div>
+<section class="pricing">
+ <div class="tier"><h5>Starter</h5><div class="price">$150<small> / seat / year</small></div><p>Pre-import checks and engine export.</p></div>
+ <div class="tier"><h5>Team</h5><div class="price">$250<small> / seat / year</small></div><p>Adds checks against your studio's own import rules.</p></div>
+ <div class="tier"><h5>Studio</h5><div class="price">$350<small> / seat / year</small></div><p>Adds a shared project space for your art vendors.</p></div>
+</section>
+<footer>Concept mockup for UCLA ENGR 215 and early studio conversations. Prices are planned tiers, not a live offer. Fabled Technologies, LLC (in formation).</footer>
+</body></html>

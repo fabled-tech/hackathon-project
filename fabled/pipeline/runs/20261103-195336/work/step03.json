@@ -1,0 +1,11 @@
+{
+  "island_count": 64,
+  "flipped_uv_faces": 0,
+  "faces_outside_0_1": 0,
+  "overlap_pixels_between_islands": 0,
+  "overlap_check_resolution": 2048,
+  "uv_utilization_pct": 18.32,
+  "uv_area_sum": 0.18325,
+  "surface_area_cm2": 7329.82,
+  "texel_density_px_per_cm_at_bake_res": 10.24
+}

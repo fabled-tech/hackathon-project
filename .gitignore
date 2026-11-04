@@ -20,5 +20,13 @@ __pycache__/
 .uv-cache/
 .worktrees/
 .superpowers/
+.agents/
+.build/
+fabled/FabledStudio/.build/
+fabled/FabledStudio/build/
+fabled/ui/work/
+fabled/ui/.build-cache/
+test_results.json
+mcp.json
 *.pyc
 *.tsbuildinfo

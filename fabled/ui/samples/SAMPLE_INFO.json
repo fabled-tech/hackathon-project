@@ -1,0 +1,27 @@
+{
+  "note": "Counts computed by make_sample_sculpt.py at generation time. Procedural, self-made; no license restrictions.",
+  "files": {
+    "fabled_sample_head.glb": {
+      "vertices": 163842,
+      "triangles": 327680,
+      "flipped_triangles_seeded": 2003,
+      "bbox_size_units": [
+        32.917,
+        34.224,
+        36.094
+      ],
+      "bytes": 7865372
+    },
+    "fabled_sample_head.obj": {
+      "vertices": 40962,
+      "triangles": 81920,
+      "flipped_triangles_seeded": 502,
+      "bbox_size_units": [
+        32.89,
+        34.188,
+        36.094
+      ],
+      "bytes": 5437336
+    }
+  }
+}

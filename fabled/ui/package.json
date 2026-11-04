@@ -1,0 +1,23 @@
+{
+  "name": "fabled-demo-ui",
+  "version": "1.0.0",
+  "description": "Fabled demo UI (local prototype)",
+  "scripts": {
+    "start": "node server.mjs",
+    "start:stub": "FABLED_PIPELINE=off FABLED_VALIDATOR=off node server.mjs",
+    "test": "node tools/test_workspace.mjs",
+    "test:screens": "node tools/screenshot_test.mjs",
+    "build:demo": "node tools/build_demo.mjs --src ../pipeline/runs/latest",
+    "check:demo": "node tools/check_demo_dist.mjs",
+    "serve:demo": "python3 -m http.server 5190 --bind 127.0.0.1 -d dist",
+    "test:demo": "node tools/demo_test.mjs",
+    "sample": "python3 tools/make_sample_sculpt.py"
+  },
+  "license": "UNLICENSED",
+  "type": "module",
+  "dependencies": {
+    "playwright-core": "^1.64.1",
+    "three": "^0.169.0"
+  },
+  "private": true
+}

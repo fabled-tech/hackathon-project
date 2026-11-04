@@ -1,0 +1,92 @@
+{
+  "files": [
+    {
+      "lod": "LOD0",
+      "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD0.fbx",
+      "bytes": 2985856,
+      "object": "SM_HelenKellerBust_LOD0",
+      "kind": "per_lod_fbx"
+    },
+    {
+      "lod": "LOD1",
+      "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD1.fbx",
+      "bytes": 1497600,
+      "object": "SM_HelenKellerBust_LOD1",
+      "kind": "per_lod_fbx"
+    },
+    {
+      "lod": "LOD2",
+      "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD2.fbx",
+      "bytes": 723264,
+      "object": "SM_HelenKellerBust_LOD2",
+      "kind": "per_lod_fbx"
+    },
+    {
+      "lod": "LOD3",
+      "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD3.fbx",
+      "bytes": 297824,
+      "object": "SM_HelenKellerBust_LOD3",
+      "kind": "per_lod_fbx"
+    },
+    {
+      "lod": "ALL",
+      "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust.fbx",
+      "bytes": 5498400,
+      "object": "SM_HelenKellerBust",
+      "kind": "combined_fbx_lodgroup"
+    }
+  ],
+  "glb_files": [
+    {
+      "lod": "LOD0",
+      "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD0.glb",
+      "bytes": 3358768,
+      "verification": {
+        "bbox_cm_xyz_yup": [
+          51.062,
+          53.089,
+          55.99
+        ],
+        "height_cm_along_Y": 53.089
+      }
+    },
+    {
+      "lod": "LOD1",
+      "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD1.glb",
+      "bytes": 1907656,
+      "verification": {}
+    },
+    {
+      "lod": "LOD2",
+      "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD2.glb",
+      "bytes": 1152456,
+      "verification": {}
+    },
+    {
+      "lod": "LOD3",
+      "path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/pipeline/output/export/SM_HelenKellerBust_LOD3.glb",
+      "bytes": 737952,
+      "verification": {}
+    }
+  ],
+  "verification": [
+    {
+      "kind": "combined_fbx_lodgroup",
+      "is_binary_fbx": true,
+      "has_lodgroup_node": true,
+      "dims_cm_reimported": [
+        51.062,
+        55.99,
+        53.089
+      ],
+      "texture_files_referenced": [
+        "T_HelenKellerBust_N.png",
+        "T_HelenKellerBust_ORM.png"
+      ],
+      "fbx_global_settings": {
+        "UpAxis": 2,
+        "UnitScaleFactor": 1.0
+      }
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+# SYNTHETIC TEST FIXTURE material library
+newmtl M_Body
+Kd 0.8 0.8 0.8
+map_Kd textures/T_Body_BC.png
+map_Bump -bm 1.0 textures/body_normal_final.png
+
+newmtl M_Head
+Kd 0.8 0.8 0.8
+map_Kd textures/T_HeadHuge_BC.png
+map_Bump -bm 1.0 textures/T_Head_N.png
+map_Pr textures/T_Head_ORM.png
+map_Pm textures/T_Head_ORM.png

@@ -1,0 +1,4 @@
+-r requirements.txt
+pytest>=7
+jsonschema>=4      # tests validate every report against schema/report.schema.json
+assimp_py>=1.0     # optional: tests cross-read the synthetic FBX fixtures with an independent parser (Assimp); skipped if missing

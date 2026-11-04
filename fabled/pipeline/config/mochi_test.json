@@ -1,0 +1,116 @@
+{
+  "_comment": "Mochi test config: stylized low-poly cat character (Higgsfield/Hunyuan-generated GLB, owned by Patrick). Tri budgets are triangles AFTER triangulation.",
+  "asset_name": "Mochi",
+  "source_up_axis": "Y",
+  "_source_up_axis_note": "glTF is +Y up by spec; Blender's glTF importer converts to Z-up.",
+  "source_units_to_m": 1.0,
+  "_source_units_note": "glTF units are metres, but the GLB measures 1.56 m tall x 1.54 m wide x 1.69 m deep (Blender Z-up), a nonsensical size for a house cat (generated meshes come out normalised to ~1.5-2 units). Rescaled to a chosen 30 cm sitting height (plausible domestic cat, head + ears). This is a guess, not a measurement: needs human confirmation of the intended in-game size.",
+  "reference_dims_cm": null,
+  "expected_height_cm_range": [
+    20,
+    45
+  ],
+  "bake_source_max_tris": 0,
+  "_bake_source_note": "0 = bake from the full-resolution sculpt. Set e.g. 2000000 to pre-decimate the bake source if RAM is tight.",
+  "retopo_proxy_tris": 200000,
+  "retopo": {
+    "method_order": [
+      "quadriflow",
+      "voxel_quadriflow",
+      "source_cleanup",
+      "voxel_decimate"
+    ],
+    "quadriflow_timeout_s": 300,
+    "quadriflow_seed": 0,
+    "voxel_size_fraction_of_height": 0.004,
+    "quadriflow_solve_heights_m": [
+      1.0,
+      10.0,
+      50.0,
+      200.0
+    ],
+    "_quadriflow_note": "QuadriFlow is run on a copy scaled so its largest dimension equals each solve height in turn (Blender's pre-check rejects small real-world-sized meshes); first height that QuadriFlow accepts wins.",
+    "weld_distance_fraction_of_height": 1e-05
+  },
+  "lods": [
+    {
+      "name": "LOD0",
+      "target_tris": 3000,
+      "screen_size": 1.0
+    },
+    {
+      "name": "LOD1",
+      "target_tris": 1600,
+      "screen_size": 0.5
+    },
+    {
+      "name": "LOD2",
+      "target_tris": 800,
+      "screen_size": 0.25
+    },
+    {
+      "name": "LOD3",
+      "target_tris": 400,
+      "screen_size": 0.125
+    }
+  ],
+  "lod_tolerance": 0.1,
+  "uv": {
+    "method": "smart_project",
+    "angle_limit_deg": 66.0,
+    "pack_margin_fraction": 0.004,
+    "overlap_check_resolution": 2048
+  },
+  "bake": {
+    "resolution": 2048,
+    "samples": 4,
+    "margin_px": 16,
+    "cage_extrusion_fraction_of_height": 0.02,
+    "max_ray_distance_fraction_of_height": 0.05,
+    "normal_convention": "DirectX",
+    "color_depth": "16",
+    "threads": 8,
+    "ao": {
+      "enabled": true,
+      "samples": 16,
+      "distance_fraction_of_height": 0.15,
+      "orm_roughness_constant": 0.6,
+      "orm_metallic_constant": 0.0,
+      "_note": "AO is baked from the high-poly onto LOD0 into ORM.R; roughness (G) and metallic (B) are constants, not measured."
+    },
+    "base_color": {
+      "enabled": true,
+      "samples": 4
+    }
+  },
+  "export": {
+    "unreal_units": "cm",
+    "axis_forward": "-Y",
+    "axis_up": "Z",
+    "mesh_smooth_type": "FACE",
+    "use_triangles": true,
+    "use_tspace": true
+  },
+  "previews": {
+    "resolution": 1024,
+    "samples": 24,
+    "camera_azimuth_deg": 25.0,
+    "camera_elevation_deg": 8.0,
+    "closeup_center_frac": 0.72,
+    "closeup_height_frac": 0.6,
+    "full_frame_height_frac": 1.3,
+    "source_label": "Source mesh",
+    "source_label_short": "Source",
+    "source_note": "Hunyuan-generated low-poly, untouched"
+  },
+  "limits": {
+    "max_rss_mb": 6000,
+    "min_mem_available_mb": 1500
+  },
+  "_asset_name_note": "null = derived from the input file stem (sanitised for Unreal names). Override with --asset-name or by setting this key.",
+  "target_height_cm": 30.0,
+  "_units_manual_step": "Source size was not trusted (1.56 m tall at glTF metres) and was rescaled to a chosen 30 cm height; confirm the intended in-game cat size.",
+  "keep_source_materials": true,
+  "measure_weld_fraction": 1e-05,
+  "_lods_note": "Source is already 2,680 tris, below a typical hero LOD0 (8-12k). LOD0 budget = 3,000 (no up-res), LOD1-3 halve from there."
+}

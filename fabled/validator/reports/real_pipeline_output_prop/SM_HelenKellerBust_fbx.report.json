@@ -1,0 +1,620 @@
+{
+  "schema_version": "0.2.0",
+  "tool": {
+    "name": "fabled_validator",
+    "version": "0.2.0"
+  },
+  "generated_at": "2026-10-26T05:25:51Z",
+  "generated_at_local": "2026-10-25T22:25:51-07:00",
+  "generated_at_display": "2026-10-25 22:25 PDT",
+  "asset": {
+    "path": "/workspace/fabled-demos/prototype/pipeline/output/export/SM_HelenKellerBust.fbx",
+    "file_name": "SM_HelenKellerBust.fbx",
+    "format": "fbx",
+    "sha256": "48ea78537b27fb58646567b8b84a04e253aa8f6521e36e209cb0ce1b2dc53b59",
+    "size_bytes": 2960956,
+    "synthetic_fixture": false,
+    "referenced_files": [
+      {
+        "path": "/workspace/fabled-demos/prototype/pipeline/output/export/T_HelenKellerBust_N.png",
+        "role": "texture (NormalMap)",
+        "exists": true
+      }
+    ]
+  },
+  "profile": {
+    "name": "DEMO PLACEHOLDER VALUES - not a real studio spec (static prop)",
+    "path": "/workspace/fabled-demos/prototype/validator/profiles/demo_placeholder_prop.json",
+    "sha256": "1ad9201c848cd9777006d7a33278800553e5e77bb952e9621ed7219c69f3492c"
+  },
+  "manifest": {
+    "path": "/workspace/fabled-demos/prototype/pipeline/output/manifest.json",
+    "schema": "fabled.pipeline.manifest/0.1",
+    "asset_name": "HelenKellerBust",
+    "combined_fbx": "/workspace/fabled-demos/prototype/pipeline/output/export/SM_HelenKellerBust.fbx",
+    "lod_count": 4,
+    "readable": true,
+    "error": null
+  },
+  "overall_status": "fail",
+  "complete": false,
+  "summary": {
+    "pass": 9,
+    "warn": 2,
+    "fail": 1,
+    "not_checked": 4,
+    "total": 16,
+    "flagged": 3
+  },
+  "checks": [
+    {
+      "id": "scale",
+      "group": "Scale & orientation",
+      "title": "Scale (bounding-box height)",
+      "status": "pass",
+      "message": "Height 53.0 cm is inside 20\u201380 cm.",
+      "measured": {
+        "height_cm": 53.026,
+        "height_file_units": 53.026416,
+        "up_axis_used": "Z",
+        "cm_per_file_unit": 1.0,
+        "unit_basis": "FBX GlobalSettings UnitScaleFactor = 1 (cm per unit)",
+        "bbox_extent_cm": [
+          20.546,
+          28.052,
+          53.026
+        ]
+      },
+      "expected": {
+        "height_cm_min": 20,
+        "height_cm_max": 80
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "up_axis",
+      "group": "Scale & orientation",
+      "title": "Up axis",
+      "status": "not_checked",
+      "message": "Height heuristic only applies to asset_type 'character'.",
+      "measured": {
+        "extent_file_units": {
+          "X": 20.545714,
+          "Y": 28.052076,
+          "Z": 53.026416
+        },
+        "tallest_axis": "Z",
+        "up_to_widest_other_ratio": 1.89,
+        "declared_up_axis": "Z",
+        "declared_by": "FBX GlobalSettings UpAxis=2 UpAxisSign=1"
+      },
+      "expected": {
+        "up_axis": "Z",
+        "min_up_ratio": 0.9
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "normals",
+      "group": "Normals",
+      "title": "Flipped / inconsistent normals",
+      "status": "fail",
+      "message": "2 of 37,000 triangles face the wrong way.",
+      "measured": {
+        "triangles_checked": 37000,
+        "faces_flagged": 2,
+        "faces_winding_inconsistent": 0,
+        "faces_stored_normal_against_face": 2,
+        "fully_inverted_shells": 0,
+        "non_orientable_conflicts": 0,
+        "meshes_with_stored_normals": 4,
+        "meshes": 4
+      },
+      "expected": {
+        "max_flipped_faces": 0
+      },
+      "items": [
+        {
+          "mesh": "SM_HelenKellerBust_LOD0",
+          "faces_flagged": 1,
+          "winding_flipped": 0,
+          "stored_normals_against_face": 1,
+          "inconsistent_edges": 0,
+          "fully_inverted_shells": 0,
+          "orientation_conflicts": 0
+        },
+        {
+          "mesh": "SM_HelenKellerBust_LOD3",
+          "faces_flagged": 1,
+          "winding_flipped": 0,
+          "stored_normals_against_face": 1,
+          "inconsistent_edges": 0,
+          "fully_inverted_shells": 0,
+          "orientation_conflicts": 0
+        }
+      ],
+      "items_total": 2
+    },
+    {
+      "id": "non_manifold",
+      "group": "Geometry",
+      "title": "Non-manifold geometry",
+      "status": "pass",
+      "message": "No edge is shared by more than two triangles. All shells are closed.",
+      "measured": {
+        "non_manifold_edges": 0,
+        "open_boundary_edges": 0,
+        "faces_on_non_manifold_edges": 0
+      },
+      "expected": {
+        "non_manifold_edges": 0,
+        "allow_open_boundaries": true
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "degenerate_triangles",
+      "group": "Geometry",
+      "title": "Degenerate triangles",
+      "status": "pass",
+      "message": "No zero-area or repeated-vertex triangles.",
+      "measured": {
+        "degenerate_triangles": 0,
+        "repeated_vertex": 0,
+        "zero_area": 0
+      },
+      "expected": {
+        "max_degenerate_triangles": 0
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "triangle_budget",
+      "group": "Geometry",
+      "title": "Triangle budget per LOD",
+      "status": "pass",
+      "message": "Within budget: LOD0 20,000/20,000, LOD1 10,000/10,000, LOD2 5,000/5,000, LOD3 2,000/2,000.",
+      "measured": {
+        "lod_count": 4,
+        "triangles_per_lod": {
+          "LOD0": 20000,
+          "LOD1": 10000,
+          "LOD2": 5000,
+          "LOD3": 2000
+        }
+      },
+      "expected": {
+        "triangle_budgets": {
+          "LOD0": 20000,
+          "LOD1": 10000,
+          "LOD2": 5000,
+          "LOD3": 2000
+        },
+        "min_lod_count": 1
+      },
+      "items": [
+        {
+          "lod": 0,
+          "triangles": 20000,
+          "budget": 20000,
+          "result": "ok"
+        },
+        {
+          "lod": 1,
+          "triangles": 10000,
+          "budget": 10000,
+          "result": "ok"
+        },
+        {
+          "lod": 2,
+          "triangles": 5000,
+          "budget": 5000,
+          "result": "ok"
+        },
+        {
+          "lod": 3,
+          "triangles": 2000,
+          "budget": 2000,
+          "result": "ok"
+        }
+      ],
+      "items_total": 4
+    },
+    {
+      "id": "skeleton_binding",
+      "group": "Skeleton",
+      "title": "Skeleton root & skin binding",
+      "status": "not_checked",
+      "message": "Skeleton not required by profile; the asset has no bones or skin, so nothing was measured.",
+      "measured": {
+        "bone_count": 0,
+        "root_bones": [],
+        "skins": 0,
+        "skinned_meshes": 0,
+        "skinned_meshes_without_skin": 0,
+        "unskinned_meshes": 4
+      },
+      "expected": {
+        "required": false,
+        "root_bone_name": "root"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "bone_naming",
+      "group": "Skeleton",
+      "title": "Bone naming",
+      "status": "not_checked",
+      "message": "Skeleton not required by profile; the asset has no bones to check.",
+      "measured": {
+        "bone_count": 0
+      },
+      "expected": {
+        "bone_name_regex": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_files",
+      "group": "Textures & materials",
+      "title": "Missing textures",
+      "status": "pass",
+      "message": "All 1 referenced texture(s) found.",
+      "measured": {
+        "textures_referenced": 1,
+        "missing": 0,
+        "embedded": 0
+      },
+      "expected": {},
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_slots",
+      "group": "Textures & materials",
+      "title": "Required texture slots",
+      "status": "warn",
+      "message": "Required slots present (Normal); recommended missing: M_HelenKellerBust has no BaseColor, ORM.",
+      "measured": {
+        "materials_used": 1,
+        "materials_missing_slots": 0,
+        "materials_missing_recommended_slots": 1
+      },
+      "expected": {
+        "required_texture_slots": [
+          "Normal"
+        ],
+        "recommended_texture_slots": [
+          "BaseColor",
+          "ORM"
+        ]
+      },
+      "items": [
+        {
+          "material": "M_HelenKellerBust",
+          "slots_present": [
+            "Normal"
+          ],
+          "missing": [],
+          "missing_recommended": [
+            "BaseColor",
+            "ORM"
+          ]
+        }
+      ],
+      "items_total": 1
+    },
+    {
+      "id": "texture_naming",
+      "group": "Textures & materials",
+      "title": "Texture naming",
+      "status": "pass",
+      "message": "All 1 texture reference(s) follow the naming convention.",
+      "measured": {
+        "texture_references": 1,
+        "bad": 0
+      },
+      "expected": {
+        "naming_regex": "^T_[A-Za-z0-9]+_(BC|N|ORM|E|M)\\.(png|tga|jpg|jpeg)$",
+        "slot_suffixes": {
+          "BaseColor": "_BC",
+          "Normal": "_N",
+          "ORM": "_ORM"
+        }
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_size",
+      "group": "Textures & materials",
+      "title": "Texture size (power of two, max res)",
+      "status": "pass",
+      "message": "1 texture(s) are power of two and \u2264 4096 px (largest 2048).",
+      "measured": {
+        "textures_measured": 1,
+        "textures_not_measured": 0,
+        "sizes": {
+          "T_HelenKellerBust_N.png": "2048x2048"
+        }
+      },
+      "expected": {
+        "require_power_of_two": true,
+        "max_resolution": 4096
+      },
+      "items": [
+        {
+          "file": "T_HelenKellerBust_N.png",
+          "size": "2048x2048",
+          "problems": []
+        }
+      ],
+      "items_total": 1
+    },
+    {
+      "id": "material_count",
+      "group": "Textures & materials",
+      "title": "Material count",
+      "status": "pass",
+      "message": "1 material(s) used (max 4).",
+      "measured": {
+        "materials_used": 1,
+        "materials_defined": 1,
+        "triangles_without_material": 0,
+        "names": [
+          "M_HelenKellerBust"
+        ]
+      },
+      "expected": {
+        "max_count": 4
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "uv_layout",
+      "group": "UVs",
+      "title": "UV0 present & in range",
+      "status": "pass",
+      "message": "UV0 on all 37,000 triangles, all inside 0\u20131.",
+      "measured": {
+        "triangles": 37000,
+        "faces_without_uv0": 0,
+        "faces_out_of_range": 0
+      },
+      "expected": {
+        "require_uv0": true,
+        "udim": false,
+        "range": "[0,1]"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texel_density",
+      "group": "UVs",
+      "title": "Texel density",
+      "status": "not_checked",
+      "message": "No studio texel target set; measured (information only): M_HelenKellerBust 27.02 px/cm.",
+      "measured": {
+        "materials_measured": 1,
+        "materials_not_measured": 0,
+        "px_per_cm": {
+          "M_HelenKellerBust": 27.019
+        },
+        "cm_per_file_unit": 1.0
+      },
+      "expected": {
+        "target_px_per_cm": null,
+        "tolerance_pct": 25.0,
+        "range_px_per_cm": null,
+        "reference_slot": "BaseColor",
+        "measured_on": "LOD0"
+      },
+      "items": [
+        {
+          "material": "M_HelenKellerBust",
+          "texture": "T_HelenKellerBust_N.png",
+          "texture_size": "2048x2048",
+          "px_per_cm": 27.019,
+          "face_p5": 23.217,
+          "face_p95": 28.063,
+          "surface_cm2": 3251.4,
+          "uv_area": 0.56592,
+          "in_range": null
+        }
+      ],
+      "items_total": 1
+    },
+    {
+      "id": "manifest",
+      "group": "Pipeline manifest",
+      "title": "Pipeline manifest",
+      "status": "warn",
+      "message": "steps not automated: material_setup_unreal=manual, skinning=not_implemented, unreal_import_test=not_implemented; pipeline warnings (7): Source units inferred, not documented: source_units_to_m=0.0254 -> height 53.1 cm. Smithsonian lists the download as \u2026 | ORM roughness (G=0.6) and metallic (B=0.0) are constants, not measured; only R (AO) is baked. | No base colour texture: the source scan has no colour data, so base_color is null. \u2026; manifest up_axis 'Y' vs FBX declares 'Z'.",
+      "measured": {
+        "manifest_path": "/workspace/fabled-demos/prototype/pipeline/output/manifest.json",
+        "schema": "fabled.pipeline.manifest/0.1",
+        "status": "ok",
+        "steps": {
+          "import_measure": "automated",
+          "retopology": "automated",
+          "uv_unwrap": "automated",
+          "lod_generation": "automated",
+          "texture_bake": "automated",
+          "fbx_export": "automated",
+          "previews": "automated",
+          "material_setup_unreal": "manual",
+          "skinning": "not_implemented",
+          "unreal_import_test": "not_implemented"
+        },
+        "pipeline_warnings": [
+          "Source units inferred, not documented: source_units_to_m=0.0254 -> height 53.1 cm. Smithsonian lists the download as 'scale in mm', but the mesh measures 20.91 x 8.11 x 11.09 units (H x W x D). Catalogue dims for NPG.75.16 with base are 50.5 x 21.9 x 26.7 cm. mm would give a 2.1 cm bust and cm a 21 cm one; inches give 53.1 x 20.6 x 28.2 cm (within ~6% of the catalogue), so the file is treated as inches (0.0254 m/unit). This is an inference from measurements, not a documented unit.",
+          "ORM roughness (G=0.6) and metallic (B=0.0) are constants, not measured; only R (AO) is baked.",
+          "No base colour texture: the source scan has no colour data, so base_color is null.",
+          "Retopo proxy needed repair: 156 faces on non-manifold edges removed and holes filled before QuadriFlow (bake still uses the untouched sculpt).",
+          "Retopo method quadriflow failed: QuadriFlow returned ['CANCELLED']; faces 200089->200089, quads=0",
+          "Retopo method voxel_quadriflow failed: QuadriFlow returned ['CANCELLED']; faces 93484->93484, quads=93484",
+          "Unreal import not tested: the LodGroup in the combined FBX is written via a runtime patch to Blender's exporter and has only been verified by re-importing into Blender."
+        ],
+        "combined_fbx": "/workspace/fabled-demos/prototype/pipeline/output/export/SM_HelenKellerBust.fbx",
+        "combined_triangles_per_lod": {
+          "LOD0": 20000,
+          "LOD1": 10000,
+          "LOD2": 5000,
+          "LOD3": 2000
+        },
+        "fbx_up_axis": "Z",
+        "fbx_cm_per_unit": 1.0,
+        "lod_count": 4,
+        "textures_listed": 2,
+        "problems_fail": 0,
+        "problems_warn": 3
+      },
+      "expected": {
+        "schema": "fabled.pipeline.manifest/0.1",
+        "paths": "relative to the manifest's directory"
+      },
+      "items": [
+        {
+          "lod": 0,
+          "path": "export/SM_HelenKellerBust_LOD0.fbx",
+          "manifest_triangles": 20000,
+          "combined_fbx_triangles": 20000,
+          "file_triangles": 20000,
+          "budget_triangles": 20000,
+          "profile_budget": 20000,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": []
+        },
+        {
+          "lod": 1,
+          "path": "export/SM_HelenKellerBust_LOD1.fbx",
+          "manifest_triangles": 10000,
+          "combined_fbx_triangles": 10000,
+          "file_triangles": 10000,
+          "budget_triangles": 10000,
+          "profile_budget": 10000,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": []
+        },
+        {
+          "lod": 2,
+          "path": "export/SM_HelenKellerBust_LOD2.fbx",
+          "manifest_triangles": 5000,
+          "combined_fbx_triangles": 5000,
+          "file_triangles": 5000,
+          "budget_triangles": 5000,
+          "profile_budget": 5000,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": []
+        },
+        {
+          "lod": 3,
+          "path": "export/SM_HelenKellerBust_LOD3.fbx",
+          "manifest_triangles": 2000,
+          "combined_fbx_triangles": 2000,
+          "file_triangles": 2000,
+          "budget_triangles": 2000,
+          "profile_budget": 2000,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": []
+        },
+        {
+          "texture_slot": "normal",
+          "path": "export/T_HelenKellerBust_N.png",
+          "exists": true,
+          "problems": []
+        },
+        {
+          "texture_slot": "orm",
+          "path": "export/T_HelenKellerBust_ORM.png",
+          "exists": true,
+          "problems": []
+        }
+      ],
+      "items_total": 6
+    }
+  ],
+  "asset_stats": {
+    "meshes": [
+      {
+        "name": "SM_HelenKellerBust_LOD0",
+        "lod": 0,
+        "triangles": 20000,
+        "vertices": 10002,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      },
+      {
+        "name": "SM_HelenKellerBust_LOD1",
+        "lod": 1,
+        "triangles": 10000,
+        "vertices": 5002,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      },
+      {
+        "name": "SM_HelenKellerBust_LOD2",
+        "lod": 2,
+        "triangles": 5000,
+        "vertices": 2502,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      },
+      {
+        "name": "SM_HelenKellerBust_LOD3",
+        "lod": 3,
+        "triangles": 2000,
+        "vertices": 1002,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      }
+    ],
+    "triangles_total": 37000,
+    "bbox_min": [
+      -10.268846,
+      -13.993181,
+      0.015294
+    ],
+    "bbox_max": [
+      10.276868,
+      14.058895,
+      53.04171
+    ],
+    "materials": [
+      {
+        "name": "M_HelenKellerBust",
+        "textures": [
+          {
+            "slot": "Normal",
+            "source_key": "NormalMap",
+            "file": "T_HelenKellerBust_N.png",
+            "exists": true,
+            "embedded": false,
+            "size": "2048x2048"
+          }
+        ]
+      }
+    ],
+    "bones": 0
+  },
+  "notes": [
+    "FBX binary version 7400"
+  ],
+  "error": null
+}

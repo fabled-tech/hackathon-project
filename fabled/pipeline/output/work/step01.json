@@ -1,0 +1,43 @@
+{
+  "input_path": "/Users/patrickargento/Documents/swProjects/cinema_project/fabled/ui/samples/fabled_sample_head.glb",
+  "input_format": ".glb",
+  "source_has_armature": false,
+  "highpoly": {
+    "verts": 163842,
+    "faces": 327680,
+    "tris": 327680,
+    "dims_m": [
+      0.51062,
+      0.5599,
+      0.53089
+    ],
+    "non_manifold_edges": 0,
+    "boundary_edges": 0,
+    "welded": {
+      "non_manifold_edges": 0,
+      "boundary_edges": 0,
+      "non_manifold_verts": 0,
+      "loose_parts": 1,
+      "loose_part_vert_counts": [
+        163842
+      ]
+    }
+  },
+  "scale_check": {
+    "up_axis_used": "Y",
+    "source_units_to_m": 0.015512,
+    "height_cm_after_conversion": 53.09,
+    "expected_height_cm_range": [
+      20,
+      80
+    ],
+    "status": "ok",
+    "reference_comparison": {
+      "dims_cm": [
+        51.062,
+        55.99,
+        53.089
+      ]
+    }
+  }
+}

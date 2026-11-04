@@ -1,0 +1,103 @@
+{
+  "schema": "fabled.pipeline.manifest/0.1",
+  "concept_mockup": false,
+  "job_id": "synthetic-fixture-0001",
+  "created_at": "2026-10-25T22:00:00-07:00",
+  "tool": {
+    "name": "fabled validator fixtures/make_fixtures.py (SYNTHETIC TEST FIXTURE)",
+    "version": "0.1"
+  },
+  "input": {
+    "sculpt_path": null,
+    "format": null,
+    "triangles": null,
+    "vertices": null,
+    "source_url": null,
+    "license": "synthetic test fixture (no source sculpt)"
+  },
+  "profile": {
+    "name": "DEMO PLACEHOLDER VALUES - not a real studio spec",
+    "lods": [
+      {
+        "name": "LOD0",
+        "target_tris": 60000
+      },
+      {
+        "name": "LOD1",
+        "target_tris": 30000
+      },
+      {
+        "name": "LOD2",
+        "target_tris": 15000
+      },
+      {
+        "name": "LOD3",
+        "target_tris": 7500
+      }
+    ]
+  },
+  "outputs": {
+    "lods": [
+      {
+        "level": 0,
+        "name": "LOD0",
+        "path": "SM_SyntheticProxy_LOD0.fbx",
+        "format": "fbx",
+        "triangles": 4608,
+        "vertices": 2316,
+        "budget_triangles": 60000,
+        "screen_size": 1.0,
+        "has_uvs": true
+      },
+      {
+        "level": 1,
+        "name": "LOD1",
+        "path": "SM_SyntheticProxy_LOD1.fbx",
+        "format": "fbx",
+        "triangles": 1152,
+        "vertices": 588,
+        "budget_triangles": 30000,
+        "screen_size": 0.5,
+        "has_uvs": true
+      },
+      {
+        "level": 2,
+        "name": "LOD2",
+        "path": "SM_SyntheticProxy_LOD2.fbx",
+        "format": "fbx",
+        "triangles": 288,
+        "vertices": 156,
+        "budget_triangles": 15000,
+        "screen_size": 0.25,
+        "has_uvs": true
+      },
+      {
+        "level": 3,
+        "name": "LOD3",
+        "path": "SM_SyntheticProxy_LOD3.glb",
+        "format": "glb",
+        "triangles": 72,
+        "vertices": 48,
+        "budget_triangles": 7500,
+        "screen_size": 0.12,
+        "has_uvs": true
+      }
+    ],
+    "combined_fbx": "SM_SyntheticProxy.fbx",
+    "uv_layout_png": null,
+    "textures": {
+      "base_color": "textures/T_SyntheticProxy_BC.png",
+      "normal": "textures/T_SyntheticProxy_N.png",
+      "orm": "textures/T_SyntheticProxy_ORM.png"
+    }
+  },
+  "previews": [],
+  "steps": [
+    {
+      "name": "synthetic_generation",
+      "status": "automated",
+      "method": "make_fixtures.py"
+    }
+  ],
+  "warnings": []
+}

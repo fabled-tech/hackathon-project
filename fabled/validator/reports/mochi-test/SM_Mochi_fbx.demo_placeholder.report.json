@@ -1,0 +1,800 @@
+{
+  "schema_version": "0.2.0",
+  "tool": {
+    "name": "fabled_validator",
+    "version": "0.2.0"
+  },
+  "generated_at": "2026-10-26T06:27:25Z",
+  "generated_at_local": "2026-10-25T23:27:25-07:00",
+  "generated_at_display": "2026-10-25 23:27 PDT",
+  "asset": {
+    "path": "/workspace/fabled-demos/prototype/pipeline/runs/mochi-test-20261025-231636/export/SM_Mochi.fbx",
+    "file_name": "SM_Mochi.fbx",
+    "format": "fbx",
+    "sha256": "18d8544e848aee8fe41e67df9fc81d73e5efe1d5c3beefd579ade59eded42214",
+    "size_bytes": 540044,
+    "synthetic_fixture": false,
+    "referenced_files": [
+      {
+        "path": "/workspace/fabled-demos/prototype/pipeline/runs/mochi-test-20261025-231636/export/T_Mochi_BC.png",
+        "role": "texture (DiffuseColor)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/pipeline/runs/mochi-test-20261025-231636/export/T_Mochi_N.png",
+        "role": "texture (NormalMap)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/pipeline/runs/mochi-test-20261025-231636/export/T_Mochi_ORM.png",
+        "role": "texture (ShininessExponent)",
+        "exists": true
+      },
+      {
+        "path": "/workspace/fabled-demos/prototype/pipeline/runs/mochi-test-20261025-231636/export/T_Mochi_ORM.png",
+        "role": "texture (ReflectionFactor)",
+        "exists": true
+      }
+    ]
+  },
+  "profile": {
+    "name": "DEMO PLACEHOLDER VALUES - not a real studio spec",
+    "path": "/workspace/fabled-demos/prototype/validator/profiles/demo_placeholder.json",
+    "sha256": "92323c1f1098af384418578a14f740d58bf4241e268a5316cbb4a388278562ed"
+  },
+  "manifest": {
+    "path": "/workspace/fabled-demos/prototype/pipeline/runs/mochi-test-20261025-231636/manifest.json",
+    "schema": "fabled.pipeline.manifest/0.1",
+    "asset_name": "Mochi",
+    "combined_fbx": "/workspace/fabled-demos/prototype/pipeline/runs/mochi-test-20261025-231636/export/SM_Mochi.fbx",
+    "lod_count": 4,
+    "readable": true,
+    "error": null
+  },
+  "overall_status": "fail",
+  "complete": false,
+  "summary": {
+    "pass": 8,
+    "warn": 2,
+    "fail": 3,
+    "not_checked": 3,
+    "total": 16,
+    "flagged": 5
+  },
+  "checks": [
+    {
+      "id": "scale",
+      "group": "Scale & orientation",
+      "title": "Scale (bounding-box height)",
+      "status": "fail",
+      "message": "Height 24.0 cm is outside 150\u2013220 cm.",
+      "measured": {
+        "height_cm": 23.978,
+        "height_file_units": 23.977698,
+        "up_axis_used": "Y",
+        "cm_per_file_unit": 1.0,
+        "unit_basis": "FBX GlobalSettings UnitScaleFactor = 1 (cm per unit)",
+        "bbox_extent_cm": [
+          22.213,
+          23.978,
+          29.4
+        ],
+        "fix_hints": []
+      },
+      "expected": {
+        "height_cm_min": 150,
+        "height_cm_max": 220
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "up_axis",
+      "group": "Scale & orientation",
+      "title": "Up axis",
+      "status": "warn",
+      "message": "File declares Z up, profile expects Y up (FBX GlobalSettings UpAxis=2 UpAxisSign=1).",
+      "measured": {
+        "extent_file_units": {
+          "X": 22.212987,
+          "Y": 23.977698,
+          "Z": 29.400023
+        },
+        "tallest_axis": "Z",
+        "up_to_widest_other_ratio": 0.816,
+        "declared_up_axis": "Z",
+        "declared_by": "FBX GlobalSettings UpAxis=2 UpAxisSign=1"
+      },
+      "expected": {
+        "up_axis": "Y",
+        "min_up_ratio": 0.9
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "normals",
+      "group": "Normals",
+      "title": "Flipped / inconsistent normals",
+      "status": "fail",
+      "message": "6 of 5,503 triangles flagged \u2014 reversed winding: 6; stored normals against face: 0.",
+      "measured": {
+        "triangles_checked": 5503,
+        "faces_flagged": 6,
+        "faces_winding_inconsistent": 6,
+        "faces_stored_normal_against_face": 0,
+        "fully_inverted_shells": 3,
+        "non_orientable_conflicts": 0,
+        "meshes_with_stored_normals": 4,
+        "meshes": 4,
+        "reversed_winding": 6,
+        "stored_normals_against_face": 0,
+        "flagged_by_both": 0
+      },
+      "expected": {
+        "max_flipped_faces": 0
+      },
+      "items": [
+        {
+          "mesh": "SM_Mochi_LOD1",
+          "faces_flagged": 2,
+          "winding_flipped": 2,
+          "stored_normals_against_face": 0,
+          "inconsistent_edges": 0,
+          "fully_inverted_shells": 1,
+          "orientation_conflicts": 0
+        },
+        {
+          "mesh": "SM_Mochi_LOD2",
+          "faces_flagged": 2,
+          "winding_flipped": 2,
+          "stored_normals_against_face": 0,
+          "inconsistent_edges": 0,
+          "fully_inverted_shells": 1,
+          "orientation_conflicts": 0
+        },
+        {
+          "mesh": "SM_Mochi_LOD3",
+          "faces_flagged": 2,
+          "winding_flipped": 2,
+          "stored_normals_against_face": 0,
+          "inconsistent_edges": 0,
+          "fully_inverted_shells": 1,
+          "orientation_conflicts": 0
+        }
+      ],
+      "items_total": 3
+    },
+    {
+      "id": "non_manifold",
+      "group": "Geometry",
+      "title": "Non-manifold geometry",
+      "status": "pass",
+      "message": "No edge is shared by more than two triangles. 32 open boundary edge(s), allowed by profile.",
+      "measured": {
+        "non_manifold_edges": 0,
+        "open_boundary_edges": 32,
+        "faces_on_non_manifold_edges": 0
+      },
+      "expected": {
+        "non_manifold_edges": 0,
+        "allow_open_boundaries": true
+      },
+      "items": [
+        {
+          "mesh": "SM_Mochi_LOD0",
+          "non_manifold_edges": 0,
+          "faces_on_non_manifold_edges": 0,
+          "open_boundary_edges": 8
+        },
+        {
+          "mesh": "SM_Mochi_LOD1",
+          "non_manifold_edges": 0,
+          "faces_on_non_manifold_edges": 0,
+          "open_boundary_edges": 8
+        },
+        {
+          "mesh": "SM_Mochi_LOD2",
+          "non_manifold_edges": 0,
+          "faces_on_non_manifold_edges": 0,
+          "open_boundary_edges": 8
+        },
+        {
+          "mesh": "SM_Mochi_LOD3",
+          "non_manifold_edges": 0,
+          "faces_on_non_manifold_edges": 0,
+          "open_boundary_edges": 8
+        }
+      ],
+      "items_total": 4
+    },
+    {
+      "id": "degenerate_triangles",
+      "group": "Geometry",
+      "title": "Degenerate triangles",
+      "status": "fail",
+      "message": "5 degenerate triangle(s) (5 repeated-vertex, 0 zero-area).",
+      "measured": {
+        "degenerate_triangles": 5,
+        "repeated_vertex": 5,
+        "zero_area": 0
+      },
+      "expected": {
+        "max_degenerate_triangles": 0
+      },
+      "items": [
+        {
+          "mesh": "SM_Mochi_LOD0",
+          "repeated_vertex": 2,
+          "zero_area": 0
+        },
+        {
+          "mesh": "SM_Mochi_LOD1",
+          "repeated_vertex": 1,
+          "zero_area": 0
+        },
+        {
+          "mesh": "SM_Mochi_LOD2",
+          "repeated_vertex": 1,
+          "zero_area": 0
+        },
+        {
+          "mesh": "SM_Mochi_LOD3",
+          "repeated_vertex": 1,
+          "zero_area": 0
+        }
+      ],
+      "items_total": 4
+    },
+    {
+      "id": "triangle_budget",
+      "group": "Geometry",
+      "title": "Triangle budget per LOD",
+      "status": "pass",
+      "message": "Within budget: LOD0 2,706/60,000, LOD1 1,599/30,000, LOD2 799/15,000, LOD3 399/7,500.",
+      "measured": {
+        "lod_count": 4,
+        "triangles_per_lod": {
+          "LOD0": 2706,
+          "LOD1": 1599,
+          "LOD2": 799,
+          "LOD3": 399
+        }
+      },
+      "expected": {
+        "triangle_budgets": {
+          "LOD0": 60000,
+          "LOD1": 30000,
+          "LOD2": 15000,
+          "LOD3": 7500
+        },
+        "min_lod_count": 1
+      },
+      "items": [
+        {
+          "lod": 0,
+          "triangles": 2706,
+          "budget": 60000,
+          "result": "ok"
+        },
+        {
+          "lod": 1,
+          "triangles": 1599,
+          "budget": 30000,
+          "result": "ok"
+        },
+        {
+          "lod": 2,
+          "triangles": 799,
+          "budget": 15000,
+          "result": "ok"
+        },
+        {
+          "lod": 3,
+          "triangles": 399,
+          "budget": 7500,
+          "result": "ok"
+        }
+      ],
+      "items_total": 4
+    },
+    {
+      "id": "skeleton_binding",
+      "group": "Skeleton",
+      "title": "Skeleton root & skin binding",
+      "status": "not_checked",
+      "message": "Skeleton not required by profile; the asset has no bones or skin, so nothing was measured.",
+      "measured": {
+        "bone_count": 0,
+        "root_bones": [],
+        "skins": 0,
+        "skinned_meshes": 0,
+        "skinned_meshes_without_skin": 0,
+        "unskinned_meshes": 4
+      },
+      "expected": {
+        "required": false,
+        "root_bone_name": "root"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "bone_naming",
+      "group": "Skeleton",
+      "title": "Bone naming",
+      "status": "not_checked",
+      "message": "Skeleton not required by profile; the asset has no bones to check.",
+      "measured": {
+        "bone_count": 0
+      },
+      "expected": {
+        "bone_name_regex": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_files",
+      "group": "Textures & materials",
+      "title": "Missing textures",
+      "status": "pass",
+      "message": "All 3 referenced texture(s) found.",
+      "measured": {
+        "textures_referenced": 3,
+        "missing": 0,
+        "embedded": 0
+      },
+      "expected": {},
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_slots",
+      "group": "Textures & materials",
+      "title": "Required texture slots",
+      "status": "pass",
+      "message": "All 1 material(s) have Normal, BaseColor, ORM.",
+      "measured": {
+        "materials_used": 1,
+        "materials_missing_slots": 0,
+        "materials_missing_recommended_slots": 0,
+        "texture_links": [
+          {
+            "material": "M_Mochi",
+            "file": "T_Mochi_BC.png",
+            "slot": "BaseColor",
+            "linked_via": [
+              "DiffuseColor"
+            ],
+            "property_slot": "BaseColor",
+            "rule": "name suffix _BC (linked via DiffuseColor)"
+          },
+          {
+            "material": "M_Mochi",
+            "file": "T_Mochi_N.png",
+            "slot": "Normal",
+            "linked_via": [
+              "NormalMap"
+            ],
+            "property_slot": "Normal",
+            "rule": "name suffix _N (linked via NormalMap)"
+          },
+          {
+            "material": "M_Mochi",
+            "file": "T_Mochi_ORM.png",
+            "slot": "ORM",
+            "linked_via": [
+              "ShininessExponent",
+              "ReflectionFactor"
+            ],
+            "property_slot": "ORM",
+            "rule": "name suffix _ORM (linked via ShininessExponent, ReflectionFactor)"
+          }
+        ],
+        "unreal_orm_note": "Packed ORM linked through Roughness/Metallic-type FBX properties. Whether Unreal's FBX importer wires one packed texture into separate AO/Roughness/Metallic channels is UNVERIFIED here (no Unreal Editor on this box); plan on a material that splits the R/G/B channels."
+      },
+      "expected": {
+        "required_texture_slots": [
+          "Normal"
+        ],
+        "recommended_texture_slots": [
+          "BaseColor",
+          "ORM"
+        ]
+      },
+      "items": [
+        {
+          "material": "M_Mochi",
+          "slots_present": [
+            "BaseColor",
+            "Normal",
+            "ORM"
+          ],
+          "missing": [],
+          "missing_recommended": []
+        }
+      ],
+      "items_total": 1
+    },
+    {
+      "id": "texture_naming",
+      "group": "Textures & materials",
+      "title": "Texture naming",
+      "status": "pass",
+      "message": "All 3 texture reference(s) follow the naming convention.",
+      "measured": {
+        "texture_references": 3,
+        "bad": 0
+      },
+      "expected": {
+        "naming_regex": "^T_[A-Za-z0-9]+_(BC|N|ORM|E|M)\\.(png|tga|jpg|jpeg)$",
+        "slot_suffixes": {
+          "BaseColor": "_BC",
+          "Normal": "_N",
+          "ORM": "_ORM"
+        }
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_size",
+      "group": "Textures & materials",
+      "title": "Texture size (power of two, max res)",
+      "status": "pass",
+      "message": "3 texture(s) checked: power of two; \u2264 4096 px (largest 2048 px).",
+      "measured": {
+        "textures_measured": 3,
+        "textures_not_measured": 0,
+        "sizes": {
+          "T_Mochi_BC.png": "2048x2048",
+          "T_Mochi_N.png": "2048x2048",
+          "T_Mochi_ORM.png": "2048x2048"
+        }
+      },
+      "expected": {
+        "require_power_of_two": true,
+        "max_resolution": 4096
+      },
+      "items": [
+        {
+          "file": "T_Mochi_BC.png",
+          "size": "2048x2048",
+          "problems": []
+        },
+        {
+          "file": "T_Mochi_N.png",
+          "size": "2048x2048",
+          "problems": []
+        },
+        {
+          "file": "T_Mochi_ORM.png",
+          "size": "2048x2048",
+          "problems": []
+        }
+      ],
+      "items_total": 3
+    },
+    {
+      "id": "material_count",
+      "group": "Textures & materials",
+      "title": "Material count",
+      "status": "pass",
+      "message": "1 material(s) used (max 4).",
+      "measured": {
+        "materials_used": 1,
+        "materials_defined": 1,
+        "triangles_without_material": 0,
+        "names": [
+          "M_Mochi"
+        ]
+      },
+      "expected": {
+        "max_count": 4
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "uv_layout",
+      "group": "UVs",
+      "title": "UV0 present & in range",
+      "status": "pass",
+      "message": "UV0 on all 5,503 triangles, all inside 0\u20131.",
+      "measured": {
+        "triangles": 5503,
+        "faces_without_uv0": 0,
+        "faces_out_of_range": 0
+      },
+      "expected": {
+        "require_uv0": true,
+        "udim": false,
+        "range": "[0,1]"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texel_density",
+      "group": "UVs",
+      "title": "Texel density",
+      "status": "not_checked",
+      "message": "Skipped until scale passes \u2014 world size is wrong, so px/cm would be off by the same factor.",
+      "measured": {
+        "materials_measured": 1,
+        "materials_not_measured": 0,
+        "px_per_cm": {
+          "M_Mochi": 35.684
+        },
+        "cm_per_file_unit": 1.0
+      },
+      "expected": {
+        "target_px_per_cm": 10.24,
+        "tolerance_pct": 25.0,
+        "range_px_per_cm": [
+          7.68,
+          12.8
+        ],
+        "reference_slot": "BaseColor",
+        "measured_on": "LOD0"
+      },
+      "items": [
+        {
+          "material": "M_Mochi",
+          "texture": "T_Mochi_BC.png",
+          "texture_size": "2048x2048",
+          "px_per_cm": 35.684,
+          "face_p5": 30.698,
+          "face_p95": 38.863,
+          "surface_cm2": 1869.3,
+          "uv_area": 0.56749,
+          "in_range": false
+        }
+      ],
+      "items_total": 1
+    },
+    {
+      "id": "manifest",
+      "group": "Pipeline manifest",
+      "title": "Pipeline manifest",
+      "status": "warn",
+      "message": "steps not automated: material_setup_unreal=manual, skinning=not_implemented, unreal_import_test=not_implemented; pipeline warnings (9): Source size not trusted: at its file units the source is 156.41 cm tall; it was rescaled to a chosen height of 30.0 cm (effective source_units_to_m=0.1918). glTF units are metres, but the GLB measures 1.56 m tall x 1.54 m wide x 1.69 m deep (Blender Z-up), a nonsensical size for a house cat (generated meshes come out normalised to ~1.5-2 units). Rescaled to a chosen 30 cm sitting height (plausible domestic cat, head + ears). This is a guess, not a measurement: needs human confirmation of the intended in-game size. | Source topology is not clean (after welding coincident verts): 49 non-manifold edges, 231 open boundary edges, 66 non-manifold verts, 7 separate parts (vert counts [1359, 20, 11, 10, 6, 4, 3]). Unwelded as imported: 2380 boundary edges, 277 parts. | Source is already low-poly (2,680 tris), at or below the LOD0 budget (3,000); LOD budgets were set relative to the source, not to a 'high-poly to game-res' reduction. | Static mesh only: the source has no rig/armature and the pipeline does not do skinning (step 'skinning' = not_implemented). | ORM roughness (G=0.6) and metallic (B=0.0) are constants, not measured; only R (AO) is baked. | Base colour is a bake transfer of the source texture (texture_20250901) onto LOD0's new UVs: it carries the source texture's blotches/baked-in lighting, and texels whose rays missed the source stay black (27.16% of the texture is black, including empty UV space). | LOD0 has 3 UV-flipped faces (Smart UV Project). | Retopo proxy needed repair: 348 faces on non-manifold edges removed and holes filled before QuadriFlow (bake still uses the untouched sculpt). | Unreal import not tested: the LodGroup in the combined FBX is written via a runtime patch to Blender's exporter and has only been verified by re-importing into Blender.; LOD0 manifest budget 3,000 \u2260 profile budget 60,000; LOD1 manifest budget 1,600 \u2260 profile budget 30,000; LOD2 manifest budget 800 \u2260 profile budget 15,000; LOD3 manifest budget 400 \u2260 profile budget 7,500.",
+      "measured": {
+        "manifest_path": "/workspace/fabled-demos/prototype/pipeline/runs/mochi-test-20261025-231636/manifest.json",
+        "schema": "fabled.pipeline.manifest/0.1",
+        "status": "ok",
+        "steps": {
+          "import_measure": "automated",
+          "retopology": "automated",
+          "uv_unwrap": "automated",
+          "lod_generation": "automated",
+          "texture_bake": "automated",
+          "fbx_export": "automated",
+          "previews": "automated",
+          "material_setup_unreal": "manual",
+          "skinning": "not_implemented",
+          "unreal_import_test": "not_implemented"
+        },
+        "pipeline_warnings": [
+          "Source size not trusted: at its file units the source is 156.41 cm tall; it was rescaled to a chosen height of 30.0 cm (effective source_units_to_m=0.1918). glTF units are metres, but the GLB measures 1.56 m tall x 1.54 m wide x 1.69 m deep (Blender Z-up), a nonsensical size for a house cat (generated meshes come out normalised to ~1.5-2 units). Rescaled to a chosen 30 cm sitting height (plausible domestic cat, head + ears). This is a guess, not a measurement: needs human confirmation of the intended in-game size.",
+          "Source topology is not clean (after welding coincident verts): 49 non-manifold edges, 231 open boundary edges, 66 non-manifold verts, 7 separate parts (vert counts [1359, 20, 11, 10, 6, 4, 3]). Unwelded as imported: 2380 boundary edges, 277 parts.",
+          "Source is already low-poly (2,680 tris), at or below the LOD0 budget (3,000); LOD budgets were set relative to the source, not to a 'high-poly to game-res' reduction.",
+          "Static mesh only: the source has no rig/armature and the pipeline does not do skinning (step 'skinning' = not_implemented).",
+          "ORM roughness (G=0.6) and metallic (B=0.0) are constants, not measured; only R (AO) is baked.",
+          "Base colour is a bake transfer of the source texture (texture_20250901) onto LOD0's new UVs: it carries the source texture's blotches/baked-in lighting, and texels whose rays missed the source stay black (27.16% of the texture is black, including empty UV space).",
+          "LOD0 has 3 UV-flipped faces (Smart UV Project).",
+          "Retopo proxy needed repair: 348 faces on non-manifold edges removed and holes filled before QuadriFlow (bake still uses the untouched sculpt).",
+          "Unreal import not tested: the LodGroup in the combined FBX is written via a runtime patch to Blender's exporter and has only been verified by re-importing into Blender."
+        ],
+        "combined_fbx": "/workspace/fabled-demos/prototype/pipeline/runs/mochi-test-20261025-231636/export/SM_Mochi.fbx",
+        "combined_triangles_per_lod": {
+          "LOD0": 2706,
+          "LOD1": 1599,
+          "LOD2": 799,
+          "LOD3": 399
+        },
+        "fbx_up_axis": "Z",
+        "export_up_axis": "Z",
+        "export_up_axis_field": "export_up_axis",
+        "axis_compared": "export_up_axis",
+        "source_up_axis": "Y",
+        "fbx_cm_per_unit": 1.0,
+        "lod_count": 4,
+        "textures_listed": 3,
+        "problems_fail": 0,
+        "problems_warn": 6,
+        "problems_fail_list": [],
+        "problems_warn_list": [
+          "steps not automated: material_setup_unreal=manual, skinning=not_implemented, unreal_import_test=not_implemented",
+          "pipeline warnings (9): Source size not trusted: at its file units the source is 156.41 cm tall; it was rescaled to a chosen height of 30.0 cm (effective source_units_to_m=0.1918). glTF units are metres, but the GLB measures 1.56 m tall x 1.54 m wide x 1.69 m deep (Blender Z-up), a nonsensical size for a house cat (generated meshes come out normalised to ~1.5-2 units). Rescaled to a chosen 30 cm sitting height (plausible domestic cat, head + ears). This is a guess, not a measurement: needs human confirmation of the intended in-game size. | Source topology is not clean (after welding coincident verts): 49 non-manifold edges, 231 open boundary edges, 66 non-manifold verts, 7 separate parts (vert counts [1359, 20, 11, 10, 6, 4, 3]). Unwelded as imported: 2380 boundary edges, 277 parts. | Source is already low-poly (2,680 tris), at or below the LOD0 budget (3,000); LOD budgets were set relative to the source, not to a 'high-poly to game-res' reduction. | Static mesh only: the source has no rig/armature and the pipeline does not do skinning (step 'skinning' = not_implemented). | ORM roughness (G=0.6) and metallic (B=0.0) are constants, not measured; only R (AO) is baked. | Base colour is a bake transfer of the source texture (texture_20250901) onto LOD0's new UVs: it carries the source texture's blotches/baked-in lighting, and texels whose rays missed the source stay black (27.16% of the texture is black, including empty UV space). | LOD0 has 3 UV-flipped faces (Smart UV Project). | Retopo proxy needed repair: 348 faces on non-manifold edges removed and holes filled before QuadriFlow (bake still uses the untouched sculpt). | Unreal import not tested: the LodGroup in the combined FBX is written via a runtime patch to Blender's exporter and has only been verified by re-importing into Blender.",
+          "LOD0 manifest budget 3,000 \u2260 profile budget 60,000",
+          "LOD1 manifest budget 1,600 \u2260 profile budget 30,000",
+          "LOD2 manifest budget 800 \u2260 profile budget 15,000",
+          "LOD3 manifest budget 400 \u2260 profile budget 7,500"
+        ]
+      },
+      "expected": {
+        "schema": "fabled.pipeline.manifest/0.1",
+        "paths": "relative to the manifest's directory"
+      },
+      "items": [
+        {
+          "lod": 0,
+          "path": "export/SM_Mochi_LOD0.fbx",
+          "manifest_triangles": 2706,
+          "combined_fbx_triangles": 2706,
+          "file_triangles": 2706,
+          "budget_triangles": 3000,
+          "profile_budget": 60000,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": [
+            "budget differs from profile"
+          ]
+        },
+        {
+          "lod": 1,
+          "path": "export/SM_Mochi_LOD1.fbx",
+          "manifest_triangles": 1599,
+          "combined_fbx_triangles": 1599,
+          "file_triangles": 1599,
+          "budget_triangles": 1600,
+          "profile_budget": 30000,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": [
+            "budget differs from profile"
+          ]
+        },
+        {
+          "lod": 2,
+          "path": "export/SM_Mochi_LOD2.fbx",
+          "manifest_triangles": 799,
+          "combined_fbx_triangles": 799,
+          "file_triangles": 799,
+          "budget_triangles": 800,
+          "profile_budget": 15000,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": [
+            "budget differs from profile"
+          ]
+        },
+        {
+          "lod": 3,
+          "path": "export/SM_Mochi_LOD3.fbx",
+          "manifest_triangles": 399,
+          "combined_fbx_triangles": 399,
+          "file_triangles": 399,
+          "budget_triangles": 400,
+          "profile_budget": 7500,
+          "has_uvs_manifest": true,
+          "has_uvs_measured": true,
+          "problems": [
+            "budget differs from profile"
+          ]
+        },
+        {
+          "texture_slot": "base_color",
+          "path": "export/T_Mochi_BC.png",
+          "exists": true,
+          "problems": []
+        },
+        {
+          "texture_slot": "normal",
+          "path": "export/T_Mochi_N.png",
+          "exists": true,
+          "problems": []
+        },
+        {
+          "texture_slot": "orm",
+          "path": "export/T_Mochi_ORM.png",
+          "exists": true,
+          "problems": []
+        }
+      ],
+      "items_total": 7
+    }
+  ],
+  "asset_stats": {
+    "meshes": [
+      {
+        "name": "SM_Mochi_LOD0",
+        "lod": 0,
+        "triangles": 2706,
+        "vertices": 1360,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      },
+      {
+        "name": "SM_Mochi_LOD1",
+        "lod": 1,
+        "triangles": 1599,
+        "vertices": 806,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      },
+      {
+        "name": "SM_Mochi_LOD2",
+        "lod": 2,
+        "triangles": 799,
+        "vertices": 406,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      },
+      {
+        "name": "SM_Mochi_LOD3",
+        "lod": 3,
+        "triangles": 399,
+        "vertices": 206,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      }
+    ],
+    "triangles_total": 5503,
+    "bbox_min": [
+      -14.75495,
+      -9.343286,
+      2.66715
+    ],
+    "bbox_max": [
+      7.458037,
+      14.634413,
+      32.067173
+    ],
+    "materials": [
+      {
+        "name": "M_Mochi",
+        "textures": [
+          {
+            "slot": "BaseColor",
+            "source_key": "DiffuseColor",
+            "file": "T_Mochi_BC.png",
+            "exists": true,
+            "embedded": false,
+            "size": "2048x2048",
+            "linked_via": [
+              "DiffuseColor"
+            ],
+            "slot_rule": "name suffix _BC (linked via DiffuseColor)"
+          },
+          {
+            "slot": "Normal",
+            "source_key": "NormalMap",
+            "file": "T_Mochi_N.png",
+            "exists": true,
+            "embedded": false,
+            "size": "2048x2048",
+            "linked_via": [
+              "NormalMap"
+            ],
+            "slot_rule": "name suffix _N (linked via NormalMap)"
+          },
+          {
+            "slot": "ORM",
+            "source_key": "ShininessExponent+ReflectionFactor",
+            "file": "T_Mochi_ORM.png",
+            "exists": true,
+            "embedded": false,
+            "size": "2048x2048",
+            "linked_via": [
+              "ShininessExponent",
+              "ReflectionFactor"
+            ],
+            "slot_rule": "name suffix _ORM (linked via ShininessExponent, ReflectionFactor)"
+          }
+        ]
+      }
+    ],
+    "bones": 0
+  },
+  "notes": [
+    "FBX binary version 7400"
+  ],
+  "error": null
+}

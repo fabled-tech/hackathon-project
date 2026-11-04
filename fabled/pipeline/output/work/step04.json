@@ -1,0 +1,44 @@
+{
+  "lods": [
+    {
+      "name": "LOD0",
+      "target_tris": 20000,
+      "actual_tris": 18636,
+      "verts": 9329,
+      "delta_pct": -6.82,
+      "within_tolerance": true,
+      "uv_islands": 64,
+      "source": "retopo"
+    },
+    {
+      "name": "LOD1",
+      "target_tris": 10000,
+      "actual_tris": 9334,
+      "verts": 4681,
+      "delta_pct": -6.66,
+      "within_tolerance": true,
+      "uv_islands": 64,
+      "source": "LOD0"
+    },
+    {
+      "name": "LOD2",
+      "target_tris": 5000,
+      "actual_tris": 4493,
+      "verts": 2270,
+      "delta_pct": -10.14,
+      "within_tolerance": true,
+      "uv_islands": 64,
+      "source": "LOD0"
+    },
+    {
+      "name": "LOD3",
+      "target_tris": 2000,
+      "actual_tris": 1836,
+      "verts": 928,
+      "delta_pct": -8.2,
+      "within_tolerance": true,
+      "uv_islands": 64,
+      "source": "LOD0"
+    }
+  ]
+}

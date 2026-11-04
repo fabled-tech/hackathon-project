@@ -1,0 +1,130 @@
+{
+  "schema": "fabled.pipeline.manifest/0.1",
+  "test_fixture": true,
+  "concept_mockup": true,
+  "_fixture_note": "TEST FIXTURE written by the UI bot (not by the pipeline), kept for testing when no real manifest exists. Points read-only (symlinks) at prototype/pipeline/output/export and previews. Triangle counts intentionally null (the earlier copied values went stale when the pipeline re-exported). Prefer 'Open latest pipeline output', which reads the real manifest.",
+  "asset": "HelenKellerBust",
+  "status": "partial",
+  "up_axis": "Z",
+  "units": {
+    "unreal_units": "cm",
+    "source_units_to_m": 0.01
+  },
+  "combined_fbx": "export/SM_HelenKellerBust.fbx",
+  "lods": [
+    {
+      "level": 0,
+      "name": "LOD0",
+      "path": "export/SM_HelenKellerBust_LOD0.fbx",
+      "format": "fbx",
+      "triangles": null,
+      "vertices": null,
+      "budget_triangles": 20000,
+      "has_uvs": true,
+      "glb": "export/SM_HelenKellerBust_LOD0.glb"
+    },
+    {
+      "level": 1,
+      "name": "LOD1",
+      "path": "export/SM_HelenKellerBust_LOD1.fbx",
+      "format": "fbx",
+      "triangles": null,
+      "vertices": null,
+      "budget_triangles": 10000,
+      "has_uvs": true,
+      "glb": "export/SM_HelenKellerBust_LOD1.glb"
+    },
+    {
+      "level": 2,
+      "name": "LOD2",
+      "path": "export/SM_HelenKellerBust_LOD2.fbx",
+      "format": "fbx",
+      "triangles": null,
+      "vertices": null,
+      "budget_triangles": 5000,
+      "has_uvs": true,
+      "glb": "export/SM_HelenKellerBust_LOD2.glb"
+    },
+    {
+      "level": 3,
+      "name": "LOD3",
+      "path": "export/SM_HelenKellerBust_LOD3.fbx",
+      "format": "fbx",
+      "triangles": null,
+      "vertices": null,
+      "budget_triangles": 2000,
+      "has_uvs": true,
+      "glb": "export/SM_HelenKellerBust_LOD3.glb"
+    }
+  ],
+  "textures": {
+    "normal": "export/T_HelenKellerBust_N.png",
+    "base_color": null,
+    "orm": null
+  },
+  "source": {
+    "name": "Helen Keller (bust), NPG.75.16, Smithsonian National Portrait Gallery 3D scan",
+    "url": "https://npg.si.edu/object/npg_NPG.75.16",
+    "license": "CC0 (per pipeline brief; confirm on the Smithsonian page)"
+  },
+  "profile": null,
+  "pipeline_config": null,
+  "input": {
+    "triangles": 8504655,
+    "vertices": 4253276
+  },
+  "outputs": {
+    "previews": [
+      {
+        "path": "previews/raw/hp_shaded.png",
+        "label": "High-poly sculpt (Blender render)"
+      },
+      {
+        "path": "previews/raw/lod0_shaded_normalmap.png",
+        "label": "LOD0 + baked normal map"
+      },
+      {
+        "path": "previews/raw/lod0_wire.png",
+        "label": "LOD0 wireframe"
+      },
+      {
+        "path": "previews/raw/lod3_wire.png",
+        "label": "LOD3 wireframe"
+      }
+    ]
+  },
+  "steps": [
+    {
+      "name": "import_measure",
+      "status": "ok"
+    },
+    {
+      "name": "retopo",
+      "status": "ok"
+    },
+    {
+      "name": "uv_unwrap",
+      "status": "ok"
+    },
+    {
+      "name": "lod_chain",
+      "status": "ok"
+    },
+    {
+      "name": "normal_bake",
+      "status": "ok"
+    },
+    {
+      "name": "fbx_export",
+      "status": "ok"
+    },
+    {
+      "name": "material_hookup",
+      "status": "not_implemented"
+    }
+  ],
+  "warnings": [
+    "TEST FIXTURE manifest (not written by the pipeline)",
+    "Base color / ORM textures not produced yet"
+  ]
+}

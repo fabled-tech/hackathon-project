@@ -1,0 +1,380 @@
+{
+  "schema_version": "0.2.0",
+  "tool": {
+    "name": "fabled_validator",
+    "version": "0.2.0"
+  },
+  "generated_at": "2026-10-26T05:23:31Z",
+  "generated_at_local": "2026-10-25T22:23:31-07:00",
+  "generated_at_display": "2026-10-25 22:23 PDT",
+  "asset": {
+    "path": "/workspace/fabled-demos/prototype/pipeline/output/export/SM_HelenKellerBust_LOD1.glb",
+    "file_name": "SM_HelenKellerBust_LOD1.glb",
+    "format": "glb",
+    "sha256": "acb003c7980e182930a2759727005aa65ed6363f9f7ad533152a5a31e4ce00be",
+    "size_bytes": 307812,
+    "synthetic_fixture": false,
+    "referenced_files": []
+  },
+  "profile": {
+    "name": "DEMO PLACEHOLDER VALUES - not a real studio spec",
+    "path": "/workspace/fabled-demos/prototype/validator/profiles/demo_placeholder.json",
+    "sha256": "92323c1f1098af384418578a14f740d58bf4241e268a5316cbb4a388278562ed"
+  },
+  "manifest": null,
+  "overall_status": "fail",
+  "complete": false,
+  "summary": {
+    "pass": 5,
+    "warn": 2,
+    "fail": 2,
+    "not_checked": 6,
+    "total": 15,
+    "flagged": 4
+  },
+  "checks": [
+    {
+      "id": "scale",
+      "group": "Scale & orientation",
+      "title": "Scale (bounding-box height)",
+      "status": "fail",
+      "message": "Height 53.0 cm is outside 150\u2013220 cm.",
+      "measured": {
+        "height_cm": 53.014,
+        "height_file_units": 0.530138,
+        "up_axis_used": "Y",
+        "cm_per_file_unit": 100.0,
+        "unit_basis": "glTF 2.0 spec: 1 unit = 1 meter",
+        "bbox_extent_cm": [
+          20.565,
+          53.014,
+          28.051
+        ],
+        "fix_hints": []
+      },
+      "expected": {
+        "height_cm_min": 150,
+        "height_cm_max": 220
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "up_axis",
+      "group": "Scale & orientation",
+      "title": "Up axis",
+      "status": "pass",
+      "message": "Tallest extent is along Y; Y extent is 1.89\u00d7 the widest other axis (heuristic).",
+      "measured": {
+        "extent_file_units": {
+          "X": 0.205651,
+          "Y": 0.530138,
+          "Z": 0.280509
+        },
+        "tallest_axis": "Y",
+        "up_to_widest_other_ratio": 1.89,
+        "declared_up_axis": "Y",
+        "declared_by": "glTF 2.0 spec: +Y up"
+      },
+      "expected": {
+        "up_axis": "Y",
+        "min_up_ratio": 0.9
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "normals",
+      "group": "Normals",
+      "title": "Flipped / inconsistent normals",
+      "status": "pass",
+      "message": "All 10,000 triangles wind consistently with neighbours and stored normals.",
+      "measured": {
+        "triangles_checked": 10000,
+        "faces_flagged": 0,
+        "faces_winding_inconsistent": 0,
+        "faces_stored_normal_against_face": 0,
+        "fully_inverted_shells": 0,
+        "non_orientable_conflicts": 0,
+        "meshes_with_stored_normals": 1,
+        "meshes": 1
+      },
+      "expected": {
+        "max_flipped_faces": 0
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "non_manifold",
+      "group": "Geometry",
+      "title": "Non-manifold geometry",
+      "status": "pass",
+      "message": "No edge is shared by more than two triangles. All shells are closed.",
+      "measured": {
+        "non_manifold_edges": 0,
+        "open_boundary_edges": 0,
+        "faces_on_non_manifold_edges": 0
+      },
+      "expected": {
+        "non_manifold_edges": 0,
+        "allow_open_boundaries": true
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "degenerate_triangles",
+      "group": "Geometry",
+      "title": "Degenerate triangles",
+      "status": "pass",
+      "message": "No zero-area or repeated-vertex triangles.",
+      "measured": {
+        "degenerate_triangles": 0,
+        "repeated_vertex": 0,
+        "zero_area": 0
+      },
+      "expected": {
+        "max_degenerate_triangles": 0
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "triangle_budget",
+      "group": "Geometry",
+      "title": "Triangle budget per LOD",
+      "status": "warn",
+      "message": "missing LOD0.",
+      "measured": {
+        "lod_count": 1,
+        "triangles_per_lod": {
+          "LOD1": 10000
+        }
+      },
+      "expected": {
+        "triangle_budgets": {
+          "LOD0": 60000,
+          "LOD1": 30000,
+          "LOD2": 15000,
+          "LOD3": 7500
+        },
+        "min_lod_count": 1
+      },
+      "items": [
+        {
+          "lod": 1,
+          "triangles": 10000,
+          "budget": 30000,
+          "result": "ok"
+        }
+      ],
+      "items_total": 1
+    },
+    {
+      "id": "skeleton_binding",
+      "group": "Skeleton",
+      "title": "Skeleton root & skin binding",
+      "status": "not_checked",
+      "message": "Skeleton not required by profile; the asset has no bones or skin, so nothing was measured.",
+      "measured": {
+        "bone_count": 0,
+        "root_bones": [],
+        "skins": 0,
+        "skinned_meshes": 0,
+        "skinned_meshes_without_skin": 0,
+        "unskinned_meshes": 1
+      },
+      "expected": {
+        "required": false,
+        "root_bone_name": "root"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "bone_naming",
+      "group": "Skeleton",
+      "title": "Bone naming",
+      "status": "not_checked",
+      "message": "Skeleton not required by profile; the asset has no bones to check.",
+      "measured": {
+        "bone_count": 0
+      },
+      "expected": {
+        "bone_name_regex": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_files",
+      "group": "Textures & materials",
+      "title": "Missing textures",
+      "status": "not_checked",
+      "message": "No texture references found in used materials.",
+      "measured": {
+        "textures_referenced": 0,
+        "missing": 0,
+        "embedded": 0
+      },
+      "expected": {},
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_slots",
+      "group": "Textures & materials",
+      "title": "Required texture slots",
+      "status": "fail",
+      "message": "No material is assigned to any triangle.",
+      "measured": {
+        "materials_used": 0
+      },
+      "expected": {
+        "required_texture_slots": [
+          "Normal"
+        ],
+        "recommended_texture_slots": [
+          "BaseColor",
+          "ORM"
+        ]
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_naming",
+      "group": "Textures & materials",
+      "title": "Texture naming",
+      "status": "not_checked",
+      "message": "No texture references to check.",
+      "measured": {},
+      "expected": {
+        "naming_regex": "^T_[A-Za-z0-9]+_(BC|N|ORM|E|M)\\.(png|tga|jpg|jpeg)$",
+        "slot_suffixes": {
+          "BaseColor": "_BC",
+          "Normal": "_N",
+          "ORM": "_ORM"
+        }
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texture_size",
+      "group": "Textures & materials",
+      "title": "Texture size (power of two, max res)",
+      "status": "not_checked",
+      "message": "No textures referenced.",
+      "measured": {
+        "textures_measured": 0,
+        "textures_not_measured": 0,
+        "sizes": {}
+      },
+      "expected": {
+        "require_power_of_two": true,
+        "max_resolution": 4096
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "material_count",
+      "group": "Textures & materials",
+      "title": "Material count",
+      "status": "warn",
+      "message": "10,000 triangle(s) have no material assigned.",
+      "measured": {
+        "materials_used": 0,
+        "materials_defined": 0,
+        "triangles_without_material": 10000,
+        "names": []
+      },
+      "expected": {
+        "max_count": 4
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "uv_layout",
+      "group": "UVs",
+      "title": "UV0 present & in range",
+      "status": "pass",
+      "message": "UV0 on all 10,000 triangles, all inside 0\u20131.",
+      "measured": {
+        "triangles": 10000,
+        "faces_without_uv0": 0,
+        "faces_out_of_range": 0
+      },
+      "expected": {
+        "require_uv0": true,
+        "udim": false,
+        "range": "[0,1]"
+      },
+      "items": [],
+      "items_total": 0
+    },
+    {
+      "id": "texel_density",
+      "group": "UVs",
+      "title": "Texel density",
+      "status": "not_checked",
+      "message": "Skipped until scale passes \u2014 world size is wrong, so px/cm would be off by the same factor.",
+      "measured": {
+        "materials_measured": 0,
+        "materials_not_measured": 1,
+        "px_per_cm": {},
+        "cm_per_file_unit": 100.0
+      },
+      "expected": {
+        "target_px_per_cm": 10.24,
+        "tolerance_pct": 25.0,
+        "range_px_per_cm": [
+          7.68,
+          12.8
+        ],
+        "reference_slot": "BaseColor",
+        "measured_on": "LOD0"
+      },
+      "items": [
+        {
+          "material": "(no material)",
+          "reason": "no texture with known size"
+        }
+      ],
+      "items_total": 1
+    }
+  ],
+  "asset_stats": {
+    "meshes": [
+      {
+        "name": "LOD1",
+        "lod": 1,
+        "triangles": 10000,
+        "vertices": 7712,
+        "skinned": false,
+        "has_uv0": true,
+        "has_normals": true
+      }
+    ],
+    "triangles_total": 10000,
+    "bbox_min": [
+      -0.102872,
+      0.000279,
+      -0.139947
+    ],
+    "bbox_max": [
+      0.102779,
+      0.530417,
+      0.140562
+    ],
+    "materials": [],
+    "bones": 0
+  },
+  "notes": [
+    "generator: Khronos glTF Blender I/O v4.5.51"
+  ],
+  "error": null
+}

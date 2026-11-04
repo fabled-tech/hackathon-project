@@ -1,0 +1,38 @@
+[
+  {
+    "path": "previews/compare_shaded_highpoly_vs_lod0.png",
+    "label": "High-poly sculpt vs LOD0 shaded"
+  },
+  {
+    "path": "previews/lod_strip_wire.png",
+    "label": "LOD0 vs lowest LOD wireframe"
+  },
+  {
+    "path": "previews/uv_layout_lod0.png",
+    "label": "LOD0 UV layout"
+  },
+  {
+    "path": "previews/normal_map_texture_1024.png",
+    "label": "Baked tangent-space normal map"
+  },
+  {
+    "path": "previews/ao_map_texture_1024.png",
+    "label": "Baked ORM (AO / Roughness / Metallic)"
+  },
+  {
+    "path": "previews/raw/hp_shaded.png",
+    "label": "High-poly sculpt (render)"
+  },
+  {
+    "path": "previews/raw/lod0_shaded_normalmap.png",
+    "label": "LOD0 + baked normal map"
+  },
+  {
+    "path": "previews/raw/lod0_wire.png",
+    "label": "LOD0 wireframe"
+  },
+  {
+    "path": "previews/raw/lod3_wire.png",
+    "label": "LOD3 wireframe"
+  }
+]

@@ -1,0 +1,17 @@
+{
+  "schema": "fabled.validator.report/0.1",
+  "concept_mockup": true,
+  "concept_mockup_note": "CONCEPT MOCKUP. Stub served by prototype/ui/server.mjs because no validator CLI was found in prototype/validator/. These items illustrate the planned report format; they were NOT produced by checking your file. The UI's 'Browser checks' section is the part computed from the loaded mesh.",
+  "manifest_path": null,
+  "profile_name": null,
+  "created_at": null,
+  "tool": { "name": "fabled-validator (stub)", "version": null },
+  "checks": [
+    { "id": "scale.unit_mismatch", "severity": "error", "passed": false, "object": "(example)", "message": "Example: asset height is outside the profile's expected range; likely a cm/m unit mismatch.", "fix_hint": "Set the profile scale or source units." },
+    { "id": "normals.flipped_faces", "severity": "error", "passed": false, "object": "(example)", "message": "Example: a set of faces has reversed winding (flipped normals).", "fix_hint": "Recalculate normals outside before export." },
+    { "id": "skeleton.binding", "severity": "warning", "passed": false, "object": "(example)", "message": "Example: mesh is not skinned to the profile skeleton.", "fix_hint": "Bind to the studio skeleton in the pipeline." },
+    { "id": "materials.texture_hookup", "severity": "warning", "passed": false, "object": "(example)", "message": "Example: material slot has no base color / normal texture connected.", "fix_hint": "Run material hookup step." },
+    { "id": "lod.budget", "severity": "info", "passed": true, "object": "(example)", "message": "Example: every LOD is within its triangle budget." },
+    { "id": "uv.texel_density", "severity": "info", "passed": true, "object": "(example)", "message": "Example: texel density is within the profile tolerance." }
+  ]
+}

@@ -1,0 +1,27 @@
+{
+  "url": "http://127.0.0.1:5180/",
+  "sample": "/workspace/fabled-demos/prototype/ui/samples/fabled_sample_head.glb",
+  "errors": [],
+  "logs": [],
+  "summary": {
+    "pipeline": "Pipeline: stub (CONCEPT MOCKUP)",
+    "validator": "Validator: connected",
+    "mockupBadgeVisible": true,
+    "rightBadgeVisible": false,
+    "left": "81,920 tris · 40,962 verts (computed from file)",
+    "right": "",
+    "lods": [],
+    "browserChecks": [
+      "true\tscale.height_range\tHeight 34.19 cm (34.188 units × 100 cm/unit × scale 0.01, Y-up). Profile expects 20–80 cm for \"Bust / head prop\".",
+      "false\tnormals.flipped\tValidator (authoritative): 506 of 81,920 triangles flagged (FabledSampleHead 506): 502 winding, 5 stored normal against face. browser check: uploaded OBJ, same definition: agrees (506 of 81,920).",
+      "true\tmesh.manifold\t0 open (boundary) edges, 0 non-manifold edges.",
+      "true\tmesh.degenerate_triangles\t0 zero-area triangles.",
+      "true\tskeleton.binding\tProfile imports as a static mesh; no skeleton required.",
+      "null\tmesh.sculpt_triangles\tSculpt has 81,920 triangles; LOD0 budget is 30,000, so it needs retopology before import.",
+      "null\tuv.texel_density\tNo UVs on the loaded meshes, so texel density cannot be computed here. It applies to the retopo output once the pipeline unwraps it.",
+      "null\tmaterials.textures\tNo textures in the file (1 material slot(s)). Texture hookup is checked on the pipeline output."
+    ],
+    "summary": "1 flagged (1 error, 0 warnings) · 4 passed · 3 info\nBrowser checks on fabled_sample_head.obj · 10:56:06 PM · profile \"Studio default (example)\" · normals row shows the validator figure (authoritative)"
+  },
+  "fixture": null
+}

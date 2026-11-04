@@ -1,0 +1,274 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Fabled · Sculpt to Unreal Workspace</title>
+  <meta name="color-scheme" content="dark" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="Fabled Studio" />
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="/styles.css" />
+  <script type="importmap">
+    { "imports": { "three": "/vendor/three/build/three.module.js", "three/addons/": "/vendor/three/examples/jsm/" } }
+  </script>
+</head>
+<body>
+  <canvas id="ambient-bg-canvas" class="ambient-bg-canvas" aria-hidden="true"></canvas>
+  <div class="rgb-hairline" id="rgb-hairline" aria-hidden="true"></div>
+  <header class="topbar">
+    <div class="brand">
+      <button type="button" id="btn-toggle-left" class="ws-pane-btn" title="Toggle Left Workspace Sidebar (⌘B)" aria-label="Toggle Left Sidebar">☰</button>
+      <span class="ws-icon" aria-hidden="true">◆</span>
+      <span class="logo">Fabled</span>
+      <span class="ws-divider">/</span>
+      <span class="tagline">From sculpt to screen</span>
+      <span class="stage-tag">Foundry Workspace</span>
+    </div>
+
+    <nav class="demo-tour" id="demo-tour" aria-label="Storyboard demo beats">
+      <span class="tour-label">Walkthrough</span>
+      <button type="button" class="tour-step" data-beat="1" title="Beat 1: Load 328k-tri sample sculpt with 539cm scale and 2,990 flipped faces">1 · Sculpt</button>
+      <button type="button" class="tour-step" data-beat="2" title="Beat 2: Inspect Studio Import Profile (units, axis, LOD budgets)">2 · Spec</button>
+      <button type="button" class="tour-step" data-beat="3" title="Beat 3: Open real pipeline output (LOD0–LOD3 + baked Normal/ORM)">3 · Retopo</button>
+      <button type="button" class="tour-step" data-beat="4" title="Beat 4: Inspect LOD0→LOD3 chain &amp; wireframe topology">4 · LODs</button>
+      <button type="button" class="tour-step" data-beat="5" title="Beat 5: Hero Beat — Run Pre-Import Check &amp; highlight 2 flagged issues">5 · Check</button>
+      <button type="button" class="tour-step" data-beat="6" title="Beat 6: Apply scale 0.01 &amp; unified winding preview, then re-check">6 · Fix</button>
+    </nav>
+
+    <div class="integrations">
+      <div class="theme-bar" id="theme-bar" role="group" aria-label="Ambient light theme">
+        <span class="theme-dot" id="theme-dot" aria-hidden="true"></span>
+        <select id="theme-select" class="theme-select" aria-label="Color theme preset">
+          <option value="palantir">Theme · Palantir Violet</option>
+          <option value="prism">Theme · RGB Prism</option>
+          <option value="gotham">Theme · Gotham Cyan</option>
+          <option value="crimson">Theme · Crimson Ops</option>
+          <option value="emerald">Theme · Emerald Core</option>
+          <option value="custom">Theme · Custom Hue</option>
+        </select>
+        <input type="color" id="theme-custom-color" class="theme-color-input" value="#8b5cf6" title="Pick custom ambient &amp; accent color" aria-label="Custom accent color" />
+      </div>
+      <span class="chip engine-chip" id="chip-engine" title="Active pipeline engine: Headless Blender">Engine: Blender</span>
+      <span class="chip" id="chip-pipeline" title="">Pipeline: checking…</span>
+      <span class="chip" id="chip-validator" title="">Validator: checking…</span>
+      <span class="badge-mockup" id="global-mockup" hidden title="">CONCEPT MOCKUP</span>
+      <div class="ipad-mode-bar" id="ipad-mode-bar" role="group" aria-label="Workspace layout mode">
+        <button type="button" class="btn tiny active" data-layout-mode="all">Workspace</button>
+        <button type="button" class="btn tiny" data-layout-mode="focus-3d">Canvas Max</button>
+        <button type="button" class="btn tiny" data-layout-mode="split-check">Check Split</button>
+      </div>
+      <button type="button" id="btn-toggle-right" class="ws-pane-btn" title="Toggle Right Telemetry Inspector (⌘I)" aria-label="Toggle Right Inspector">◫</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside class="sidebar">
+      <section class="card ws-block" id="ws-asset-tree-card">
+        <div class="ws-block-head">
+          <h2><span class="num">00</span> Workspace Assets</h2>
+          <span class="badge-asset-count" id="asset-tree-count">4 assets</span>
+        </div>
+        <div class="asset-tree-search-wrap">
+          <input type="text" id="asset-tree-search" class="asset-tree-search" placeholder="Filter assets or tags (⌘K)…" aria-label="Filter workspace assets" />
+        </div>
+        <nav class="asset-tree" id="asset-tree" role="tree" aria-label="Project Asset Navigation"></nav>
+      </section>
+
+      <section class="card ws-block">
+        <div class="ws-block-head">
+          <h2><span class="num">01</span> Sculpt Source</h2>
+        </div>
+        <label id="dropzone" class="dropzone" for="file-input">
+          <input id="file-input" type="file" accept=".obj,.fbx,.glb,.gltf,.ply,.stl" />
+          <strong>Drop 3D sculpt or click to browse</strong>
+          <span>.glb · .fbx · .obj · .ply · .stl (local browser analysis)</span>
+        </label>
+        <div class="quick-actions">
+          <button id="btn-sample" class="btn ghost" type="button">Load sample sculpt</button>
+          <button id="btn-open-frozen" class="btn ghost" type="button" disabled title="Read-only: the newest frozen pipeline run (pipeline/runs/<timestamp>)">Open frozen run</button>
+        </div>
+        <div id="file-info" class="file-info muted">No file loaded.</div>
+
+        <details class="ws-drawer">
+          <summary>More outputs, fixtures &amp; source credit</summary>
+          <div class="ws-drawer-body">
+            <button id="btn-open-output" class="btn ghost small-btn" type="button" title="Read-only: loads prototype/pipeline/output/manifest.json and its files">Open latest pipeline output</button>
+            <button id="btn-open-fixture" class="btn ghost small-btn" type="button" title="Test fixture manifest that points at the real export files">Open test fixture (TEST FIXTURE)</button>
+            <div id="credit" class="credit small" hidden></div>
+          </div>
+        </details>
+      </section>
+
+      <section class="card ws-block">
+        <div class="ws-block-head">
+          <h2><span class="num">02</span> Studio Spec Profile</h2>
+        </div>
+        <div id="used-profile" class="used-profile" hidden>
+          <div class="up-title"><span class="set-tag used">VALUES USED FOR THIS OUTPUT</span> <span id="up-placeholder" class="placeholder-tag" hidden>DEMO PLACEHOLDER VALUES</span></div>
+          <p class="hint">Read-only values from the active pipeline manifest and validator profile.</p>
+          <dl id="up-rows" class="up-rows"></dl>
+          <button id="btn-show-edit" class="btn tiny" type="button">Show editable profile (for a new upload)</button>
+        </div>
+        <div id="edit-profile-tag" class="set-tag edit">EDITABLE SPEC · applied to uploads</div>
+        <div class="form" id="edit-profile">
+          <label>Profile name <input id="p-name" value="Studio default (example)" /></label>
+          <div class="row">
+            <label>Source units
+              <select id="p-units"><option value="m">meters</option><option value="cm">centimeters</option><option value="mm">millimeters</option></select>
+            </label>
+            <label>Scale <input id="p-scale" type="number" step="any" value="1" /></label>
+          </div>
+          <div class="row">
+            <label>Asset class
+              <select id="p-class">
+                <option value="bust" data-min="20" data-max="80">Bust / head prop (20–80 cm)</option>
+                <option value="character" data-min="150" data-max="210">Humanoid character (150–210 cm)</option>
+                <option value="prop_small" data-min="5" data-max="100">Small prop (5–100 cm)</option>
+                <option value="prop_large" data-min="100" data-max="1000">Large prop (1–10 m)</option>
+              </select>
+            </label>
+            <label>Up axis
+              <select id="p-up"><option value="Y">Y up</option><option value="Z">Z up</option></select>
+            </label>
+          </div>
+
+          <details class="ws-drawer" id="profile-advanced-drawer">
+            <summary>Texel density, skeleton &amp; LOD budgets</summary>
+            <div class="ws-drawer-body">
+              <div class="row">
+                <label>Texel (px/m) <input id="p-texel" type="number" value="1024" /></label>
+                <label>Map res
+                  <select id="p-texsize"><option>1024</option><option selected>2048</option><option>4096</option></select>
+                </label>
+              </div>
+              <label>Skeleton <span class="not-used">static mesh only</span>
+                <select id="p-skeleton">
+                  <option value="none">None (static mesh)</option>
+                  <option value="/Game/Characters/Mannequins/Meshes/SK_Mannequin">UE5 Mannequin (SK_Mannequin)</option>
+                  <option value="custom">Studio custom skeleton…</option>
+                </select>
+              </label>
+              <input id="p-skeleton-custom" placeholder="/Game/Studio/Skeletons/SK_Studio" hidden />
+              <div class="lod-head">
+                <span>LOD triangle budgets</span>
+                <span><button id="lod-minus" class="btn tiny" type="button">−</button><button id="lod-plus" class="btn tiny" type="button">+</button></span>
+              </div>
+              <div id="lod-rows" class="lod-rows"></div>
+              <p class="hint" id="edit-hint">Profile values are studio target inputs, not measurements.</p>
+            </div>
+          </details>
+        </div>
+        <div class="engine-selector-group" id="engine-selector-group">
+          <div class="engine-selector-head">
+            <span class="engine-label">Execution Engine</span>
+            <span class="badge-engine" id="badge-engine">Headless Blender</span>
+          </div>
+          <div class="engine-toggle-bar" role="radiogroup" aria-label="Pipeline execution engine">
+            <button type="button" class="btn tiny engine-toggle-btn active" data-engine="blender" id="btn-engine-blender" title="Use Headless Blender for mesh retopology, baking, and rendering">Headless Blender</button>
+            <button type="button" class="btn tiny engine-toggle-btn" data-engine="native" id="btn-engine-native" title="Use pure Python/NumPy native mesh fallback engine">Native Python/NumPy</button>
+          </div>
+        </div>
+        <button id="btn-process" class="btn primary" type="button" disabled>Build retopo + LODs</button>
+        <div id="process-status" class="muted small"></div>
+      </section>
+    </aside>
+
+    <section class="center">
+      <div class="viewer-toolbar">
+        <div class="group">
+          <label class="toggle"><input type="checkbox" id="t-wire" /> Wireframe</label>
+          <label class="toggle"><input type="checkbox" id="t-sync" checked /> Sync</label>
+          <label class="toggle"><input type="checkbox" id="t-flipped" checked /> Flipped faces</label>
+          <label class="toggle" title="Pipeline LODs: show the baked normal + ORM maps on the file's own normals/UVs"><input type="checkbox" id="t-tex" checked /> Baked maps</label>
+          <label class="toggle mode-select-wrap">
+            <span class="mode-label">Material</span>
+            <select id="sel-mat-mode" class="theme-select sel-mat-mode" aria-label="Material shading mode">
+              <option value="pbr" selected>PBR (Normal/ORM)</option>
+              <option value="clay">Clay Studio</option>
+              <option value="matcap">MatCap</option>
+            </select>
+          </label>
+          <button id="btn-frame" class="btn tiny" type="button">Frame</button>
+          <button id="btn-inspect-maps" class="btn tiny" type="button" title="Inspect UV layout, baked tangent-space Normal map, ORM map, and render sheet">UVs &amp; Maps</button>
+        </div>
+        <div class="group" id="lod-switch"><span class="muted small">LOD</span></div>
+      </div>
+      <div class="viewers">
+        <div class="viewer" id="view-left">
+          <div class="vlabel"><span class="vp-tag">SOURCE</span> <strong>High-poly sculpt</strong> <span id="left-stats" class="stats"></span></div>
+          <div class="vempty" id="left-empty">Drop a sculpt or load the sample</div>
+          <img id="left-preview" class="vpreview" alt="" hidden />
+          <div class="vcredit small" id="left-credit" hidden></div>
+        </div>
+        <div class="viewer" id="view-right">
+          <div class="vlabel"><span class="vp-tag accent">OUTPUT</span> <strong id="right-title">Retopo mesh</strong> <span id="right-stats" class="stats"></span></div>
+          <div class="vbadge" id="right-badge" hidden>CONCEPT MOCKUP · browser decimation preview, not Fabled output</div>
+          <div class="vempty" id="right-empty">Run “Build retopo + LODs”</div>
+        </div>
+      </div>
+      <div id="progress" class="progress" hidden>
+        <div class="ptext"><span id="progress-label">Starting pipeline…</span><span id="progress-step" class="muted"></span></div>
+        <div class="pbar"><div id="progress-fill" class="pfill"></div></div>
+        <div id="stage-cards" class="stage-cards"></div>
+      </div>
+      <div id="busy" class="busy" hidden><span class="spinner"></span><span id="busy-text">Working…</span></div>
+    </section>
+
+    <aside class="report">
+      <section class="card ws-block">
+        <div class="report-head">
+          <h2><span class="num">03</span> Telemetry &amp; Checks</h2>
+          <button id="btn-recheck" class="btn primary" type="button" disabled>Re-check</button>
+        </div>
+        <div id="report-summary" class="summary muted">No checks run yet.</div>
+
+        <div class="inspector-tabs" id="inspector-tabs" role="tablist" aria-label="Inspector sections">
+          <button type="button" class="itab active" data-itab="all">All</button>
+          <button type="button" class="itab" data-itab="browser">Pre-Import</button>
+          <button type="button" class="itab" data-itab="validator">Validator</button>
+          <button type="button" class="itab" data-itab="pipeline">Pipeline</button>
+        </div>
+
+        <div class="itab-pane" id="pane-browser">
+          <h3>Browser checks <span class="pill real">computed from loaded mesh</span></h3>
+          <ul id="checks-browser" class="checks"></ul>
+          <div id="fix-actions" class="fix-actions"></div>
+        </div>
+
+        <div class="itab-pane" id="pane-pipeline">
+          <div id="pipeline-section" hidden>
+            <h3>Pipeline run <span id="pipeline-source" class="pill"></span></h3>
+            <div id="pipeline-stage-cards" class="stage-cards pipeline-inspector-cards"></div>
+            <div id="pipeline-run" class="small"></div>
+          </div>
+        </div>
+
+        <div class="itab-pane" id="pane-validator">
+          <h3>Validator report <span id="validator-source" class="pill">not run</span></h3>
+          <div class="saved-row"><select id="saved-reports"><option value="">Saved validator reports…</option></select><button id="btn-saved-report" class="btn tiny" type="button">Show</button></div>
+          <div id="validator-headline" class="vheadline"></div>
+          <div id="validator-note" class="small muted"></div>
+          <ul id="checks-validator" class="checks"></ul>
+        </div>
+      </section>
+    </aside>
+  </main>
+
+  <dialog id="map-dialog" class="map-dialog" aria-labelledby="map-dialog-title">
+    <div class="map-dialog-inner">
+      <div class="map-dialog-head">
+        <div>
+          <h2 id="map-dialog-title">UV Layout &amp; Baked Texture Inspector</h2>
+          <p class="small muted" id="map-dialog-sub">Real pipeline artifacts generated from the active asset run.</p>
+        </div>
+        <button type="button" id="btn-close-maps" class="btn small-btn">Close</button>
+      </div>
+      <div class="map-grid" id="map-grid"></div>
+    </div>
+  </dialog>
+  <footer class="foot small muted">Fabled (Fable Technologies) · Foundry Workspace · all geometry figures are computed from the loaded files, or labeled CONCEPT MOCKUP.</footer>
+  <script type="module" src="/app.js"></script>
+</body>
+</html>
