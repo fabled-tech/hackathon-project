@@ -194,7 +194,7 @@ final class Tier5WorkspaceAdversarialTests: XCTestCase {
         XCTAssertEqual(vm.assetNotes["paladin-shield"], "")
 
         // 3. Special unicode characters
-        let unicodeNote = "Verified: CC0 Smithsonian NPG.75.16 · Jo Davidson 1942 💎 \n\r\t \u{0000} \u{FFFF}"
+        let unicodeNote = "Verified: CC0 Smithsonian NPG.75.16 · Onorio Ruotolo 1916 💎 \n\r\t \u{0000} \u{FFFF}"
         vm.assetNotes["synthetic-clean-hero"] = unicodeNote
         XCTAssertEqual(vm.assetNotes["synthetic-clean-hero"], unicodeNote)
     }

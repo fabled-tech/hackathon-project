@@ -11,4 +11,17 @@ export const LICENSED_SAMPLES = [{
   disclaimer: 'Fabled is not affiliated with or endorsed by the Smithsonian Institution.',
   heightNote: 'source units inferred',
 }];
-export const licensedSample = (m) => (m ? LICENSED_SAMPLES.find((x) => x.match(m)) || null : null);
+// Pipeline runs whose input was the self-made procedural sample head (ui/samples/fabled_sample_head.*) are NOT the scan, even
+// when they were exported under the scan's asset name (pipeline/output and runs/20261103-195336 were: asset "HelenKellerBust",
+// input fabled_sample_head.glb, every source field null). They get no museum credit and a neutral name; the exported file
+// names (SM_HelenKellerBust_*) stay as they are.
+export const PROCEDURAL_SAMPLE_NAME = 'Procedural sample head (self-made)';
+export const isProceduralSampleRun = (m) => /(^|[\\/])fabled_sample_head\.(glb|obj)$/i.test(String(m?.input?.sculpt_path || m?.input?.path || ''));
+export const licensedSample = (m) => (m && !isProceduralSampleRun(m) ? LICENSED_SAMPLES.find((x) => x.match(m)) || null : null);
+// Title for a manifest: licensed display name, else the neutral procedural name, else the asset name.
+export const manifestDisplayName = (m, { short = false } = {}) => {
+  const lic = licensedSample(m);
+  if (lic) return short ? lic.shortName : lic.displayName;
+  if (isProceduralSampleRun(m)) return PROCEDURAL_SAMPLE_NAME;
+  return m?.asset || null;
+};

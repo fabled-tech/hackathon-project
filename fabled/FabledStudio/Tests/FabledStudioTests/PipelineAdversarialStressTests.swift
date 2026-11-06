@@ -352,20 +352,17 @@ final class PipelineAdversarialStressTests: XCTestCase {
 
     func testRapidStartCancelPipelineServiceLifecycle() async throws {
         let service = ProcessPipelineService()
-        let candidates: [String] = [
-            "/Users/patrickargento/Documents/swProjects/cinema_project/fabled",
-            FileManager.default.currentDirectoryPath + "/fabled",
-            URL(fileURLWithPath: FileManager.default.currentDirectoryPath).deletingLastPathComponent().path,
-            FileManager.default.currentDirectoryPath
-        ]
-        var rootOpt: URL? = nil
-        for c in candidates {
-            let u = URL(fileURLWithPath: c)
-            if FileManager.default.fileExists(atPath: u.appendingPathComponent("pipeline/fabled_pipeline.py").path) {
-                rootOpt = u
-                break
-            }
-        }
+        // Same discovery the app uses (FABLED_ROOT, the "fabledRootPath" default, then a walk up), starting from the
+        // working directory and from this test file's own folder inside the repo.
+        let rootOpt = FabledStudioViewModel.discoverFabledRoot(
+            environment: ProcessInfo.processInfo.environment,
+            defaultsPath: UserDefaults.standard.string(forKey: "fabledRootPath"),
+            startDirectories: [
+                URL(fileURLWithPath: FileManager.default.currentDirectoryPath),
+                URL(fileURLWithPath: #filePath).deletingLastPathComponent()
+            ],
+            fileExists: { FileManager.default.fileExists(atPath: $0) }
+        )
         guard let root = rootOpt else {
             XCTFail("fabled root directory containing pipeline/fabled_pipeline.py must be discovered")
             return

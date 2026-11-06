@@ -4,7 +4,7 @@ import { loadModel, flatten, SUPPORTED } from './loaders.js';
 import { weld, analyzeTopology, flipTriangles, decimateToTarget, triCount } from './meshops.js';
 import { SideViewer, syncControls } from './viewer.js';
 import { runBrowserChecks, VALIDATOR_CHECKS_INFO } from './checks.js';
-import { licensedSample } from './licensed.js';
+import { licensedSample, manifestDisplayName } from './licensed.js';
 import { initWorkspace } from './workspace.js';
 
 // Feature 8: 8 Discrete Pipeline Stages Specification
@@ -511,7 +511,7 @@ async function showOutput(j) {
 
 // ---------- licensed sample assets: rules live in licensed.js (shared with the server's workspace index) ----------
 export { licensedSample };
-const assetDisplayName = (m) => licensedSample(m)?.displayName || m?.asset || 'asset';
+const assetDisplayName = (m) => manifestDisplayName(m) || 'asset';
 
 function renderCredit(c) {
   const lic = licensedSample(state.manifest);
@@ -876,7 +876,7 @@ const workspace = initWorkspace({
     const lods = normalizeLods(m);
     const rep = state.demo?.report;
     return { total: 1, groups: [{ id: 'runs', label: 'Pre-processed run', assets: [{
-      id: 'run:demo', kind: 'frozen_run', name: licensedSample(m)?.shortName || m.asset || 'asset',
+      id: 'run:demo', kind: 'frozen_run', name: manifestDisplayName(m, { short: true }) || 'asset',
       status: rep?.overall_status ? { label: `Validator ${String(rep.overall_status).toUpperCase()}`, tone: rep.overall_status === 'pass' ? 'ok' : rep.overall_status === 'warn' ? 'warn' : 'fail' } : { label: `Pipeline ${m.status}`, tone: 'ok' },
       pipeline_status: m.status, validator: rep ? { overall: rep.overall_status, summary: rep.summary } : null,
       triangles: { input: m.input?.triangles ?? null, lod_count: lods.length || null, lod0_triangles: lods[0]?.triangles ?? null },

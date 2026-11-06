@@ -373,7 +373,7 @@ final class FabledStudioViewModel: ObservableObject {
             assets: [
                 FabledAssetItem(
                     id: "helen-keller-bust",
-                    name: "Helen Keller Bust",
+                    name: "Procedural sample head (self-made)",
                     category: "Character Busts",
                     tag: "historical",
                     status: "LOD0-3 Ready",
@@ -465,20 +465,57 @@ final class FabledStudioViewModel: ObservableObject {
     @Published var fullValidatorReport: ValidatorReport? = nil
     @Published var showValidatorReportSheet: Bool = false
 
-    let smithsonianCredit = "Credit: “Helen Keller”, native digital 3D model, National Portrait Gallery, Smithsonian Institution (NPG.75.16; original sculpture by Jo Davidson, 1942), CC0."
-    let smithsonianDisclaimer = "Used under CC0 as an anatomical test mesh. Not affiliated with or endorsed by the Smithsonian Institution or any depicted person’s estate."
+    /// Licensed sample matched from the open pipeline manifest (`asset`, `source`, `input.source`), as the web app does.
+    @Published var pipelineOutputLicensedSample: LicensedSample? = nil
 
-    /// Root directory of the `fabled` project on macOS when running locally
+    /// Licensed-sample terms (verbatim credit, credit link, no-endorsement line) for what is on screen.
+    /// Only pipeline output is matched, from its manifest (provenance); runs of the self-made procedural sample head
+    /// (`ui/samples/fabled_sample_head.glb`) never match. Loose meshes get no credit (same as the web app). Nil = none applies.
+    var activeLicensedSample: LicensedSample? {
+        if isReadOnlyPipelineOutput, let fromManifest = pipelineOutputLicensedSample { return fromManifest }
+        // Like the web app, credit only with provenance (a pipeline manifest). A bare file name is not enough: the bundled
+        // SM_HelenKellerBust_LOD0.glb is an export of the procedural sample head, not of the scan.
+        return nil
+    }
+
+    /// Root directory of the `fabled` project when running locally (see `discoverFabledRoot`).
     var fabledRootURL: URL? {
-        let candidates: [String] = [
-            "/Users/patrickargento/Documents/swProjects/cinema_project/fabled",
-            FileManager.default.currentDirectoryPath + "/fabled",
-            FileManager.default.currentDirectoryPath
-        ]
-        for path in candidates {
-            let url = URL(fileURLWithPath: path)
-            if FileManager.default.fileExists(atPath: url.appendingPathComponent("pipeline/fabled_pipeline.py").path) {
-                return url
+        Self.discoverFabledRoot(
+            environment: ProcessInfo.processInfo.environment,
+            defaultsPath: UserDefaults.standard.string(forKey: "fabledRootPath"),
+            startDirectories: [
+                Bundle.main.bundleURL,
+                URL(fileURLWithPath: FileManager.default.currentDirectoryPath)
+            ],
+            fileExists: { FileManager.default.fileExists(atPath: $0) }
+        )
+    }
+
+    /// Finds the `fabled` project root (the directory containing `pipeline/fabled_pipeline.py`).
+    /// Order: env `FABLED_ROOT`, then the UserDefaults path `fabledRootPath`, then a walk up (at most 8 levels)
+    /// from each start directory, also accepting a child named `fabled` that contains the pipeline script.
+    nonisolated static func discoverFabledRoot(
+        environment: [String: String],
+        defaultsPath: String?,
+        startDirectories: [URL],
+        fileExists: (String) -> Bool
+    ) -> URL? {
+        let marker = "pipeline/fabled_pipeline.py"
+        for explicit in [environment["FABLED_ROOT"], defaultsPath] {
+            if let path = explicit?.trimmingCharacters(in: .whitespacesAndNewlines), !path.isEmpty {
+                let url = URL(fileURLWithPath: (path as NSString).expandingTildeInPath).standardizedFileURL
+                if fileExists(url.appendingPathComponent(marker).path) { return url }
+            }
+        }
+        for start in startDirectories {
+            var dir = start.standardizedFileURL
+            for _ in 0..<8 {
+                if fileExists(dir.appendingPathComponent(marker).path) { return dir }
+                let child = dir.appendingPathComponent("fabled")
+                if fileExists(child.appendingPathComponent(marker).path) { return child }
+                let parent = dir.deletingLastPathComponent().standardizedFileURL
+                if parent.path == dir.path { break }
+                dir = parent
             }
         }
         return nil
@@ -583,7 +620,7 @@ final class FabledStudioViewModel: ObservableObject {
         }
 
         if var mesh = loaded {
-            mesh.displayName = "Sample asset: historical bust scan (CC0)"
+            mesh.displayName = LicensedSamples.proceduralSampleName
             mesh.isSampleBust = true
             sourceMesh = mesh
             lodMeshes = []
@@ -638,7 +675,7 @@ final class FabledStudioViewModel: ObservableObject {
         if sourceMesh == nil {
             let sampleGLB = root.appendingPathComponent("ui/samples/fabled_sample_head.glb")
             if var m = try? MeshAnalyzerAndLoader.loadMesh(from: sampleGLB) {
-                m.displayName = "Sample asset: historical bust scan (CC0)"
+                m.displayName = LicensedSamples.proceduralSampleName
                 m.isSampleBust = true
                 sourceMesh = m
             }
@@ -646,9 +683,11 @@ final class FabledStudioViewModel: ObservableObject {
 
         isReadOnlyPipelineOutput = true
         showEditableWhenReadOnly = false
+        pipelineOutputLicensedSample = LicensedSamples.match(manifest: json)
 
-        let normalURL = runDir.appendingPathComponent("export/T_HelenKellerBust_N.png")
-        let ormURL = runDir.appendingPathComponent("export/T_HelenKellerBust_ORM.png")
+        let texturePaths = PipelineManifestTextures.paths(in: json)
+        let normalURL = runDir.appendingPathComponent(texturePaths.normal ?? "export/T_HelenKellerBust_N.png")
+        let ormURL = runDir.appendingPathComponent(texturePaths.orm ?? "export/T_HelenKellerBust_ORM.png")
 
         var builtLODs: [BuiltLODMesh] = []
         let rawLods = (json["lods"] as? [[String: Any]]) ?? ((json["outputs"] as? [String: Any])?["lods"] as? [[String: Any]]) ?? []
@@ -738,7 +777,7 @@ final class FabledStudioViewModel: ObservableObject {
                 assetName = customAssetName.isEmpty ? custom.deletingPathExtension().lastPathComponent : customAssetName
             } else {
                 inputURL = sampleInput
-                assetName = "HelenKellerBust"
+                assetName = "fabled_sample_head" // not the scan's name: this input is the self-made procedural head
             }
 
             // Initialize 8 stage records for UI tracking
@@ -1075,5 +1114,34 @@ final class FabledStudioViewModel: ObservableObject {
             }
         }
         mapPreviewCards = cards
+    }
+}
+
+// MARK: - Manifest Texture Paths
+
+/// Reads the normal / ORM texture paths (relative to the manifest folder) from a pipeline manifest.
+/// `textures` may be an array of `{material, base_color, normal, orm}` sets or a single dict; when the top-level
+/// key is missing or null, `outputs.textures` is used. The first set that names a path wins.
+enum PipelineManifestTextures {
+    static func paths(in manifest: [String: Any]) -> (normal: String?, orm: String?) {
+        var raw: Any? = manifest["textures"]
+        if raw == nil || raw is NSNull {
+            raw = (manifest["outputs"] as? [String: Any])?["textures"]
+        }
+        let sets: [[String: Any]]
+        if let array = raw as? [Any] {
+            sets = array.compactMap { $0 as? [String: Any] }
+        } else if let dict = raw as? [String: Any] {
+            sets = [dict]
+        } else {
+            sets = []
+        }
+        func firstPath(_ key: String) -> String? {
+            for textureSet in sets {
+                if let path = textureSet[key] as? String, !path.isEmpty { return path }
+            }
+            return nil
+        }
+        return (firstPath("normal"), firstPath("orm"))
     }
 }

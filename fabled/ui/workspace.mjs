@@ -12,7 +12,7 @@
 import fs from 'node:fs';
 import fsp from 'node:fs/promises';
 import path from 'node:path';
-import { licensedSample } from './public/licensed.js';
+import { licensedSample, manifestDisplayName, isProceduralSampleRun } from './public/licensed.js';
 
 const readJson = (p) => { try { return JSON.parse(fs.readFileSync(p, 'utf8')); } catch { return null; } };
 const mtimeIso = (p) => { try { return fs.statSync(p).mtime.toISOString(); } catch { return null; } };
@@ -65,7 +65,8 @@ function runAsset(protoDir, dir, kind, extra = {}) {
   return {
     id: `run:${rel}`,
     kind,
-    name: lic ? lic.shortName : (manifest.asset || path.basename(dir)),
+    name: manifestDisplayName(manifest, { short: true }) || path.basename(dir),
+    procedural_sample_run: isProceduralSampleRun(manifest),
     file_asset_name: manifest.asset || null,
     licensed: !!lic,
     status: deriveStatus({ manifest, validator }),
@@ -77,7 +78,8 @@ function runAsset(protoDir, dir, kind, extra = {}) {
     test_fixture: !!manifest.test_fixture,
     folder: rel,
     open: { type: 'output', dir: rel },
-    source: manifest.source ? { name: lic ? lic.shortName : manifest.source.name || null, license: manifest.source.license || null, url: manifest.source.url || null } : null,
+    source: isProceduralSampleRun(manifest) ? { name: 'ui/samples/fabled_sample_head.glb (procedural, tools/make_sample_sculpt.py)', license: 'no restrictions', url: null }
+      : manifest.source ? { name: lic ? lic.shortName : manifest.source.name || null, license: manifest.source.license || null, url: manifest.source.url || null } : null,
     ...extra,
   };
 }

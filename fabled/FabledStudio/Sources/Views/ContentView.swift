@@ -473,13 +473,25 @@ struct ContentView: View {
 
             DisclosureGroup("Source credit & details", isExpanded: $viewModel.showMoreOutputs) {
                 VStack(alignment: .leading, spacing: 4) {
-                    Text(viewModel.smithsonianCredit)
-                        .font(.system(size: 10.5))
-                        .foregroundStyle(FabledTheme.dark)
-                    Text(viewModel.smithsonianDisclaimer)
-                        .font(.system(size: 10))
-                        .italic()
-                        .foregroundStyle(FabledTheme.muted)
+                    if let sample = viewModel.activeLicensedSample {
+                        if let creditURL = sample.creditLink {
+                            Link(sample.credit, destination: creditURL)
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(FabledTheme.dark)
+                        } else {
+                            Text(sample.credit)
+                                .font(.system(size: 10.5))
+                                .foregroundStyle(FabledTheme.dark)
+                        }
+                        Text(sample.disclaimer)
+                            .font(.system(size: 10))
+                            .italic()
+                            .foregroundStyle(FabledTheme.muted)
+                    } else {
+                        Text("No licensed-sample credit applies to this asset.")
+                            .font(.system(size: 10))
+                            .foregroundStyle(FabledTheme.muted)
+                    }
                 }
                 .padding(.top, 4)
             }
