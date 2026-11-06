@@ -1,0 +1,36 @@
+{
+  "note": "CONCEPT MOCKUP outputs of the offline mock provider. Procedural, self-made (tools/make_mock_generations.py); no license restrictions. Counts computed at generation time.",
+  "resolution": 150,
+  "files": {
+    "knight_helmet.glb": {
+      "triangles": 100232,
+      "vertices": 50112,
+      "bbox_size_m": [
+        0.2361000031232834,
+        0.3935999870300293,
+        0.33239999413490295
+      ],
+      "bytes": 2406552
+    },
+    "mushroom_cottage.glb": {
+      "triangles": 225128,
+      "vertices": 112557,
+      "bbox_size_m": [
+        0.40630000829696655,
+        0.42739999294281006,
+        0.40630000829696655
+      ],
+      "bytes": 5404004
+    },
+    "potion_flask.glb": {
+      "triangles": 84996,
+      "vertices": 42500,
+      "bbox_size_m": [
+        0.17649999260902405,
+        0.27810001373291016,
+        0.18019999563694
+      ],
+      "bytes": 2041032
+    }
+  }
+}

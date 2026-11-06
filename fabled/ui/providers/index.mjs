@@ -107,7 +107,7 @@ export class TaskStore {
 }
 
 function publicTask(t) {
-  const { _polled_at, started_ms, status_url, ...rest } = t; // internal bookkeeping stays server-side
+  const { _polled_at, started_ms, status_url, mock_model, ...rest } = t; // internal bookkeeping stays server-side
   return rest;
 }
 
@@ -117,7 +117,8 @@ export async function downloadModel(task, destDir, { localRoots = [], fetchImpl 
   const out = (task.outputs || []).find((o) => o.type === 'model');
   if (!out) throw new Error('this generation has no 3D model output');
   const fmt = String(out.format || 'glb').toLowerCase().replace(/[^a-z0-9]/g, '') || 'glb';
-  const base = `${task.provider}_${task.kind.replace(/-/g, '_')}_${task.id.slice(-6)}`;
+  const stem = out.local ? `_${path.basename(out.local, path.extname(out.local))}` : '';
+  const base = `${task.provider}${stem}_${task.id.slice(-6)}`;
   const dest = path.join(destDir, `${base}.${fmt}`);
   if (out.local) {
     const src = localRoots.map((r) => path.resolve(r, '..', out.local)).find((p) => localRoots.some((r) => p.startsWith(r + path.sep)) && fs.existsSync(p));

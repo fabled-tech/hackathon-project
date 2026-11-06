@@ -52,7 +52,13 @@ Extra tests: `node tools/test_mock_pipeline.mjs` (progress bar + failed run, wit
 ## Sample sculpt
 `samples/fabled_sample_head.glb` (327,680 tris) and `samples/fabled_sample_head.obj` (81,920 tris), generated
 procedurally by `tools/make_sample_sculpt.py` (self-made, no third-party assets, free to use in the demo).
-Counts are in `samples/SAMPLE_INFO.json`. Seeded issues: cm/m units mismatch, plus one patch of flipped triangles.
+Counts are in `samples/SAMPLE_INFO.json`.
+
+The offline mock AI provider returns one of `samples/mock_generations/{knight_helmet,mushroom_cottage,potion_flask}.glb`
+(85k to 225k tris, ~0.18 to 0.43 m, Y up). They are modeled procedurally by `tools/make_mock_generations.py`: signed distance fields meshed with
+surface nets, numpy only, self-made, no license restrictions. They are dense, closed, manifold triangle meshes with smooth normals and **no seeded
+defects**: the browser checks and the validator flag only "needs retopology", "no UVs" and "no textures", which is what the pipeline is
+for. Counts are in `samples/mock_generations/MOCK_INFO.json`. Regenerate with `python3 tools/make_mock_generations.py` (~35 s). Seeded issues: cm/m units mismatch, plus one patch of flipped triangles.
 For the real demo the storyboard calls for a licensed or self-made character sculpt. The pipeline bot is using a
 Smithsonian bust; check its license notes before showing it.
 

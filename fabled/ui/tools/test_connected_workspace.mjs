@@ -124,7 +124,13 @@ async function main() {
     const early = await mock.poll({ ...c });
     assert.notEqual(early.status, 'succeeded');
     const done = await mock.poll({ ...c, started_ms: Date.now() - 60_000 });
-    assert.equal(done.status, 'succeeded'); assert.equal(done.outputs[0].local, 'samples/fabled_sample_head.glb');
+    assert.equal(done.status, 'succeeded'); assert.equal(done.outputs[0].local, 'samples/mock_generations/knight_helmet.glb'); // "x" hashes to the helmet
+    const { pickMockModel } = await import('../providers/mock.mjs');
+    assert.equal(pickMockModel('A Knight helmet with a crest'), 'knight_helmet.glb');
+    assert.equal(pickMockModel('cozy mushroom cottage'), 'mushroom_cottage.glb');
+    assert.equal(pickMockModel('glowing potion'), 'potion_flask.glb');
+    assert.equal(pickMockModel('something else'), pickMockModel('something else'), 'deterministic for the same prompt');
+    for (const m of ['knight_helmet', 'mushroom_cottage', 'potion_flask']) assert(fs.statSync(path.join(UI_DIR, 'samples', 'mock_generations', `${m}.glb`)).size > 100_000);
   });
 
   console.log('\nSuite 2: TaskStore + downloadModel');
@@ -153,8 +159,8 @@ async function main() {
     await assert.rejects(downloadModel({ id: 'gen-x', provider: 'p', kind: 'text-to-3d', outputs: [{ type: 'model', format: 'glb', url: 'http://insecure.example/m.glb' }] }, tmp, { localRoots: roots }), /non-https/);
     await assert.rejects(downloadModel({ id: 'gen-x', provider: 'p', kind: 'text-to-3d', outputs: [{ type: 'model', format: 'glb', local: '../server.mjs' }] }, tmp, { localRoots: roots }), /allowed folder/);
     await assert.rejects(downloadModel({ id: 'gen-x', provider: 'p', kind: 'text-to-3d', outputs: [{ type: 'video', url: 'https://x/v.mp4' }] }, tmp, { localRoots: roots }), /no 3D model/);
-    const okPath = await downloadModel({ id: 'gen-abcdef', provider: 'mock', kind: 'text-to-3d', outputs: [{ type: 'model', format: 'glb', local: 'samples/fabled_sample_head.glb' }] }, tmp, { localRoots: roots });
-    assert(fs.statSync(okPath).size > 1000);
+    const okPath = await downloadModel({ id: 'gen-abcdef', provider: 'mock', kind: 'text-to-3d', outputs: [{ type: 'model', format: 'glb', local: 'samples/mock_generations/potion_flask.glb' }] }, tmp, { localRoots: roots });
+    assert(fs.statSync(okPath).size > 1000); assert.equal(path.basename(okPath), 'mock_potion_flask_abcdef.glb');
   });
 
   console.log('\nSuite 3: live server endpoints');
