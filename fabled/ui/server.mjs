@@ -11,6 +11,8 @@ import path from 'node:path';
 import { spawn, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
+import { buildWorkspace, NotesStore, ActivityLog, validAssetId } from './workspace.mjs';
+import { listProviders, getProvider, TaskStore, downloadModel, KIND_LABELS } from './providers/index.mjs';
 
 const UI_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROTO_DIR = path.resolve(UI_DIR, '..');
@@ -20,10 +22,16 @@ const WORK_DIR = path.join(UI_DIR, 'work');
 const PORT = Number(process.env.PORT || 5178);
 const HOST = process.env.HOST || '127.0.0.1';
 const CLI_TIMEOUT_MS = Number(process.env.FABLED_CLI_TIMEOUT_MS || 60 * 60 * 1000);
+// Connected workspace state (all under the gitignored work/ folder)
+const activity = new ActivityLog(path.join(WORK_DIR, 'activity.jsonl'));
+const notes = new NotesStore(path.join(WORK_DIR, 'workspace_notes.json'));
+const generations = new TaskStore(path.join(WORK_DIR, 'provider_tasks.json'), { onEvent: (e) => activity.add(e) });
+const IMAGE_MAX_BYTES = 10 * 1024 * 1024;
+const IMAGE_MIME = { '.png': 'image/png', '.jpg': 'image/jpeg', '.jpeg': 'image/jpeg', '.webp': 'image/webp' };
 
 const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.mjs': 'text/javascript; charset=utf-8',
   '.css': 'text/css; charset=utf-8', '.json': 'application/json; charset=utf-8', '.png': 'image/png', '.jpg': 'image/jpeg',
-  '.svg': 'image/svg+xml', '.ttf': 'font/ttf', '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.obj': 'text/plain',
+  '.svg': 'image/svg+xml', '.webp': 'image/webp', '.mp4': 'video/mp4', '.ttf': 'font/ttf', '.glb': 'model/gltf-binary', '.gltf': 'model/gltf+json', '.obj': 'text/plain',
   '.fbx': 'application/octet-stream', '.ply': 'application/octet-stream', '.stl': 'application/octet-stream', '.md': 'text/plain; charset=utf-8' };
 
 const which = (bin) => spawnSync('sh', ['-c', `command -v ${bin}`], { encoding: 'utf8' }).stdout.trim() || null;
@@ -254,8 +262,9 @@ async function api(req, res, url) {
     const id = newId(); const dir = jobDir(id); await fsp.mkdir(path.join(dir, 'out'), { recursive: true });
     const input = path.join(dir, filename);
     await fsp.writeFile(input, await readBody(req));
-    await writeJob(dir, { job_id: id, input, out_dir: path.join(dir, 'out'), readonly: false });
-    return send(res, 200, { job_id: id, input_path: input });
+    await writeJob(dir, { job_id: id, input, out_dir: path.join(dir, 'out'), readonly: false, created_at: new Date().toISOString(), asset_id: `job:${id}` });
+    await activity.add({ type: 'uploaded', asset_id: `job:${id}`, message: `Uploaded ${filename}` });
+    return send(res, 200, { job_id: id, input_path: input, asset_id: `job:${id}` });
   }
 
   // GET /api/saved-reports -> validator reports already on disk (validator/reports/**/*.report.json), read-only
@@ -281,12 +290,93 @@ async function api(req, res, url) {
     const manifest = await readJsonIf(mPath);
     if (!manifest) return send(res, 200, { ok: false, error: `no readable ${MANIFEST_NAME} in ${want}` });
     const id = newId(); const dir = jobDir(id); await fsp.mkdir(dir, { recursive: true });
-    const job = { job_id: id, input: null, out_dir: want, readonly: true, manifest: mPath, export_asset: exportAsset(manifest, want) };
+    let realWant = want; try { realWant = fs.realpathSync(want); } catch { /* keep */ }
+    const assetId = `run:${path.relative(PROTO_DIR, realWant)}`;
+    const job = { job_id: id, input: null, out_dir: want, readonly: true, manifest: mPath, export_asset: exportAsset(manifest, want), asset_id: assetId };
     await writeJob(dir, job);
     // The profile the validator will use for this read-only job (same rule as /validate), so the UI can show it.
     const demoProp = path.join(VALIDATOR_DIR, 'profiles', 'demo_placeholder_prop.json');
     const vprof = exists(demoProp) && !off(process.env.FABLED_USE_DEMO_PROP_PROFILE) ? { path: demoProp, content: await readJsonIf(demoProp) } : null;
-    return send(res, 200, { ok: true, source: 'pipeline_output', job_id: id, out_dir: want, manifest, manifest_path: mPath, export_asset: job.export_asset, validator_profile: vprof });
+    return send(res, 200, { ok: true, source: 'pipeline_output', job_id: id, asset_id: assetId, out_dir: want, manifest, manifest_path: mPath, export_asset: job.export_asset, validator_profile: vprof });
+  }
+
+  // ---- connected workspace ----
+  if (req.method === 'GET' && parts[1] === 'workspace' && parts.length === 2) {
+    const ws = buildWorkspace({ protoDir: PROTO_DIR, pipelineDir: PIPELINE_DIR, uiDir: UI_DIR, workDir: WORK_DIR, runs: RUNS, tasks: generations.list() });
+    const allNotes = notes.all();
+    for (const g of ws.groups) for (const a of g.assets) a.has_note = !!allNotes[a.id];
+    return send(res, 200, ws);
+  }
+  if (parts[1] === 'workspace' && parts[2] === 'notes') {
+    const assetId = url.searchParams.get('asset') || '';
+    if (!validAssetId(assetId)) return send(res, 400, { ok: false, error: 'bad or missing ?asset=' });
+    if (req.method === 'GET') return send(res, 200, { ok: true, asset_id: assetId, note: notes.get(assetId) });
+    if (req.method === 'PUT') {
+      let body; try { body = JSON.parse((await readBody(req, 256 * 1024)).toString('utf8') || '{}'); } catch { return send(res, 400, { ok: false, error: 'body must be JSON {text}' }); }
+      const before = notes.get(assetId);
+      const note = await notes.set(assetId, body.text);
+      if (!before || !note) await activity.add({ type: 'note', asset_id: assetId, message: note ? 'Page notes started' : 'Page notes cleared' });
+      return send(res, 200, { ok: true, asset_id: assetId, note });
+    }
+  }
+  if (req.method === 'GET' && parts[1] === 'activity') {
+    const assetId = url.searchParams.get('asset');
+    const limit = Math.max(1, Math.min(200, Number(url.searchParams.get('limit')) || 50));
+    return send(res, 200, { ok: true, events: activity.list({ assetId: assetId && validAssetId(assetId) ? assetId : null, limit }) });
+  }
+
+  // ---- AI provider plugins ----
+  if (req.method === 'GET' && parts[1] === 'providers' && parts.length === 2) {
+    return send(res, 200, { ok: true, kinds: KIND_LABELS, providers: listProviders(), generations: generations.list() });
+  }
+  // POST /api/providers/:id/generations  {kind, prompt, image: {job_id, rel} | {data_uri} | {url}, source_asset_id}
+  if (req.method === 'POST' && parts[1] === 'providers' && parts[2] && parts[3] === 'generations') {
+    if (!getProvider(parts[2])) return send(res, 404, { ok: false, error: `unknown provider ${parts[2]}` });
+    let body; try { body = JSON.parse((await readBody(req, 16 * 1024 * 1024)).toString('utf8') || '{}'); } catch { return send(res, 400, { ok: false, error: 'body must be JSON' }); }
+    let image = null; let imageLabel = null;
+    try {
+      if (body.image?.job_id && body.image?.rel) {
+        const jd = jobDir(String(body.image.job_id)); const j = await readJob(jd);
+        const f = resolveOut(j.out_dir || path.join(jd, 'out'), String(body.image.rel));
+        const mime = f && IMAGE_MIME[path.extname(f).toLowerCase()];
+        if (!f || !mime || !exists(f)) throw new Error('image must be a .png/.jpg/.webp inside that job\'s output folder');
+        const buf = await fsp.readFile(f);
+        if (buf.length > IMAGE_MAX_BYTES) throw new Error(`image is over ${IMAGE_MAX_BYTES} bytes`);
+        image = { data_uri: `data:${mime};base64,${buf.toString('base64')}` }; imageLabel = path.basename(f);
+      } else if (typeof body.image?.data_uri === 'string') {
+        if (!/^data:image\/(png|jpeg|webp);base64,/.test(body.image.data_uri)) throw new Error('data_uri must be a base64 PNG, JPEG or WebP');
+        image = { data_uri: body.image.data_uri }; imageLabel = String(body.image.label || 'uploaded image').slice(0, 120);
+      } else if (typeof body.image?.url === 'string') {
+        if (!/^https:\/\//.test(body.image.url)) throw new Error('image url must be https');
+        image = { url: body.image.url }; imageLabel = body.image.url.split('/').pop().slice(0, 120);
+      }
+      const task = await generations.create(parts[2], { kind: body.kind, prompt: body.prompt, image, image_label: imageLabel,
+        source_asset_id: validAssetId(body.source_asset_id) ? body.source_asset_id : null });
+      return send(res, 200, { ok: true, generation: task });
+    } catch (e) { return send(res, 200, { ok: false, error: String(e.message || e) }); }
+  }
+  if (parts[1] === 'generations' && parts[2]) {
+    const t = generations.raw(parts[2]);
+    if (!t) return send(res, 404, { ok: false, error: 'unknown generation' });
+    if (req.method === 'GET' && parts.length === 3) return send(res, 200, { ok: true, generation: await generations.refresh(parts[2]) });
+    // POST /api/generations/:id/import -> download the mesh into a new upload job, ready for the pipeline
+    if (req.method === 'POST' && parts[3] === 'import') {
+      await generations.refresh(parts[2]);
+      if (t.status !== 'succeeded') return send(res, 200, { ok: false, error: `generation is ${t.status}, not succeeded` });
+      if (t.imported_job_id && exists(jobDir(t.imported_job_id))) return send(res, 200, { ok: true, already_imported: true, job_id: t.imported_job_id, asset_id: `job:${t.imported_job_id}`, filename: path.basename((await readJob(jobDir(t.imported_job_id))).input) });
+      const id = newId(); const dir = jobDir(id); await fsp.mkdir(path.join(dir, 'out'), { recursive: true });
+      try {
+        const input = await downloadModel(t, dir, { localRoots: [path.join(UI_DIR, 'samples')] });
+        const provenance = { provider: t.provider, provider_name: t.provider_name, kind: t.kind, task_id: t.id, prompt: t.prompt, image_label: t.image_label, source_asset_id: t.source_asset_id, concept_mockup: !!t.concept_mockup };
+        await writeJob(dir, { job_id: id, input, out_dir: path.join(dir, 'out'), readonly: false, created_at: new Date().toISOString(), asset_id: `job:${id}`, provenance });
+        await generations.markImported(t.id, id);
+        await activity.add({ type: 'generation_imported', asset_id: `job:${id}`, message: `Imported ${t.provider_name} ${t.kind} result as sculpt ${path.basename(input)}${t.concept_mockup ? ' (CONCEPT MOCKUP)' : ''}`, concept_mockup: !!t.concept_mockup });
+        return send(res, 200, { ok: true, job_id: id, asset_id: `job:${id}`, filename: path.basename(input) });
+      } catch (e) {
+        await fsp.rm(dir, { recursive: true, force: true });
+        return send(res, 200, { ok: false, error: String(e.message || e) });
+      }
+    }
   }
 
   if (parts[1] === 'jobs' && parts[2]) {
@@ -324,7 +414,14 @@ async function api(req, res, url) {
       await writeJob(dir, job);
       for (const f of [MANIFEST_NAME, 'progress.json']) { try { await fsp.unlink(path.join(outDir, f)); } catch { /* fresh */ } }
       const st = { running: true, code: null, out: '', err: '', started_at: new Date().toISOString() }; RUNS.set(id, st);
-      run(cmd[0], cmd[1], PIPELINE_DIR).then((r) => Object.assign(st, { running: false, code: r.code, out: r.out, err: r.err, finished_at: new Date().toISOString() }));
+      const jobAssetId = job.asset_id || `job:${id}`;
+      await activity.add({ type: 'pipeline_started', asset_id: jobAssetId, message: `Pipeline started (${job.engine === 'native' ? 'Native Python/NumPy' : 'Headless Blender'})` });
+      run(cmd[0], cmd[1], PIPELINE_DIR).then(async (r) => {
+        Object.assign(st, { running: false, code: r.code, out: r.out, err: r.err, finished_at: new Date().toISOString() });
+        const m = await readJsonIf(path.join(outDir, MANIFEST_NAME));
+        await activity.add({ type: r.code === 0 ? 'pipeline_finished' : 'pipeline_failed', asset_id: jobAssetId,
+          message: `Pipeline ${r.code === 0 ? 'finished' : `failed (exit ${r.code})`}${m ? `: manifest status ${m.status}` : '; no manifest'}` });
+      });
       return send(res, 200, { ok: true, source: 'pipeline', started: true, engine: job.engine });
     }
 
@@ -386,7 +483,16 @@ async function api(req, res, url) {
       const reportPath = path.join(dir, 'validator_report.json'); // job folder, never the (possibly read-only) output folder
       await fsp.writeFile(reportPath, JSON.stringify(report, null, 2));
       const profileUsedContent = await readJsonIf(vProfilePath);
+      const s = report.summary || {};
+      await activity.add({ type: 'validator_run', asset_id: job.asset_id || `job:${id}`,
+        message: `Validator ${String(report.overall_status || 'n/a').toUpperCase()} on ${target.kind.replace('_', ' ')}${s.total != null ? ` (${s.pass ?? 0} pass / ${s.warn ?? 0} warn / ${s.fail ?? 0} fail / ${s.not_checked ?? 0} not checked)` : ''}` });
       return send(res, 200, { ok: true, source: 'validator', exit_code: r.code, target, profile_used: vProfilePath, profile_used_content: profileUsedContent, report, report_path: reportPath, stderr: r.err.slice(-2000) });
+    }
+
+    // GET /api/jobs/:id/input -> the uploaded sculpt (to reopen an upload from the workspace tree)
+    if (req.method === 'GET' && parts[3] === 'input') {
+      if (!job.input) return send(res, 404, { error: 'read-only job has no uploaded input' });
+      return serveFile(res, path.join(dir, path.basename(job.input)));
     }
 
     // GET /api/jobs/:id/files/<path relative to <out>>

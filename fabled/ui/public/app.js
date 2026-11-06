@@ -4,72 +4,8 @@ import { loadModel, flatten, SUPPORTED } from './loaders.js';
 import { weld, analyzeTopology, flipTriangles, decimateToTarget, triCount } from './meshops.js';
 import { SideViewer, syncControls } from './viewer.js';
 import { runBrowserChecks, VALIDATOR_CHECKS_INFO } from './checks.js';
-
-// Feature 10: Notion-Style Project Asset Organization Tree
-export const ASSET_CATALOG = [
-  {
-    category: 'Character Busts',
-    id: 'busts',
-    assets: [
-      {
-        id: 'helen-keller-bust',
-        name: 'Helen Keller Bust',
-        tag: 'historical',
-        status: 'LOD0-3 Ready',
-        statusClass: 'ready',
-        triangles: '328k tris',
-        timestamp: '12m ago',
-        type: 'output',
-        dir: 'pipeline/output',
-      },
-      {
-        id: 'synthetic-clean-hero',
-        name: 'Synthetic Clean Hero',
-        tag: 'hero',
-        status: 'Validating',
-        statusClass: 'validating',
-        triangles: '12.4k tris',
-        timestamp: '45m ago',
-        type: 'sample',
-        sample: '/samples/fabled_sample_head.glb',
-      },
-    ],
-  },
-  {
-    category: 'Weapons & Props',
-    id: 'props',
-    assets: [
-      {
-        id: 'paladin-shield',
-        name: 'Paladin Shield',
-        tag: 'weapon',
-        status: 'Draft',
-        statusClass: 'draft',
-        triangles: '4.2k tris',
-        timestamp: '2h ago',
-        type: 'sample',
-        sample: '/samples/fabled_sample_head.obj',
-      },
-    ],
-  },
-  {
-    category: 'Environments',
-    id: 'environments',
-    assets: [
-      {
-        id: 'dungeon-pillar',
-        name: 'Dungeon Pillar',
-        tag: 'modular',
-        status: 'LOD0-3 Ready',
-        statusClass: 'ready',
-        triangles: '18.5k tris',
-        timestamp: '1d ago',
-        type: 'output',
-        dir: 'pipeline/output',
-      },
-    ],
-  },
-];
+import { licensedSample } from './licensed.js';
+import { initWorkspace } from './workspace.js';
 
 // Feature 8: 8 Discrete Pipeline Stages Specification
 export const PIPELINE_STAGES = [
@@ -88,7 +24,7 @@ const fmt = (n) => Number(n).toLocaleString('en-US');
 const state = {
   src: null, topo: null, jobId: null, upload: null, lods: [], lod: 0,
   manifest: null, manifestSource: null, validator: null, status: null, lodsStale: false,
-  engine: 'blender', selectedEngine: 'blender', activeAssetId: 'helen-keller-bust',
+  engine: 'blender', selectedEngine: 'blender', activeAssetId: null,
 };
 window.__fabled = state; // for debugging / headless verification
 
@@ -133,98 +69,6 @@ const btnEngineBlender = $('btn-engine-blender');
 const btnEngineNative = $('btn-engine-native');
 if (btnEngineBlender) btnEngineBlender.onclick = () => setEngine('blender');
 if (btnEngineNative) btnEngineNative.onclick = () => setEngine('native');
-
-// ---------- Feature 10: Notion-style asset tree ----------
-export function renderAssetTree(query = '') {
-  const container = $('asset-tree');
-  if (!container) return;
-  const q = String(query || '').trim().toLowerCase();
-  let totalCount = 0;
-  let html = '';
-
-  for (const cat of ASSET_CATALOG) {
-    const matchingAssets = cat.assets.filter((a) => {
-      if (!q) return true;
-      return a.name.toLowerCase().includes(q) || a.tag.toLowerCase().includes(q) || cat.category.toLowerCase().includes(q);
-    });
-    if (!matchingAssets.length) continue;
-    totalCount += matchingAssets.length;
-
-    html += `<div class="asset-tree-group">`;
-    html += `  <div class="asset-tree-category"><span class="cat-caret">▾</span> <span class="cat-title">${esc(cat.category)}</span> <span class="cat-count">(${matchingAssets.length})</span></div>`;
-    html += `  <div class="asset-tree-items">`;
-    for (const a of matchingAssets) {
-      const active = a.id === state.activeAssetId ? ' active' : '';
-      html += `    <div class="asset-tree-item${active}" data-asset-id="${esc(a.id)}" role="treeitem" tabindex="0">`;
-      html += `      <span class="asset-item-icon">◈</span>`;
-      html += `      <div class="asset-item-body">`;
-      html += `        <div class="asset-item-title-row">`;
-      html += `          <span class="asset-item-name">${esc(a.name)}</span>`;
-      html += `          <span class="asset-item-pill status-${esc(a.statusClass)}">${esc(a.status)}</span>`;
-      html += `        </div>`;
-      html += `        <div class="asset-item-sub">`;
-      html += `          <span class="asset-tris-badge">${esc(a.triangles)}</span>`;
-      html += `          <span class="asset-time-ago">${esc(a.timestamp)}</span>`;
-      html += `        </div>`;
-      html += `      </div>`;
-      html += `    </div>`;
-    }
-    html += `  </div>`;
-    html += `</div>`;
-  }
-
-  container.innerHTML = html || '<div class="asset-tree-empty muted small">No assets matching filter</div>';
-  const countEl = $('asset-tree-count');
-  if (countEl) countEl.textContent = `${totalCount} asset${totalCount === 1 ? '' : 's'}`;
-
-  container.querySelectorAll('.asset-tree-item').forEach((item) => {
-    item.onclick = () => selectAsset(item.dataset.assetId);
-    item.onkeydown = (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); selectAsset(item.dataset.assetId); } };
-  });
-}
-
-export async function selectAsset(assetId) {
-  state.activeAssetId = assetId;
-  const container = $('asset-tree');
-  if (container) {
-    container.querySelectorAll('.asset-tree-item').forEach((el) => {
-      el.classList.toggle('active', el.dataset.assetId === assetId);
-    });
-  }
-  let found = null;
-  for (const c of ASSET_CATALOG) {
-    const a = c.assets.find((x) => x.id === assetId);
-    if (a) { found = a; break; }
-  }
-  if (!found) return;
-
-  if (found.type === 'output') {
-    if (!DEMO) {
-      await openOutput(found.dir || 'pipeline/output');
-    } else {
-      showLod(0);
-    }
-  } else if (found.type === 'sample' && found.sample) {
-    if (!DEMO) {
-      busy(`Loading ${found.name}…`);
-      try {
-        const r = await fetch(found.sample);
-        const b = await r.arrayBuffer();
-        const filename = found.sample.split('/').pop() || 'sample.glb';
-        await handleFile(new File([b], filename));
-      } catch (e) {
-        console.warn('Failed to load sample asset', e);
-      } finally {
-        busy(null);
-      }
-    }
-  }
-}
-
-const assetSearchInput = $('asset-tree-search');
-if (assetSearchInput) {
-  assetSearchInput.oninput = (e) => renderAssetTree(e.target.value);
-}
 
 // ---------- Feature 8: Stage Telemetry Cards ----------
 export function renderStageTelemetryCards(containerEl = null) {
@@ -328,6 +172,7 @@ async function refreshStatus() {
       el.title = info.available ? info.command_preview : info.forced_off ? 'Forced to stub by env var' : `No CLI found in ${info.dir}`;
     };
     set($('chip-pipeline'), 'Pipeline', s.pipeline); set($('chip-validator'), 'Validator', s.validator);
+    workspace?.setStatus(s);
     $('btn-open-output').disabled = !s.pipeline.latest_output_manifest;
     $('btn-open-frozen').disabled = !s.pipeline.frozen_run; $('btn-open-frozen').dataset.dir = s.pipeline.frozen_run || '';
     if (s.pipeline.frozen_run) $('btn-open-frozen').title = `Read-only: ${s.pipeline.frozen_run} (frozen run)`;
@@ -362,6 +207,7 @@ async function enterDemo() {
     $('chip-validator').className = `chip vstatus-${esc(report.overall_status || 'na')}`; // never styled green unless the report says pass
     $('file-info').textContent = '';
     await showOutput({ ok: true, job_id: 'demo', out_dir: `${info.run_folder} (pre-processed)`, manifest, validator_profile: { path: info.validator_profile_file, content: profile } });
+    await workspace.refresh(); setActiveAsset('run:demo');
   } catch (e) { console.error(e); $('file-info').textContent = `Demo data could not be loaded: ${e.message}`; }
 }
 
@@ -399,7 +245,7 @@ function resetPipelineView() {
   $('left-preview').hidden = true; $('left-preview').removeAttribute('src');
 }
 
-async function handleFile(file) {
+async function handleFile(file, { jobId = null, assetId = null } = {}) {
   const ext = file.name.split('.').pop().toLowerCase();
   if (!SUPPORTED.includes(ext)) { $('file-info').textContent = `Unsupported file type .${ext}. Supported: ${SUPPORTED.join(', ')}`; busy(null); return; }
   try {
@@ -417,7 +263,8 @@ async function handleFile(file) {
     resetPipelineView(); showSource(); resetRight(); renderLodSwitch();
     $('btn-process').disabled = false; $('btn-recheck').disabled = false; $('process-status').textContent = '';
     state.jobId = null; // never validate this file against the previous file's job
-    state.upload = uploadToServer(file, buf);
+    if (jobId) { state.jobId = jobId; state.upload = Promise.resolve({ job_id: jobId, asset_id: assetId }); setActiveAsset(assetId || `job:${jobId}`); }
+    else state.upload = uploadToServer(file, buf);
     await recheck();
   } catch (e) {
     console.error(e); $('file-info').textContent = `Could not load ${file.name}: ${e.message}`;
@@ -453,7 +300,7 @@ async function uploadToServer(file, buf) {
   try {
     const r = await fetch(`/api/jobs?filename=${encodeURIComponent(file.name)}`, { method: 'POST', body: buf });
     if (!r.ok) throw new Error(`upload ${r.status}`);
-    const j = await r.json(); state.jobId = j.job_id; return j;
+    const j = await r.json(); state.jobId = j.job_id; setActiveAsset(j.asset_id || `job:${j.job_id}`); workspace?.refresh(); return j;
   } catch (e) { console.warn('Upload to local server failed; pipeline/validator unavailable', e); state.jobId = null; return null; }
 }
 
@@ -539,6 +386,7 @@ async function pollPipeline() {
 }
 
 async function applyPipelineResult(res, profile) {
+  workspace?.refresh();
   if (!res.ok || !res.manifest) { showPipelineError(res, profile); return; }
   state.manifest = res.manifest; state.manifestSource = 'pipeline'; state.lods = [];
   try { await loadPipelineLods(res.manifest); } catch (e) { console.warn(e); }
@@ -627,6 +475,7 @@ async function openOutput(dir) {
     busy('Opening pipeline output…');
     const j = await (await fetch(`/api/open-output?dir=${encodeURIComponent(dir)}`, { method: 'POST' })).json();
     if (!j.ok) { $('file-info').textContent = j.error; return; }
+    if (j.asset_id) setActiveAsset(j.asset_id);
     await showOutput(j);
   } catch (e) { console.error(e); $('file-info').textContent = `Could not open output: ${e.message}`; }
   finally { busy(null); updateMockupBadge(); }
@@ -660,18 +509,8 @@ async function showOutput(j) {
   finally { busy(null); updateMockupBadge(); }
 }
 
-// ---------- licensed sample assets (conditions in /workspace/fabled-pm/license_check.md) ----------
-// The NPG.75.16 scan: verbatim credit + no-endorsement line, neutral display name (never her name as a title),
-// height shown as measured from the file. File and mesh names may stay as exported.
-const LICENSED_SAMPLES = [{
-  match: (m) => /NPG[._ ]?75[._ ]?16|d8c64ccc-4ebc-11ea-b77f-2e728ce88125|HelenKeller/i.test(JSON.stringify({ a: m?.asset, s: m?.source, i: m?.input?.source })),
-  displayName: 'Sample asset: historical bust scan (CC0)',
-  credit: 'Helen Adams Keller by Onorio Ruotolo, 1916. National Portrait Gallery, Smithsonian Institution (NPG.75.16). 3D model via Smithsonian 3D, CC0.',
-  creditUrl: 'https://3d.si.edu/object/3d/helen-adams-keller:d8c64ccc-4ebc-11ea-b77f-2e728ce88125',
-  disclaimer: 'Fabled is not affiliated with or endorsed by the Smithsonian Institution.',
-  heightNote: 'source units inferred',
-}];
-export const licensedSample = (m) => (m ? LICENSED_SAMPLES.find((x) => x.match(m)) || null : null);
+// ---------- licensed sample assets: rules live in licensed.js (shared with the server's workspace index) ----------
+export { licensedSample };
 const assetDisplayName = (m) => licensedSample(m)?.displayName || m?.asset || 'asset';
 
 function renderCredit(c) {
@@ -762,7 +601,7 @@ async function recheck() {
   busy('Running validator…');
   await runValidator(profile);
   checks = renderBrowserChecks(); // again, now with the validator's authoritative normals number
-  busy(null); updateMockupBadge();
+  busy(null); updateMockupBadge(); workspace?.refresh();
   return checks;
 }
 function renderBrowserChecks() {
@@ -1000,9 +839,53 @@ async function fixFlipped() {
   await recheck();
 }
 
+// ---------- connected workspace (tree, connections, asset page, AI generation) ----------
+const IMG_RE = /\.(png|jpe?g|webp)$/i;
+function setActiveAsset(id) { state.activeAssetId = id; workspace?.setActive(id); }
+async function openJobAsset({ job_id, filename, has_manifest, running }, assetId) {
+  busy(`Opening ${filename}…`);
+  try {
+    const r = await fetch(`/api/jobs/${encodeURIComponent(job_id)}/input`);
+    if (!r.ok) throw new Error(`HTTP ${r.status}`);
+    await handleFile(new File([await r.arrayBuffer()], filename), { jobId: job_id, assetId });
+    if (running) { const res = await pollPipeline(); $('progress').hidden = true; await applyPipelineResult(res, readProfile()); }
+    else if (has_manifest) {
+      const res = await (await fetch(`/api/jobs/${encodeURIComponent(job_id)}/result`)).json();
+      if (res.ok && res.manifest) await applyPipelineResult(res, readProfile());
+    }
+  } catch (e) { console.error(e); $('file-info').textContent = `Could not reopen ${filename}: ${e.message}`; }
+  finally { busy(null); updateMockupBadge(); }
+}
+const workspace = initWorkspace({
+  demo: DEMO,
+  openOutput: (dir) => openOutput(dir),
+  openJob: openJobAsset,
+  openSample: async (url, filename) => {
+    busy(`Fetching ${filename}…`);
+    try { const r = await fetch(url); await handleFile(new File([await r.arrayBuffer()], filename)); } finally { busy(null); }
+  },
+  showPageTab: () => setInspectorTab('page'),
+  // what the Generate dialog may use as input images: preview renders of the open pipeline output (served via the job)
+  context: () => ({
+    assetId: state.activeAssetId, jobId: state.jobId,
+    previews: state.manifest && manifestIsReal(state.manifest) && state.jobId ? manifestFacts(state.manifest).previews.filter((p) => p?.path && IMG_RE.test(p.path)).map((p) => ({ rel: p.path, label: p.label })) : [],
+  }),
+  demoWorkspace: () => {
+    const m = state.manifest; const info = state.demo?.info;
+    if (!m) return { groups: [], total: 0 };
+    const lods = normalizeLods(m);
+    const rep = state.demo?.report;
+    return { total: 1, groups: [{ id: 'runs', label: 'Pre-processed run', assets: [{
+      id: 'run:demo', kind: 'frozen_run', name: licensedSample(m)?.shortName || m.asset || 'asset',
+      status: rep?.overall_status ? { label: `Validator ${String(rep.overall_status).toUpperCase()}`, tone: rep.overall_status === 'pass' ? 'ok' : rep.overall_status === 'warn' ? 'warn' : 'fail' } : { label: `Pipeline ${m.status}`, tone: 'ok' },
+      pipeline_status: m.status, validator: rep ? { overall: rep.overall_status, summary: rep.summary } : null,
+      triangles: { input: m.input?.triangles ?? null, lod_count: lods.length || null, lod0_triangles: lods[0]?.triangles ?? null },
+      created_at: m.created_at, folder: info?.run_folder || null, open: { type: 'demo' } }] }] };
+  },
+});
+
 // Initialize components
 setEngine(state.engine || 'blender');
-renderAssetTree();
 renderStageTelemetryCards();
 
 if (DEMO) enterDemo();
@@ -1187,6 +1070,7 @@ function setInspectorTab(tab) {
   if (!itabContainer) return;
   itabContainer.querySelectorAll('.itab').forEach((b) => b.classList.toggle('active', b.dataset.itab === tab));
   const panes = {
+    page: $('pane-page'),
     browser: $('pane-browser'),
     validator: $('pane-validator'),
     pipeline: $('pane-pipeline'),

@@ -40,8 +40,12 @@ Use `PORT=5180 npm start` for another port.
 | Build retopo + LODs from an upload | `npm start` runs the **real pipeline** (async, live step bar from `progress.json`; manifest read even on failure). Tested only against `test_fixtures/mock_pipeline_cli.py` (TEST FIXTURE), not a real Blender run from the UI. With `FABLED_PIPELINE=off`: browser decimation preview, labeled CONCEPT MOCKUP |
 | "Preview unified winding" | **Browser preview only.** The check stays flagged and the validator still checks the file on disk |
 | Skeleton control | Shown, labeled "not used by the pipeline yet" (static mesh only) |
+| Workspace tree, asset pages, notes, activity | **Real** (2026-11-06): built from manifests, validator reports, upload jobs and samples on disk (`GET /api/workspace`). Notes and activity persist in `work/` |
+| AI providers (Meshy, Tripo, Higgsfield, Runway) | **Adapters written, not run against the live APIs** (no keys; vendor docs unreachable from the authoring session). Off until a key is set. The offline mock provider is labeled CONCEPT MOCKUP. See `PROVIDERS.md` |
 
 A **CONCEPT MOCKUP** badge in the header is visible whenever any stub, preview or test fixture is on screen.
+
+Connected workspace + provider plugin tests (no keys or network): `npm run test:connected` (also part of `npm test`).
 
 Extra tests: `node tools/test_mock_pipeline.mjs` (progress bar + failed run, with the mock CLI server on :5179; see the file header) and `node tools/shot_saved_report.mjs [report-rel] [png]`.
 
@@ -65,6 +69,8 @@ Screenshots go to `screenshots/`, with the log and console output in `screenshot
 - `public/app.js`: wiring. `loaders.js`: three.js loaders. `meshops.js`: weld, topology, decimation, texel density. `checks.js`: browser checks. `viewer.js`: synced side-by-side viewers
 - `stub/*.CONCEPT_MOCKUP.json`: stub manifest and report (tri counts are null on purpose)
 - `INTERFACES.md`: manifest/report schemas, CLI invocation, open questions
+- `workspace.mjs` (server) + `public/workspace.js`, `public/workspace-model.js`: connected workspace (tree, Connections, asset page, notes, activity, Generate dialog). `public/licensed.js`: licensed-sample rules shared by browser and server
+- `providers/`: AI provider plugins (`index.mjs` registry + task store, one file per provider). `PROVIDERS.md`: what is verified, how to enable one, how to add one
 - `tools/make_sample_sculpt.py`, `tools/screenshot_test.mjs`
 - `work/`: per-job uploads and CLI outputs (gitignored)
 - `../unreal/import_fabled_asset.py`, `../unreal/CAPTURE_NOTES.md`: Unreal import script and shot-7 capture notes (**untested**)
