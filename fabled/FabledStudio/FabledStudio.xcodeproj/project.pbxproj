@@ -13,6 +13,16 @@
 		A10000042900000100000001 /* SyncedSceneView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000042900000100000001 /* SyncedSceneView.swift */; };
 		A10000052900000100000001 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000052900000100000001 /* ContentView.swift */; };
 		A10000062900000100000001 /* SM_HelenKellerBust_LOD0.glb in Resources */ = {isa = PBXBuildFile; fileRef = A20000062900000100000001 /* SM_HelenKellerBust_LOD0.glb */; };
+		A10000072900000100000001 /* PipelineModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000072900000100000001 /* PipelineModels.swift */; };
+		A10000082900000100000001 /* ValidatorModels.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000082900000100000001 /* ValidatorModels.swift */; };
+		A10000092900000100000001 /* LicensedSamples.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000092900000100000001 /* LicensedSamples.swift */; };
+		A10000102900000100000001 /* WorkspaceModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000102900000100000001 /* WorkspaceModel.swift */; };
+		A10000112900000100000001 /* WorkspaceStore.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000112900000100000001 /* WorkspaceStore.swift */; };
+		A10000122900000100000001 /* PipelineService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000122900000100000001 /* PipelineService.swift */; };
+		A10000132900000100000001 /* ValidatorService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000132900000100000001 /* ValidatorService.swift */; };
+		A10000142900000100000001 /* FabledServerClient.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000142900000100000001 /* FabledServerClient.swift */; };
+		A10000152900000100000001 /* ValidatorReportSheet.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000152900000100000001 /* ValidatorReportSheet.swift */; };
+		A10000162900000100000001 /* WorkspaceViews.swift in Sources */ = {isa = PBXBuildFile; fileRef = A20000162900000100000001 /* WorkspaceViews.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -22,6 +32,16 @@
 		A20000042900000100000001 /* SyncedSceneView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SyncedSceneView.swift; sourceTree = "<group>"; };
 		A20000052900000100000001 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		A20000062900000100000001 /* SM_HelenKellerBust_LOD0.glb */ = {isa = PBXFileReference; lastKnownFileType = file; path = SM_HelenKellerBust_LOD0.glb; sourceTree = "<group>"; };
+		A20000072900000100000001 /* PipelineModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineModels.swift; sourceTree = "<group>"; };
+		A20000082900000100000001 /* ValidatorModels.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidatorModels.swift; sourceTree = "<group>"; };
+		A20000092900000100000001 /* LicensedSamples.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LicensedSamples.swift; sourceTree = "<group>"; };
+		A20000102900000100000001 /* WorkspaceModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceModel.swift; sourceTree = "<group>"; };
+		A20000112900000100000001 /* WorkspaceStore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceStore.swift; sourceTree = "<group>"; };
+		A20000122900000100000001 /* PipelineService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PipelineService.swift; sourceTree = "<group>"; };
+		A20000132900000100000001 /* ValidatorService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidatorService.swift; sourceTree = "<group>"; };
+		A20000142900000100000001 /* FabledServerClient.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FabledServerClient.swift; sourceTree = "<group>"; };
+		A20000152900000100000001 /* ValidatorReportSheet.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ValidatorReportSheet.swift; sourceTree = "<group>"; };
+		A20000162900000100000001 /* WorkspaceViews.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = WorkspaceViews.swift; sourceTree = "<group>"; };
 		A30000012900000100000001 /* FabledStudio.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = FabledStudio.app; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -60,6 +80,11 @@
 			isa = PBXGroup;
 			children = (
 				A20000022900000100000001 /* FabledModels.swift */,
+				A20000072900000100000001 /* PipelineModels.swift */,
+				A20000082900000100000001 /* ValidatorModels.swift */,
+				A20000092900000100000001 /* LicensedSamples.swift */,
+				A20000102900000100000001 /* WorkspaceModel.swift */,
+				A20000112900000100000001 /* WorkspaceStore.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -68,6 +93,9 @@
 			isa = PBXGroup;
 			children = (
 				A20000032900000100000001 /* MeshAnalyzerAndLoader.swift */,
+				A20000122900000100000001 /* PipelineService.swift */,
+				A20000132900000100000001 /* ValidatorService.swift */,
+				A20000142900000100000001 /* FabledServerClient.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -77,6 +105,8 @@
 			children = (
 				A20000042900000100000001 /* SyncedSceneView.swift */,
 				A20000052900000100000001 /* ContentView.swift */,
+				A20000152900000100000001 /* ValidatorReportSheet.swift */,
+				A20000162900000100000001 /* WorkspaceViews.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -171,6 +201,16 @@
 				A10000032900000100000001 /* MeshAnalyzerAndLoader.swift in Sources */,
 				A10000042900000100000001 /* SyncedSceneView.swift in Sources */,
 				A10000052900000100000001 /* ContentView.swift in Sources */,
+				A10000072900000100000001 /* PipelineModels.swift in Sources */,
+				A10000082900000100000001 /* ValidatorModels.swift in Sources */,
+				A10000092900000100000001 /* LicensedSamples.swift in Sources */,
+				A10000102900000100000001 /* WorkspaceModel.swift in Sources */,
+				A10000112900000100000001 /* WorkspaceStore.swift in Sources */,
+				A10000122900000100000001 /* PipelineService.swift in Sources */,
+				A10000132900000100000001 /* ValidatorService.swift in Sources */,
+				A10000142900000100000001 /* FabledServerClient.swift in Sources */,
+				A10000152900000100000001 /* ValidatorReportSheet.swift in Sources */,
+				A10000162900000100000001 /* WorkspaceViews.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

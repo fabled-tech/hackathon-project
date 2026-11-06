@@ -10,6 +10,16 @@ open fabled/FabledStudio/FabledStudio.xcodeproj
 ```
 Select either **My Mac** (macOS) or any **iPad Pro** destination in the Xcode scheme selector and press **⌘R** to build and run.
 
+## Building
+
+- The Xcode project (classic file references) now lists every Swift file under `Sources/` in the app target's Sources build phase; `Resources/SM_HelenKellerBust_LOD0.glb` is bundled via the Resources phase.
+- Xcode does not pick up new files automatically. After adding, moving, or deleting a Swift file, add it to the project (or edit `project.pbxproj`) and run, from `fabled/FabledStudio/`:
+  ```bash
+  python3 tools/check_xcodeproj.py
+  ```
+  It fails if a `Sources/**/*.swift` file is missing from the target, a target file is missing on disk, an object ID is duplicated, or a reference dangles. Pass `--project <path>` to check another copy of the file.
+- SwiftPM works too: `swift build` and `swift test` (the tests live in SwiftPM only; the Xcode project has no test target).
+
 ## Architecture & Features
 
 - **`Sources/FabledStudioApp.swift`**: Application entry point and `Fabled Pipeline` menu bar commands (`⌘1` Raw Sculpt, `⌘3` Real Pipeline Output, `⌘5` Pre-Import Check, `⌘6` One-Click Fixes, `⇧⌘B` Build Retopo + LODs, `⌘R` Re-check, `⌘U` Inspect UVs & Baked Maps).
