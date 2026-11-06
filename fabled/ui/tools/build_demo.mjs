@@ -74,7 +74,8 @@ let report;
 if (REPORT) report = reportPeek;
 else {
   const V = path.join(PROTO, 'validator');
-  const r = spawnSync(path.join(V, '.venv', 'bin', 'python'), ['-m', 'fabled_validator', 'check', '--manifest', path.join(SRC, 'manifest.json'), '--profile', PROFILE, '--json-only'], { cwd: V, encoding: 'utf8', maxBuffer: 64 << 20 });
+  const vPy = fs.existsSync(path.join(V, '.venv', 'bin', 'python')) ? path.join(V, '.venv', 'bin', 'python') : 'python3'; // same fallback as server.mjs
+  const r = spawnSync(vPy, ['-m', 'fabled_validator', 'check', '--manifest', path.join(SRC, 'manifest.json'), '--profile', PROFILE, '--json-only'], { cwd: V, encoding: 'utf8', maxBuffer: 64 << 20 });
   try { report = JSON.parse(r.stdout); } catch { die(`validator CLI gave no JSON (exit ${r.status}): ${(r.stderr || '').slice(-500)}`); }
 }
 if (report.concept_mockup) die('validator report is a stub/mockup');

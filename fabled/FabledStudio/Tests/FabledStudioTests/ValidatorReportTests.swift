@@ -75,6 +75,14 @@ final class ValidatorReportTests: XCTestCase {
         XCTAssertEqual(report.summary.total, 16, "Fallback report must cover all 16 standard checks")
         XCTAssertEqual(report.checks.count, 16)
 
+        // Nothing ran, so nothing may read as passing or flagged.
+        XCTAssertEqual(report.overall_status, "not run")
+        XCTAssertEqual(report.complete, false)
+        XCTAssertEqual(report.summary.pass, 0)
+        XCTAssertEqual(report.summary.flagged, 0)
+        XCTAssertTrue(report.checks.allSatisfy { $0.isNotChecked })
+        XCTAssertFalse(report.checks.contains { $0.message.contains("53.1") })
+
         let checkIDs = report.checks.map { $0.id }
         for stdCheck in StandardValidatorCheckID.allCases {
             XCTAssertTrue(checkIDs.contains(stdCheck.rawValue), "Missing standard check: \(stdCheck.rawValue)")

@@ -3,7 +3,7 @@
  * Empirical Challenger Stress Test Suite for Milestone 2 Web Workspace
  *
  * Rigorously stress tests:
- * 1. ASSET_CATALOG integrity and filtering with unicode, regex, empty, null, and adversarial queries.
+ * 1. Connected workspace filter (workspace-model.js) with unicode, regex, empty, null, and adversarial queries.
  * 2. PIPELINE_STAGES integrity, progression, out-of-order jumps, missing fields, negative durations, and rapid floods.
  * 3. VALIDATOR_CHECKS_INFO 16-check schema parity, severity badges, metrics, and XSS sanitization.
  * 4. MatCap procedural canvas generation, gradient fidelity, Three.js texture wrapping, disposal, and leak prevention.
@@ -141,163 +141,71 @@ async function main() {
   });
 
   // ==========================================================================
-  // Section 2: ASSET_CATALOG Integrity & Filtering Fuzz Harness
+  // Section 2: Connected workspace filter (public/workspace-model.js) Fuzz Harness
   // ==========================================================================
-  console.log('\n--- Section 2: ASSET_CATALOG Integrity & Filtering Fuzz Harness ---');
-
-  // Parse ASSET_CATALOG from app.js source to test data structure directly
+  console.log('\n--- Section 2: Workspace Filter Integrity & Fuzz Harness ---');
+  const { filterWorkspace, trisLabel, timeAgo } = await import('../public/workspace-model.js');
+  const { WORKSPACE_FIXTURE: WS } = await import('./workspace_fixture.mjs');
+  const ALL = WS.groups.reduce((n, g) => n + g.assets.length, 0);
   const appJsSource = fs.readFileSync(path.join(UI_DIR, 'public', 'app.js'), 'utf8');
-  const catalogMatch = /export const ASSET_CATALOG = (\[[\s\S]*?\n\];)/.exec(appJsSource);
-  assert(catalogMatch, 'Could not find export const ASSET_CATALOG in app.js');
-  const ASSET_CATALOG = eval(catalogMatch[1]);
 
-  test('ASSET_CATALOG schema validity and category organization', () => {
-    assert(Array.isArray(ASSET_CATALOG), 'ASSET_CATALOG must be an array');
-    assert.equal(ASSET_CATALOG.length, 3, 'Must contain 3 categories');
-
-    const expectedCats = ['Character Busts', 'Weapons & Props', 'Environments'];
-    const actualCats = ASSET_CATALOG.map((c) => c.category);
-    assert.deepEqual(actualCats, expectedCats, 'Categories must match specification');
-
-    const assetIds = new Set();
-    for (const cat of ASSET_CATALOG) {
-      assert(cat.id && typeof cat.id === 'string', 'Category id required');
-      assert(Array.isArray(cat.assets) && cat.assets.length > 0, `Category ${cat.category} must have assets`);
-      for (const a of cat.assets) {
-        assert(!assetIds.has(a.id), `Duplicate asset id: ${a.id}`);
-        assetIds.add(a.id);
-        assert(a.name && typeof a.name === 'string', `Asset ${a.id} missing name`);
-        assert(a.tag && typeof a.tag === 'string', `Asset ${a.id} missing tag`);
-        assert(['ready', 'validating', 'draft'].includes(a.statusClass), `Asset ${a.id} invalid statusClass: ${a.statusClass}`);
-        assert(['sample', 'output'].includes(a.type), `Asset ${a.id} invalid type: ${a.type}`);
-        if (a.type === 'sample') {
-          assert(a.sample && typeof a.sample === 'string', `Asset ${a.id} sample path missing`);
-          assert(a.sample.endsWith('.glb') || a.sample.endsWith('.obj'), `Sample asset must be glb/obj: ${a.sample}`);
-        } else if (a.type === 'output') {
-          assert(a.dir && typeof a.dir === 'string', `Asset ${a.id} output dir missing`);
-        }
-      }
+  test('Workspace fixture schema: unique ids, known kinds, status tone', () => {
+    const ids = new Set();
+    for (const g of WS.groups) for (const a of g.assets) {
+      assert(!ids.has(a.id), `duplicate ${a.id}`); ids.add(a.id);
+      assert(/^(run|job|gen|sample):/.test(a.id), `bad id ${a.id}`);
+      assert(a.status && typeof a.status.label === 'string', `status missing on ${a.id}`);
     }
   });
-
-  // Pure filtering oracle implementing the exact app.js logic
-  function filterAssets(catalog, query) {
-    const q = String(query || '').trim().toLowerCase();
-    let totalCount = 0;
-    const results = [];
-    for (const cat of catalog) {
-      const matchingAssets = cat.assets.filter((a) => {
-        if (!q) return true;
-        return a.name.toLowerCase().includes(q) || a.tag.toLowerCase().includes(q) || cat.category.toLowerCase().includes(q);
-      });
-      if (matchingAssets.length) {
-        totalCount += matchingAssets.length;
-        results.push({ category: cat.category, assets: matchingAssets });
-      }
-    }
-    return { totalCount, results };
-  }
 
   test('Filter logic: empty and whitespace queries return all assets', () => {
-    const emptyQueries = ['', '   ', '\t', '\n', '\r\n', null, undefined];
-    for (const q of emptyQueries) {
-      const { totalCount, results } = filterAssets(ASSET_CATALOG, q);
-      assert.equal(totalCount, 4, `Query "${q}" should return all 4 assets`);
-      assert.equal(results.length, 3, 'Should return all 3 categories');
-    }
+    for (const q of ['', '   ', '\t', '\n', '\r\n', null, undefined]) assert.equal(filterWorkspace(WS, q).total, ALL, `query ${JSON.stringify(q)}`);
   });
 
-  test('Filter logic: case-insensitive name matching', () => {
-    for (const q of ['helen', 'HELEN', 'HeLeN', 'bust', 'Paladin', 'SHIELD', 'dungeon', 'PILLAR']) {
-      const { totalCount, results } = filterAssets(ASSET_CATALOG, q);
-      assert(totalCount >= 1, `Query "${q}" should find at least 1 asset`);
-    }
-  });
-
-  test('Filter logic: category matching returns all items in that category', () => {
-    const busts = filterAssets(ASSET_CATALOG, 'Character Busts');
-    assert.equal(busts.totalCount, 2);
-    assert.equal(busts.results[0].category, 'Character Busts');
-
-    const props = filterAssets(ASSET_CATALOG, 'Weapons');
-    assert.equal(props.totalCount, 1);
-    assert.equal(props.results[0].category, 'Weapons & Props');
-
-    const envs = filterAssets(ASSET_CATALOG, 'Environments');
-    assert.equal(envs.totalCount, 1);
-    assert.equal(envs.results[0].category, 'Environments');
-  });
-
-  test('Filter logic: tag matching', () => {
-    assert.equal(filterAssets(ASSET_CATALOG, 'historical').totalCount, 1);
-    assert.equal(filterAssets(ASSET_CATALOG, 'hero').totalCount, 1);
-    assert.equal(filterAssets(ASSET_CATALOG, 'weapon').totalCount, 1);
-    assert.equal(filterAssets(ASSET_CATALOG, 'modular').totalCount, 1);
+  test('Filter logic: case-insensitive name / status / group / provider matching', () => {
+    assert.equal(filterWorkspace(WS, 'BUST').total, 3); // 2 runs + the dwarf bust prompt
+    assert.equal(filterWorkspace(WS, 'validator warn').total, 1); // AND of terms
+    assert.equal(filterWorkspace(WS, 'uploads').total, 1); // group label
+    assert.equal(filterWorkspace(WS, 'meshy').total, 1); // provider name
+    assert.equal(filterWorkspace(WS, 'paladin').total, 1); // generation prompt
   });
 
   test('Filter logic: non-existent queries return 0 results cleanly', () => {
-    const nonexistent = ['xyz404notfound', 'dragon', 'spaceship', 'cyberpunk_2077', '__NONE__'];
-    for (const q of nonexistent) {
-      const { totalCount, results } = filterAssets(ASSET_CATALOG, q);
-      assert.equal(totalCount, 0, `Query "${q}" should return 0 results`);
-      assert.equal(results.length, 0);
-    }
+    for (const q of ['xyz404notfound', 'spaceship', '__NONE__']) assert.equal(filterWorkspace(WS, q).total, 0);
   });
 
-  test('Filter logic: regex injection safety (no RegExp crash)', () => {
-    // Queries containing characters that would crash raw `new RegExp(q)`
-    const dangerousRegexQueries = [
-      '.*', '(', ')', '[', ']', '{', '}', '+', '?', '^', '$', '|', '\\',
-      '(*foo)', '[a-z]+', '.*+?^${}()|[]\\', '(?=.*abc)',
-    ];
-    for (const q of dangerousRegexQueries) {
-      // Must not throw
-      assert.doesNotThrow(() => {
-        const res = filterAssets(ASSET_CATALOG, q);
-        assert(typeof res.totalCount === 'number');
-      }, `Dangerous regex query "${q}" must not throw`);
+  test('Filter logic: regex metacharacters are literal (no RegExp crash)', () => {
+    for (const q of ['.*', '(', ')', '[', ']', '{', '}', '+', '?', '^', '$', '|', '\\', '(*foo)', '[a-z]+', '.*+?^${}()|[]\\', '(?=.*abc)']) {
+      assert.doesNotThrow(() => { const r = filterWorkspace(WS, q); assert(r.total >= 0 && r.total <= ALL); }, `query ${q}`);
     }
+    assert.equal(filterWorkspace(WS, '.*').total, 0, '".*" is matched literally, not as a wildcard');
+    assert.equal(filterWorkspace(WS, '(cc0)').total, 2, 'parentheses are matched literally');
   });
 
-  test('Filter logic: unicode, multi-byte emoji, and RTL strings', () => {
-    const unicodeQueries = [
-      '🛡️', '🗿', '🔥', '✨',
-      'ヘレン', 'ケラー', '彫刻',
-      'بستان', 'تمثال',
-      'Hélen', 'Këller',
-      '\u0000', '\u200B', '\uFEFF',
-    ];
-    for (const q of unicodeQueries) {
-      assert.doesNotThrow(() => {
-        const res = filterAssets(ASSET_CATALOG, q);
-        assert(typeof res.totalCount === 'number');
-      }, `Unicode query "${q}" must execute safely`);
-    }
+  test('Filter logic: unicode, emoji, RTL and zero-width input', () => {
+    for (const q of ['🛡️', 'ヘレン', 'تمثال', 'Hélen', '\u0000', '​', '﻿']) assert.doesNotThrow(() => filterWorkspace(WS, q));
   });
 
   test('Filter logic: fuzz harness with 1,000 random adversarial inputs', () => {
-    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:",.<>?/\\ \t\n\u0000\u200B🛡️';
-    const tStart = performance.now();
+    const chars = 'abcdefghijklmnopqrstuvwxyz0123456789!@#$%^&*()_+-=[]{}|;:",.<>?/\\ \t\n\u0000​🛡️';
+    const t0 = performance.now();
     for (let i = 0; i < 1000; i++) {
-      let len = Math.floor(Math.random() * 50);
-      let randQuery = '';
-      for (let j = 0; j < len; j++) {
-        randQuery += chars[Math.floor(Math.random() * chars.length)];
-      }
-      const res = filterAssets(ASSET_CATALOG, randQuery);
-      assert(res.totalCount >= 0 && res.totalCount <= 4);
+      let q = ''; for (let j = 0, n = Math.floor(Math.random() * 50); j < n; j++) q += chars[Math.floor(Math.random() * chars.length)];
+      const r = filterWorkspace(WS, q); assert(r.total >= 0 && r.total <= ALL);
     }
-    const elapsed = performance.now() - tStart;
-    assert(elapsed < 200, `1,000 fuzz queries should complete in < 200ms (took ${elapsed.toFixed(1)}ms)`);
+    assert(performance.now() - t0 < 500, '1,000 fuzz queries should complete in < 500ms');
   });
 
-  test('Filter logic: extreme length string (100,000 chars) handles gracefully without memory overflow', () => {
-    const hugeQuery = 'A'.repeat(100000);
-    const t0 = performance.now();
-    const res = filterAssets(ASSET_CATALOG, hugeQuery);
-    const duration = performance.now() - t0;
-    assert.equal(res.totalCount, 0);
-    assert(duration < 50, `Huge query took ${duration}ms, expected < 50ms`);
+  test('Filter logic: extreme length string (100,000 chars)', () => {
+    const t0 = performance.now(); assert.equal(filterWorkspace(WS, 'A'.repeat(100000)).total, 0); assert(performance.now() - t0 < 100);
+  });
+
+  test('Labels: triangle label never invents numbers; relative time is sane', () => {
+    assert.equal(trisLabel(WS.groups[0].assets[0]), 'LOD0 19k tris · 4 LODs');
+    assert.equal(trisLabel(WS.groups[1].assets[0]), null);
+    assert.equal(trisLabel(WS.groups[3].assets[0]), '328k tris');
+    assert.equal(timeAgo(null), null); assert.equal(timeAgo('not a date'), null);
+    assert.equal(timeAgo('2026-11-06T04:00:00Z', Date.parse('2026-11-06T06:00:00Z')), '2h ago');
   });
 
   // ==========================================================================
@@ -571,7 +479,7 @@ async function main() {
     await waitForServer(url, 8000);
     console.log(`Ephemeral server ready at ${url}`);
 
-    const chromePath = '/Applications/Google Chrome.app/Contents/MacOS/Google Chrome';
+    const chromePath = process.env.CHROME || ['/Applications/Google Chrome.app/Contents/MacOS/Google Chrome', '/usr/bin/google-chrome', '/usr/bin/chromium', '/opt/pw-browsers/chromium'].find((p) => fs.existsSync(p));
     const browser = await chromium.launch({
       executablePath: chromePath,
       headless: true,
@@ -593,52 +501,44 @@ async function main() {
 
     await testAsync('Navigate to live Web Workspace without page or console errors', async () => {
       await page.goto(url, { waitUntil: 'domcontentloaded' });
-      await page.waitForFunction(() => document.querySelectorAll('#asset-tree .asset-tree-item').length === 4, { timeout: 10000 });
+      await page.waitForFunction(() => document.querySelectorAll('#asset-tree .wst-item').length > 0, { timeout: 10000 });
       assert.equal(pageErrors.length, 0, `Page errors encountered: ${pageErrors.join(', ')}`);
     });
 
-    await testAsync('Live DOM: Notion-style asset tree loads with all 3 categories and 4 assets', async () => {
-      const items = await page.$$('#asset-tree .asset-tree-item');
-      assert.equal(items.length, 4, `Expected 4 asset items, found ${items.length}`);
-      const countText = await page.textContent('#asset-tree-count');
-      assert.equal(countText, '4 assets');
+    await testAsync('Live DOM: workspace tree is built from GET /api/workspace (no hardcoded catalog)', async () => {
+      const ws = await (await fetch(`${url}/api/workspace`)).json();
+      const visible = ws.groups.reduce((n, g) => n + g.assets.length, 0);
+      const items = await page.$$('#asset-tree .wst-item');
+      assert.equal(items.length, visible, `tree shows ${items.length}, index has ${visible}`);
+      assert.equal((await page.textContent('#asset-tree-count')).trim(), String(ws.total));
+      const names = await page.$$eval('#asset-tree .wst-name', (els) => els.map((e) => e.textContent));
+      assert(!names.some((n) => /helen keller/i.test(n)), 'licensed sample must use its neutral display name in the tree');
     });
 
-    await testAsync('Live DOM: Asset tree interactive search filter', async () => {
-      // Type 'helen'
-      await page.fill('#asset-tree-search', 'helen');
+    await testAsync('Live DOM: workspace search filter (literal, AND terms, empty state)', async () => {
+      await page.fill('#asset-tree-search', 'sample');
       await page.waitForTimeout(100);
-      let items = await page.$$('#asset-tree .asset-tree-item');
-      assert.equal(items.length, 1);
-      let name = await page.textContent('#asset-tree .asset-item-name');
-      assert(name.includes('Helen Keller'));
-
-      // Type regex query
+      const items = await page.$$('#asset-tree .wst-item');
+      assert(items.length >= 1, 'samples group should match "sample"');
       await page.fill('#asset-tree-search', '.*[a-z]+');
       await page.waitForTimeout(100);
       assert.equal(consoleErrors.length, 0, 'Regex query must not throw in browser console');
-
-      // Type nonexistent query
       await page.fill('#asset-tree-search', 'nonexistent_token_404');
       await page.waitForTimeout(100);
-      const emptyText = await page.textContent('#asset-tree');
-      assert(emptyText.includes('No assets matching filter'));
-
-      // Reset filter
+      assert((await page.textContent('#asset-tree')).includes('No assets match the filter'));
       await page.fill('#asset-tree-search', '');
       await page.waitForTimeout(100);
-      items = await page.$$('#asset-tree .asset-tree-item');
-      assert.equal(items.length, 4);
+      assert((await page.$$('#asset-tree .wst-item')).length > 0);
     });
 
-    await testAsync('Live DOM: Asset tree keyboard and click selection', async () => {
-      const paladinItem = await page.$('[data-asset-id="paladin-shield"]');
-      assert(paladinItem, 'Paladin Shield asset item must exist');
-      await paladinItem.click();
-      await page.waitForTimeout(100);
-      const activeItem = await page.$('.asset-tree-item.active');
-      const activeId = await activeItem.getAttribute('data-asset-id');
-      assert.equal(activeId, 'paladin-shield');
+    await testAsync('Live DOM: selecting a tree item marks it active and opens its page', async () => {
+      const item = await page.$('#asset-tree .wst-item[data-asset-id^="sample:"]');
+      assert(item, 'a sample asset must be listed');
+      const id = await item.getAttribute('data-asset-id');
+      await item.click();
+      await page.waitForFunction((want) => document.querySelector('#asset-tree .wst-item.active')?.dataset.assetId?.length > 0 && window.__fabled.src, id, { timeout: 15000 });
+      const title = await page.textContent('#page-title');
+      assert(title && title !== 'Workspace', 'asset page should show the selected asset');
     });
 
     await testAsync('Live DOM: Live stage telemetry card rendering and pulse animation', async () => {

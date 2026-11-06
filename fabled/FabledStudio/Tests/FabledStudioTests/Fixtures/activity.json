@@ -1,0 +1,46 @@
+{
+  "ok": true,
+  "events": [
+    {
+      "at": "2026-11-06T06:05:04.521Z",
+      "type": "generation_imported",
+      "asset_id": "job:mw4klhmf-99a645cb",
+      "message": "Imported Offline mock text-to-3d result as sculpt mock_knight_helmet_98262b.glb (CONCEPT MOCKUP)",
+      "concept_mockup": true
+    },
+    {
+      "at": "2026-11-06T06:05:04.490Z",
+      "type": "generation_succeeded",
+      "asset_id": "gen:gen-mw4klgsa-98262b",
+      "message": "Offline mock: Text → 3D mesh succeeded",
+      "concept_mockup": true
+    },
+    {
+      "at": "2026-11-06T06:05:03.429Z",
+      "type": "generation_started",
+      "asset_id": "gen:gen-mw4klgsa-98262b",
+      "message": "Offline mock: Text → 3D mesh started (\"knight helmet\")",
+      "concept_mockup": true
+    },
+    {
+      "at": "2026-11-06T06:02:39.202Z",
+      "type": "validator_run",
+      "asset_id": "job:mw4kia2y-4536ccfe",
+      "message": "Validator FAIL on uploaded sculpt (4 pass / 0 warn / 2 fail / 9 not checked)"
+    },
+    {
+      "at": "2026-11-06T06:02:34.764Z",
+      "type": "generation_imported",
+      "asset_id": "job:mw4kia2y-4536ccfe",
+      "message": "Imported Offline mock text-to-3d result as sculpt mock_potion_flask_653cde.glb (CONCEPT MOCKUP)",
+      "concept_mockup": true
+    },
+    {
+      "at": "2026-11-06T06:02:30.640Z",
+      "type": "generation_succeeded",
+      "asset_id": "gen:gen-mw4ki54v-653cde",
+      "message": "Offline mock: Text → 3D mesh succeeded",
+      "concept_mockup": true
+    }
+  ]
+}

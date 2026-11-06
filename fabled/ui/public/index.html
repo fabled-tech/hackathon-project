@@ -29,7 +29,7 @@
 
     <nav class="demo-tour" id="demo-tour" aria-label="Storyboard demo beats">
       <span class="tour-label">Walkthrough</span>
-      <button type="button" class="tour-step" data-beat="1" title="Beat 1: Load 328k-tri sample sculpt with 539cm scale and 2,990 flipped faces">1 · Sculpt</button>
+      <button type="button" class="tour-step" data-beat="1" title="Beat 1: Load the 327,680-tri sample sculpt (seeded issues: cm/m units mismatch and 2,003 flipped triangles)">1 · Sculpt</button>
       <button type="button" class="tour-step" data-beat="2" title="Beat 2: Inspect Studio Import Profile (units, axis, LOD budgets)">2 · Spec</button>
       <button type="button" class="tour-step" data-beat="3" title="Beat 3: Open real pipeline output (LOD0–LOD3 + baked Normal/ORM)">3 · Retopo</button>
       <button type="button" class="tour-step" data-beat="4" title="Beat 4: Inspect LOD0→LOD3 chain &amp; wireframe topology">4 · LODs</button>
@@ -67,13 +67,18 @@
     <aside class="sidebar">
       <section class="card ws-block" id="ws-asset-tree-card">
         <div class="ws-block-head">
-          <h2><span class="num">00</span> Workspace Assets</h2>
-          <span class="badge-asset-count" id="asset-tree-count">4 assets</span>
+          <h2><span class="num">00</span> Workspace</h2>
+          <span class="badge-asset-count" id="asset-tree-count">…</span>
+          <button type="button" class="btn tiny gen-btn" id="btn-generate" title="Generate a sculpt or clip with a connected AI provider">✦ Generate</button>
         </div>
         <div class="asset-tree-search-wrap">
-          <input type="text" id="asset-tree-search" class="asset-tree-search" placeholder="Filter assets or tags (⌘K)…" aria-label="Filter workspace assets" />
+          <input type="search" id="asset-tree-search" class="asset-tree-search" placeholder="Filter assets, status, provider (⌘K)…" aria-label="Filter workspace assets" />
         </div>
-        <nav class="asset-tree" id="asset-tree" role="tree" aria-label="Project Asset Navigation"></nav>
+        <nav class="asset-tree" id="asset-tree" role="tree" aria-label="Workspace assets: pipeline runs, uploads, AI generations, samples"></nav>
+        <details class="ws-drawer conn-drawer" id="ws-connections-drawer" open>
+          <summary>Connections</summary>
+          <div class="ws-drawer-body"><div id="ws-connections" class="connections" aria-live="polite"></div></div>
+        </details>
       </section>
 
       <section class="card ws-block">
@@ -226,9 +231,17 @@
 
         <div class="inspector-tabs" id="inspector-tabs" role="tablist" aria-label="Inspector sections">
           <button type="button" class="itab active" data-itab="all">All</button>
-          <button type="button" class="itab" data-itab="browser">Pre-Import</button>
+          <button type="button" class="itab" data-itab="page">Page</button>
+          <button type="button" class="itab" data-itab="browser" title="Pre-import browser checks">Checks</button>
           <button type="button" class="itab" data-itab="validator">Validator</button>
           <button type="button" class="itab" data-itab="pipeline">Pipeline</button>
+        </div>
+
+        <div class="itab-pane" id="pane-page">
+          <div class="asset-page">
+            <div class="page-head"><h3 id="page-title">Workspace</h3><div id="page-kind" class="small muted"></div></div>
+            <div id="page-body"></div>
+          </div>
         </div>
 
         <div class="itab-pane" id="pane-browser">
@@ -266,6 +279,33 @@
         <button type="button" id="btn-close-maps" class="btn small-btn">Close</button>
       </div>
       <div class="map-grid" id="map-grid"></div>
+    </div>
+  </dialog>
+  <dialog id="gen-dialog" class="map-dialog gen-dialog" aria-labelledby="gen-dialog-title">
+    <div class="map-dialog-inner">
+      <div class="map-dialog-head">
+        <div>
+          <h2 id="gen-dialog-title">Generate with an AI provider</h2>
+          <p class="small muted">Requests go from the local server to the provider with the server's API key; keys never reach the browser. Meshes come back into the workspace as sculpts for the pipeline.</p>
+        </div>
+        <button type="button" id="btn-close-gen" class="btn small-btn">Close</button>
+      </div>
+      <div class="gen-grid">
+        <form id="gen-form" class="gen-form">
+          <fieldset><legend>Provider</legend><div id="gen-providers" class="gen-providers"></div></fieldset>
+          <label>Mode <select id="gen-kind"></select></label>
+          <label>Prompt <textarea id="gen-prompt" rows="3" maxlength="2000"></textarea></label>
+          <div id="gen-image-row">
+            <label>Input image <select id="gen-image"></select></label>
+            <input type="file" id="gen-image-file" accept="image/png,image/jpeg,image/webp" hidden />
+            <p class="small muted" id="gen-image-hint"></p>
+          </div>
+          <p class="small" id="gen-out-note"></p>
+          <button type="submit" class="btn primary" id="gen-submit">Generate</button>
+          <div id="gen-msg" class="small" role="status"></div>
+        </form>
+        <div class="gen-side"><h3>Recent generations</h3><div id="gen-list" class="gen-list"></div></div>
+      </div>
     </div>
   </dialog>
   <footer class="foot small muted">Fabled (Fable Technologies) · Foundry Workspace · all geometry figures are computed from the loaded files, or labeled CONCEPT MOCKUP.</footer>

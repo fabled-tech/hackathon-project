@@ -5,7 +5,7 @@
  * Verifies:
  * 1. Client Component Data Structures & Schemas
  *    - THEME_PRESETS (5 presets with dark Notion/Palantir tokens)
- *    - ASSET_CATALOG (Notion-style categories, status pills, tags, timestamps)
+ *    - Connected workspace wiring (workspace.js, licensed.js, Connections, asset page, generation dialog)
  *    - VALIDATOR_CHECKS_INFO (16 pre-import validation checks with rules & fixes)
  *    - PIPELINE_STAGES (8 discrete stages with IDs and descriptions)
  *    - DOM structure and CSS styling in index.html and styles.css
@@ -130,13 +130,11 @@ async function main() {
 
   const appJsContent = fs.readFileSync(path.join(UI_DIR, 'public', 'app.js'), 'utf8');
 
-  test('app.js defines Notion-style asset tree catalog with categories', () => {
-    assert(appJsContent.includes('export const ASSET_CATALOG'), 'ASSET_CATALOG must be exported');
-    assert(appJsContent.includes('Character Busts'), 'Must include Character Busts category');
-    assert(appJsContent.includes('Weapons & Props'), 'Must include Weapons & Props category');
-    assert(appJsContent.includes('Environments'), 'Must include Environments category');
-    assert(appJsContent.includes('LOD0-3 Ready'), 'Must include LOD0-3 Ready status pill');
-    assert(appJsContent.includes('renderAssetTree'), 'Must define renderAssetTree function');
+  test('app.js wires the connected workspace (live tree, no hardcoded catalog)', () => {
+    assert(!appJsContent.includes('ASSET_CATALOG'), 'hardcoded ASSET_CATALOG must be gone');
+    assert(appJsContent.includes("from './workspace.js'"), 'app.js must import workspace.js');
+    assert(appJsContent.includes('initWorkspace('), 'app.js must call initWorkspace');
+    assert(appJsContent.includes("from './licensed.js'"), 'licensed-sample rules must come from the shared licensed.js');
   });
 
   test('app.js defines 8 discrete pipeline stages', () => {
@@ -186,6 +184,9 @@ async function main() {
     assert(indexHtmlContent.includes('id="ws-asset-tree-card"'), 'Missing #ws-asset-tree-card');
     assert(indexHtmlContent.includes('id="asset-tree-search"'), 'Missing #asset-tree-search');
     assert(indexHtmlContent.includes('id="asset-tree"'), 'Missing #asset-tree');
+    assert(indexHtmlContent.includes('id="ws-connections"'), 'Missing #ws-connections');
+    assert(indexHtmlContent.includes('id="pane-page"'), 'Missing #pane-page asset page');
+    assert(indexHtmlContent.includes('id="gen-dialog"'), 'Missing #gen-dialog');
 
     // Feature 11: Viewport Controls & Material Mode
     assert(indexHtmlContent.includes('id="sel-mat-mode"'), 'Missing #sel-mat-mode material mode selector');
@@ -221,8 +222,10 @@ async function main() {
 
     // Feature 10 styles
     assert(stylesCssContent.includes('.asset-tree'), 'Missing .asset-tree style');
-    assert(stylesCssContent.includes('.asset-tree-item'), 'Missing .asset-tree-item style');
-    assert(stylesCssContent.includes('.asset-item-pill'), 'Missing .asset-item-pill style');
+    assert(stylesCssContent.includes('.wst-item'), 'Missing .wst-item style');
+    assert(stylesCssContent.includes('.wst-pill.tone-ok'), 'Missing .wst-pill tone styles');
+    assert(stylesCssContent.includes('.conn-dot'), 'Missing Connections styles');
+    assert(stylesCssContent.includes('.gen-card'), 'Missing generation card styles');
   });
 
   const viewerJsContent = fs.readFileSync(path.join(UI_DIR, 'public', 'viewer.js'), 'utf8');
@@ -294,7 +297,7 @@ async function main() {
       assert.equal(res.status, 200);
       assert(res.headers.get('content-type')?.includes('text/javascript'));
       const text = await res.text();
-      assert(text.includes('ASSET_CATALOG'));
+      assert(text.includes('initWorkspace('));
       assert(text.includes('PIPELINE_STAGES'));
     });
 

@@ -392,53 +392,22 @@ async function main() {
   console.log('\nSuite 3: Notion-Style Asset Tree Fuzzing & Search Resilience');
 
   const appJsText = fs.readFileSync(path.join(UI_DIR, 'public', 'app.js'), 'utf8');
+  const { filterWorkspace, findAsset } = await import('../public/workspace-model.js');
+  const { WORKSPACE_FIXTURE } = await import('./workspace_fixture.mjs');
 
-  // Extract ASSET_CATALOG safely from app.js source
-  const catalogMatch = appJsText.match(/export const ASSET_CATALOG\s*=\s*(\[[\s\S]*?\n\];)/);
-  assert(catalogMatch, 'ASSET_CATALOG declaration must be present in app.js');
-  const ASSET_CATALOG = (new Function(`return ${catalogMatch[1].replace(/;$/, '')}`))();
-
-  test('Asset Tree: catalog structure adheres to expected schema', () => {
-    assert(Array.isArray(ASSET_CATALOG), 'Catalog must be array');
-    assert(ASSET_CATALOG.length >= 3, 'Must have at least 3 categories');
-
-    for (const cat of ASSET_CATALOG) {
-      assert(cat.category, 'Category must have name');
-      assert(cat.id, 'Category must have id');
-      assert(Array.isArray(cat.assets), 'Assets must be array');
-      for (const a of cat.assets) {
-        assert(a.id, 'Asset must have id');
-        assert(a.name, 'Asset must have name');
-        assert(a.status, 'Asset must have status');
-        assert(a.statusClass, 'Asset must have statusClass');
-      }
-    }
+  test('Asset Tree: app.js no longer ships a hardcoded catalog; tree comes from /api/workspace', () => {
+    assert(!appJsText.includes('ASSET_CATALOG'), 'hardcoded ASSET_CATALOG must be gone');
+    assert(appJsText.includes('initWorkspace('), 'app.js must initialize the connected workspace');
   });
 
   test('Asset Tree: search filter with regex specials, HTML, and unicode strings', () => {
-    const hostileQueries = [
-      '.*+?^${}()|[]\\',
-      '<script>alert("XSS")</script>',
-      '<img src=x onerror=alert(1)>',
-      '\' OR \'1\'=\'1',
-      '   ',
-      'helen',
-      'HELEN',
-      'SHIELD',
-      '💎🔥🎨',
-      'a'.repeat(500),
-    ];
-
+    const hostileQueries = ['.*+?^${}()|[]\\', '<script>alert("XSS")</script>', '<img src=x onerror=alert(1)>', '\' OR \'1\'=\'1', '   ', 'bust', 'BUST', '💎🔥🎨', 'a'.repeat(500)];
     for (const q of hostileQueries) {
-      const cleanQ = String(q || '').trim().toLowerCase();
-      for (const cat of ASSET_CATALOG) {
-        const matches = cat.assets.filter((a) => {
-          if (!cleanQ) return true;
-          return a.name.toLowerCase().includes(cleanQ) || a.tag.toLowerCase().includes(cleanQ) || cat.category.toLowerCase().includes(cleanQ);
-        });
-        assert(Array.isArray(matches), `Filter on query "${q}" returned non-array`);
-      }
+      const r = filterWorkspace(WORKSPACE_FIXTURE, q);
+      assert(Array.isArray(r.groups) && Number.isInteger(r.total), `Filter on query "${q}" returned a bad shape`);
     }
+    assert.equal(findAsset(WORKSPACE_FIXTURE, 'gen:gen-abc')?.kind, 'generation');
+    assert.equal(findAsset(WORKSPACE_FIXTURE, '__proto__'), null);
   });
 
   // ==========================================================================

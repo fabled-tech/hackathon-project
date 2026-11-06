@@ -200,3 +200,26 @@ In the UI the `normals.flipped` row shows the **validator figure as authoritativ
 - Build from an upload now also passes `--asset-name <input stem>` when the pipeline's `--help` lists it (config.asset_name is still set too).
 - The static demo (`tools/build_demo.mjs` → `dist/`) reads `demo-data/demo.json`, then the manifest, validator report and validator profile listed there. No `/api` calls. See README "Static demo build".
 - Licensed sample (NPG.75.16): the verbatim credit (linked to 3d.si.edu), the no-endorsement line, the display name "Sample asset: historical bust scan (CC0)" (never her name as a title or label) and the height shown as "measured … from the file (source units inferred)". These apply in real and demo mode (`LICENSED_SAMPLES` in public/app.js). File and mesh names stay as exported.
+
+## 10. Connected workspace + AI providers (added 2026-11-06)
+The asset tree, Connections panel, asset page and Generate dialog read live server data (`public/workspace.js`; pure helpers in
+`public/workspace-model.js`). The old hardcoded `ASSET_CATALOG` is gone: it listed invented assets and a fake "Validating"
+status, and it titled the licensed bust with her name. All state is under the gitignored `ui/work/`.
+
+| Method & path | Body | Returns |
+|---|---|---|
+| `GET /api/workspace` | | `fabled.workspace/0.1`: `groups[runs, uploads, generated, samples]` of assets `{id, kind, name, status{label,tone}, triangles{input,lod_count,lod0_triangles}, created_at, folder, open, validator, provenance, concept_mockup, has_note}` (built from disk each call, see `workspace.mjs`) |
+| `GET /api/workspace/notes?asset=<id>` / `PUT` same | `{text}` (≤ 20,000 chars; empty clears) | `{ok, note:{text, updated_at}\|null}` stored in `work/workspace_notes.json` |
+| `GET /api/activity?asset=<id>&limit=n` | | newest-first events from `work/activity.jsonl`: `uploaded, pipeline_started/finished/failed, validator_run, generation_started/succeeded/failed/imported, note` |
+| `GET /api/providers` | | `{providers:[{id,name,category,kinds,env (names only),configured,docs,verification,…}], generations:[…]}` |
+| `POST /api/providers/<id>/generations` | `{kind, prompt, image:{job_id,rel}\|{data_uri,label}\|{url}, source_asset_id}` | `{ok, generation}`. The image is sent to the provider but never stored |
+| `GET /api/generations/<id>` | | polls the provider (≤ every 2 s) and returns the task |
+| `POST /api/generations/<id>/import` | | downloads the model (https only, 300 MB cap) into a new upload job with `provenance`: `{ok, job_id, asset_id, filename}`; idempotent |
+| `GET /api/jobs/<id>/input` | | the uploaded or imported sculpt, to reopen it from the tree |
+
+Asset ids: `run:<path from fabled/>`, `job:<job id>`, `gen:<generation id>`, `sample:<file>`. `job.json` now also records
+`created_at`, `asset_id` and, for imports, `provenance`. Status labels come from the strongest real signal: a stored
+`validator_report.json` → manifest `status` → "Uploaded". On the asset page, a stored report is labeled "Saved report", because a
+live Re-check may use a different profile (e.g. the bust run's stored report reads 10 pass / 3 warn / 0 fail / 3 not checked,
+while a Re-check with `demo_placeholder_prop` reads 9 / 3 / 0 / 4). Provider details and verification status are in `PROVIDERS.md`.
+
