@@ -1,0 +1,422 @@
+{
+  "schema": "fabled.workspace/0.1",
+  "generated_at": "2026-11-06T06:17:46.278Z",
+  "groups": [
+    {
+      "id": "runs",
+      "label": "Pipeline runs",
+      "assets": [
+        {
+          "id": "run:pipeline/output",
+          "kind": "pipeline_output",
+          "name": "Procedural sample head (self-made)",
+          "procedural_sample_run": true,
+          "file_asset_name": "HelenKellerBust",
+          "licensed": false,
+          "status": {
+            "label": "Validator WARN",
+            "tone": "warn"
+          },
+          "pipeline_status": "ok",
+          "validator": {
+            "overall": "warn",
+            "summary": {
+              "pass": 10,
+              "warn": 3,
+              "fail": 0,
+              "not_checked": 3,
+              "total": 16,
+              "flagged": 3
+            },
+            "generated_at": "2026-11-04T04:44:03Z",
+            "concept_mockup": false
+          },
+          "triangles": {
+            "input": 327680,
+            "lod_count": 4,
+            "lod0_triangles": 18636
+          },
+          "created_at": "2026-11-03T20:44:03-08:00",
+          "concept_mockup": false,
+          "test_fixture": false,
+          "folder": "pipeline/output",
+          "open": {
+            "type": "output",
+            "dir": "pipeline/output"
+          },
+          "source": {
+            "name": "ui/samples/fabled_sample_head.glb (procedural, tools/make_sample_sculpt.py)",
+            "license": "no restrictions",
+            "url": null
+          },
+          "label": "Latest pipeline output",
+          "has_note": true
+        },
+        {
+          "id": "run:pipeline/runs/20261103-195336",
+          "kind": "frozen_run",
+          "name": "Procedural sample head (self-made)",
+          "procedural_sample_run": true,
+          "file_asset_name": "HelenKellerBust",
+          "licensed": false,
+          "status": {
+            "label": "Validator WARN",
+            "tone": "warn"
+          },
+          "pipeline_status": "ok",
+          "validator": {
+            "overall": "warn",
+            "summary": {
+              "pass": 10,
+              "warn": 3,
+              "fail": 0,
+              "not_checked": 3,
+              "total": 16,
+              "flagged": 3
+            },
+            "generated_at": "2026-11-04T03:53:39Z",
+            "concept_mockup": false
+          },
+          "triangles": {
+            "input": 327680,
+            "lod_count": 4,
+            "lod0_triangles": 18636
+          },
+          "created_at": "2026-11-03T19:53:39-08:00",
+          "concept_mockup": false,
+          "test_fixture": false,
+          "folder": "pipeline/runs/20261103-195336",
+          "open": {
+            "type": "output",
+            "dir": "pipeline/runs/20261103-195336"
+          },
+          "source": {
+            "name": "ui/samples/fabled_sample_head.glb (procedural, tools/make_sample_sculpt.py)",
+            "license": "no restrictions",
+            "url": null
+          },
+          "label": "Frozen run 20261103-195336",
+          "frozen_latest": true,
+          "has_note": false
+        }
+      ]
+    },
+    {
+      "id": "uploads",
+      "label": "Uploads",
+      "assets": [
+        {
+          "id": "job:mw4l1krf-2d884d69",
+          "kind": "upload",
+          "name": "suite_cube.obj",
+          "status": {
+            "label": "Uploaded",
+            "tone": "neutral"
+          },
+          "pipeline_status": null,
+          "validator": null,
+          "triangles": {
+            "input": null,
+            "lod_count": null,
+            "lod0_triangles": null
+          },
+          "created_at": "2026-11-06T06:17:35.068Z",
+          "concept_mockup": false,
+          "engine": null,
+          "folder": "ui/work/mw4l1krf-2d884d69",
+          "open": {
+            "type": "job",
+            "job_id": "mw4l1krf-2d884d69",
+            "filename": "suite_cube.obj",
+            "has_manifest": false
+          },
+          "provenance": null,
+          "has_note": false
+        },
+        {
+          "id": "job:mw4l1ih6-8712a7e2",
+          "kind": "upload",
+          "name": "blender_test.obj",
+          "status": {
+            "label": "Uploaded",
+            "tone": "neutral"
+          },
+          "pipeline_status": null,
+          "validator": null,
+          "triangles": {
+            "input": null,
+            "lod_count": null,
+            "lod0_triangles": null
+          },
+          "created_at": "2026-11-06T06:17:32.106Z",
+          "concept_mockup": false,
+          "engine": "blender",
+          "folder": "ui/work/mw4l1ih6-8712a7e2",
+          "open": {
+            "type": "job",
+            "job_id": "mw4l1ih6-8712a7e2",
+            "filename": "blender_test.obj",
+            "has_manifest": false
+          },
+          "provenance": null,
+          "has_note": false
+        },
+        {
+          "id": "job:mw4l1igq-28d427fa",
+          "kind": "upload",
+          "name": "native_test.obj",
+          "status": {
+            "label": "Uploaded",
+            "tone": "neutral"
+          },
+          "pipeline_status": null,
+          "validator": null,
+          "triangles": {
+            "input": null,
+            "lod_count": null,
+            "lod0_triangles": null
+          },
+          "created_at": "2026-11-06T06:17:32.091Z",
+          "concept_mockup": false,
+          "engine": "native",
+          "folder": "ui/work/mw4l1igq-28d427fa",
+          "open": {
+            "type": "job",
+            "job_id": "mw4l1igq-28d427fa",
+            "filename": "native_test.obj",
+            "has_manifest": false
+          },
+          "provenance": null,
+          "has_note": false
+        }
+      ],
+      "hidden_count": 289
+    },
+    {
+      "id": "generated",
+      "label": "AI generations",
+      "assets": [
+        {
+          "id": "job:mw4l1kn0-6901e9a1",
+          "kind": "generated",
+          "name": "mock_potion_flask_cb62ea.glb",
+          "status": {
+            "label": "Uploaded",
+            "tone": "neutral"
+          },
+          "pipeline_status": null,
+          "validator": null,
+          "triangles": {
+            "input": null,
+            "lod_count": null,
+            "lod0_triangles": null
+          },
+          "created_at": "2026-11-06T06:17:34.913Z",
+          "concept_mockup": true,
+          "engine": null,
+          "folder": "ui/work/mw4l1kn0-6901e9a1",
+          "open": {
+            "type": "job",
+            "job_id": "mw4l1kn0-6901e9a1",
+            "filename": "mock_potion_flask_cb62ea.glb",
+            "has_manifest": false
+          },
+          "provenance": {
+            "provider": "mock",
+            "provider_name": "Offline mock",
+            "kind": "text-to-3d",
+            "task_id": "gen-mw4l1j2r-cb62ea",
+            "prompt": "test prompt from suite",
+            "image_label": null,
+            "source_asset_id": null,
+            "concept_mockup": true
+          },
+          "has_note": false
+        },
+        {
+          "id": "job:mw4klhmf-99a645cb",
+          "kind": "generated",
+          "name": "mock_knight_helmet_98262b.glb",
+          "status": {
+            "label": "Uploaded",
+            "tone": "neutral"
+          },
+          "pipeline_status": null,
+          "validator": null,
+          "triangles": {
+            "input": null,
+            "lod_count": null,
+            "lod0_triangles": null
+          },
+          "created_at": "2026-11-06T06:05:04.519Z",
+          "concept_mockup": true,
+          "engine": null,
+          "folder": "ui/work/mw4klhmf-99a645cb",
+          "open": {
+            "type": "job",
+            "job_id": "mw4klhmf-99a645cb",
+            "filename": "mock_knight_helmet_98262b.glb",
+            "has_manifest": false
+          },
+          "provenance": {
+            "provider": "mock",
+            "provider_name": "Offline mock",
+            "kind": "text-to-3d",
+            "task_id": "gen-mw4klgsa-98262b",
+            "prompt": "knight helmet",
+            "image_label": null,
+            "source_asset_id": null,
+            "concept_mockup": true
+          },
+          "has_note": false
+        },
+        {
+          "id": "job:mw4kia2y-4536ccfe",
+          "kind": "generated",
+          "name": "mock_potion_flask_653cde.glb",
+          "status": {
+            "label": "Validator FAIL",
+            "tone": "fail"
+          },
+          "pipeline_status": null,
+          "validator": {
+            "overall": "fail",
+            "summary": {
+              "pass": 4,
+              "warn": 0,
+              "fail": 2,
+              "not_checked": 9,
+              "total": 15,
+              "flagged": 2
+            },
+            "generated_at": "2026-11-06T06:02:38Z",
+            "concept_mockup": false
+          },
+          "triangles": {
+            "input": null,
+            "lod_count": null,
+            "lod0_triangles": null
+          },
+          "created_at": "2026-11-06T06:02:34.763Z",
+          "concept_mockup": true,
+          "engine": null,
+          "folder": "ui/work/mw4kia2y-4536ccfe",
+          "open": {
+            "type": "job",
+            "job_id": "mw4kia2y-4536ccfe",
+            "filename": "mock_potion_flask_653cde.glb",
+            "has_manifest": false
+          },
+          "provenance": {
+            "provider": "mock",
+            "provider_name": "Offline mock",
+            "kind": "text-to-3d",
+            "task_id": "gen-mw4ki54v-653cde",
+            "prompt": "glowing potion flask",
+            "image_label": null,
+            "source_asset_id": "job:mw4khpff-1153dbec",
+            "concept_mockup": true
+          },
+          "has_note": false
+        }
+      ]
+    },
+    {
+      "id": "samples",
+      "label": "Samples & fixtures",
+      "assets": [
+        {
+          "id": "sample:fabled_sample_head.glb",
+          "kind": "sample",
+          "name": "fabled_sample_head.glb",
+          "status": {
+            "label": "2,003 seeded flips",
+            "tone": "neutral"
+          },
+          "triangles": {
+            "input": 327680,
+            "lod_count": null,
+            "lod0_triangles": null
+          },
+          "created_at": "2026-11-06T03:28:09.213Z",
+          "concept_mockup": false,
+          "folder": "ui/samples/fabled_sample_head.glb",
+          "open": {
+            "type": "sample",
+            "url": "/samples/fabled_sample_head.glb",
+            "filename": "fabled_sample_head.glb"
+          },
+          "source": {
+            "name": "Procedural sample sculpt (self-made, tools/make_sample_sculpt.py)",
+            "license": "no restrictions",
+            "url": null
+          },
+          "has_note": false
+        },
+        {
+          "id": "sample:fabled_sample_head.obj",
+          "kind": "sample",
+          "name": "fabled_sample_head.obj",
+          "status": {
+            "label": "502 seeded flips",
+            "tone": "neutral"
+          },
+          "triangles": {
+            "input": 81920,
+            "lod_count": null,
+            "lod0_triangles": null
+          },
+          "created_at": "2026-11-06T03:28:09.245Z",
+          "concept_mockup": false,
+          "folder": "ui/samples/fabled_sample_head.obj",
+          "open": {
+            "type": "sample",
+            "url": "/samples/fabled_sample_head.obj",
+            "filename": "fabled_sample_head.obj"
+          },
+          "source": {
+            "name": "Procedural sample sculpt (self-made, tools/make_sample_sculpt.py)",
+            "license": "no restrictions",
+            "url": null
+          },
+          "has_note": false
+        },
+        {
+          "id": "run:ui/test_fixtures/pipeline_output_FIXTURE",
+          "kind": "fixture",
+          "name": "Historical bust scan (CC0)",
+          "procedural_sample_run": false,
+          "file_asset_name": "HelenKellerBust",
+          "licensed": true,
+          "status": {
+            "label": "TEST FIXTURE",
+            "tone": "mock"
+          },
+          "pipeline_status": "partial",
+          "validator": null,
+          "triangles": {
+            "input": 8504655,
+            "lod_count": 4,
+            "lod0_triangles": null
+          },
+          "created_at": "2026-11-06T03:28:09.448Z",
+          "concept_mockup": true,
+          "test_fixture": true,
+          "folder": "ui/test_fixtures/pipeline_output_FIXTURE",
+          "open": {
+            "type": "output",
+            "dir": "ui/test_fixtures/pipeline_output_FIXTURE"
+          },
+          "source": {
+            "name": "Historical bust scan (CC0)",
+            "license": "CC0 (per pipeline brief; confirm on the Smithsonian page)",
+            "url": "https://npg.si.edu/object/npg_NPG.75.16"
+          },
+          "label": "TEST FIXTURE",
+          "has_note": false
+        }
+      ]
+    }
+  ],
+  "total": 318
+}

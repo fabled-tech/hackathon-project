@@ -1,0 +1,191 @@
+{
+  "ok": true,
+  "kinds": {
+    "text-to-3d": "Text \u2192 3D mesh",
+    "image-to-3d": "Image \u2192 3D mesh",
+    "image-to-video": "Image \u2192 video"
+  },
+  "providers": [
+    {
+      "id": "meshy",
+      "name": "Meshy",
+      "category": "3D generation",
+      "kinds": [
+        "text-to-3d",
+        "image-to-3d"
+      ],
+      "kind_labels": [
+        "Text \u2192 3D mesh",
+        "Image \u2192 3D mesh"
+      ],
+      "env": [
+        "MESHY_API_KEY"
+      ],
+      "configured": false,
+      "docs": "https://docs.meshy.ai/api/quick-start",
+      "verification": "partial",
+      "verification_note": "Image-to-3D path, auth, task id and statuses confirmed from docs search results; text-to-3D path and output field names not re-read (docs host blocked in this session).",
+      "feeds": "Generated mesh is imported as a new sculpt, then runs through retopo, LODs, bake and the pre-import validator.",
+      "concept_mockup": false
+    },
+    {
+      "id": "tripo",
+      "name": "Tripo",
+      "category": "3D generation",
+      "kinds": [
+        "text-to-3d",
+        "image-to-3d"
+      ],
+      "kind_labels": [
+        "Text \u2192 3D mesh",
+        "Image \u2192 3D mesh"
+      ],
+      "env": [
+        "TRIPO_API_KEY"
+      ],
+      "configured": false,
+      "docs": "https://platform.tripo3d.ai/docs/generation",
+      "verification": "unverified",
+      "verification_note": "Task create/poll paths seen in third-party integrations; request and response fields not checked against the official docs.",
+      "feeds": "Generated mesh is imported as a new sculpt for the Fabled pipeline.",
+      "concept_mockup": false
+    },
+    {
+      "id": "higgsfield",
+      "name": "Higgsfield",
+      "category": "Video generation",
+      "kinds": [
+        "image-to-video"
+      ],
+      "kind_labels": [
+        "Image \u2192 video"
+      ],
+      "env": [
+        "HIGGSFIELD_API_KEY"
+      ],
+      "configured": false,
+      "docs": "https://docs.higgsfield.ai",
+      "verification": "unverified",
+      "verification_note": "One endpoint path seen on a third-party connector page; auth, polling and output fields are configurable guesses until checked against docs.higgsfield.ai.",
+      "feeds": "Turns a preview render into a cinematic clip on the asset page.",
+      "concept_mockup": false
+    },
+    {
+      "id": "runway",
+      "name": "Runway",
+      "category": "Video generation",
+      "kinds": [
+        "image-to-video"
+      ],
+      "kind_labels": [
+        "Image \u2192 video"
+      ],
+      "env": [
+        "RUNWAYML_API_SECRET"
+      ],
+      "configured": false,
+      "docs": "https://docs.dev.runwayml.com/",
+      "verification": "partial",
+      "verification_note": "Create path, auth and version header confirmed from mirrors of the API reference; task polling and output fields not checked against the official docs.",
+      "feeds": "Turns a preview render into a clip on the asset page (previs, turntable, pitch).",
+      "concept_mockup": false
+    },
+    {
+      "id": "mock",
+      "name": "Offline mock",
+      "category": "CONCEPT MOCKUP",
+      "kinds": [
+        "text-to-3d",
+        "image-to-3d"
+      ],
+      "kind_labels": [
+        "Text \u2192 3D mesh",
+        "Image \u2192 3D mesh"
+      ],
+      "env": [],
+      "configured": true,
+      "docs": null,
+      "verification": "mock",
+      "verification_note": "Not a real provider. Returns the procedural sample sculpt so the workflow can be demoed offline.",
+      "feeds": "Returns a procedural knight helmet, mushroom cottage or potion flask (picked from prompt keywords) as the \"generated\" mesh.",
+      "concept_mockup": true
+    }
+  ],
+  "generations": [
+    {
+      "id": "gen-mw4klgsa-98262b",
+      "provider": "mock",
+      "provider_name": "Offline mock",
+      "kind": "text-to-3d",
+      "prompt": "knight helmet",
+      "image_label": null,
+      "source_asset_id": null,
+      "status": "succeeded",
+      "progress": 100,
+      "outputs": [
+        {
+          "type": "model",
+          "format": "glb",
+          "local": "samples/mock_generations/knight_helmet.glb"
+        }
+      ],
+      "error": null,
+      "created_at": "2026-11-06T06:05:03.418Z",
+      "updated_at": "2026-11-06T06:05:04.520Z",
+      "concept_mockup": true,
+      "imported_job_id": "mw4klhmf-99a645cb",
+      "remote_id": "mock-mw4klgsa",
+      "poll_error": null
+    },
+    {
+      "id": "gen-mw4ki54v-653cde",
+      "provider": "mock",
+      "provider_name": "Offline mock",
+      "kind": "text-to-3d",
+      "prompt": "glowing potion flask",
+      "image_label": null,
+      "source_asset_id": "job:mw4khpff-1153dbec",
+      "status": "succeeded",
+      "progress": 100,
+      "outputs": [
+        {
+          "type": "model",
+          "format": "glb",
+          "local": "samples/mock_generations/potion_flask.glb"
+        }
+      ],
+      "error": null,
+      "created_at": "2026-11-06T06:02:28.351Z",
+      "updated_at": "2026-11-06T06:02:34.764Z",
+      "concept_mockup": true,
+      "imported_job_id": "mw4kia2y-4536ccfe",
+      "remote_id": "mock-mw4ki54v",
+      "poll_error": null
+    },
+    {
+      "id": "gen-mw4khipy-e0106e",
+      "provider": "mock",
+      "provider_name": "Offline mock",
+      "kind": "text-to-3d",
+      "prompt": "knight helmet with a horsehair crest",
+      "image_label": null,
+      "source_asset_id": "job:mw4kh09f-39472dc9",
+      "status": "succeeded",
+      "progress": 100,
+      "outputs": [
+        {
+          "type": "model",
+          "format": "glb",
+          "local": "samples/mock_generations/knight_helmet.glb"
+        }
+      ],
+      "error": null,
+      "created_at": "2026-11-06T06:01:59.302Z",
+      "updated_at": "2026-11-06T06:02:07.998Z",
+      "concept_mockup": true,
+      "imported_job_id": "mw4khpff-1153dbec",
+      "remote_id": "mock-mw4khipy",
+      "poll_error": null
+    }
+  ]
+}

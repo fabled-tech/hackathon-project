@@ -1,0 +1,28 @@
+{
+  "ok": true,
+  "generation": {
+    "id": "gen-mw4klgsa-98262b",
+    "provider": "mock",
+    "provider_name": "Offline mock",
+    "kind": "text-to-3d",
+    "prompt": "knight helmet",
+    "image_label": null,
+    "source_asset_id": null,
+    "status": "succeeded",
+    "progress": 100,
+    "outputs": [
+      {
+        "type": "model",
+        "format": "glb",
+        "local": "samples/mock_generations/knight_helmet.glb"
+      }
+    ],
+    "error": null,
+    "created_at": "2026-11-06T06:05:03.418Z",
+    "updated_at": "2026-11-06T06:05:04.490Z",
+    "concept_mockup": true,
+    "imported_job_id": null,
+    "remote_id": "mock-mw4klgsa",
+    "poll_error": null
+  }
+}

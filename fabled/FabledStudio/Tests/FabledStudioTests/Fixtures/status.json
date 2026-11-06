@@ -1,0 +1,26 @@
+{
+  "pipeline": {
+    "dir": "<fabled>/pipeline",
+    "dir_exists": true,
+    "available": true,
+    "command_preview": "python3 <fabled>/pipeline/fabled_pipeline.py --input IN --out OUT --config CONFIG --blender none --asset-name ASSET_NAME --validator-profile VALIDATOR_PROFILE",
+    "forced_off": false,
+    "supports_validator_profile": true,
+    "supports_asset_name": true,
+    "frozen_run": "pipeline/runs/20261103-195336",
+    "latest_output_manifest": true,
+    "blender_path": null,
+    "engines": {
+      "blender": false,
+      "native": true
+    }
+  },
+  "validator": {
+    "dir": "<fabled>/validator",
+    "dir_exists": true,
+    "available": true,
+    "command_preview": "python3 -m fabled_validator check ASSET --profile PROFILE --json-only",
+    "forced_off": false,
+    "supports_manifest": true
+  }
+}

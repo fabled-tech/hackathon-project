@@ -1,0 +1,8 @@
+{
+  "ok": true,
+  "asset_id": "run:pipeline/output",
+  "note": {
+    "text": "Hand off to UE import after scale sign-off.",
+    "updated_at": "2026-11-06T06:05:04.530Z"
+  }
+}
