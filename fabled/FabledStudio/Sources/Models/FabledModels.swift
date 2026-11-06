@@ -1091,7 +1091,9 @@ final class FabledStudioViewModel: ObservableObject {
         fullValidatorReport = report
         validatorOverallStatus = report.overall_status
         validatorHeadlineSummary = report.headlineSummary
-        validatorNote = "fabled_validator 0.2.0 · Checked 16 studio criteria."
+        validatorNote = report.complete == false
+            ? "Validator did not run on this device: no checks ran, nothing is shown as passing."
+            : "fabled_validator \(report.tool?["version"] ?? "") · \(report.summary.total) checks."
 
         var rows: [CheckRowItem] = []
         for c in report.checks {
