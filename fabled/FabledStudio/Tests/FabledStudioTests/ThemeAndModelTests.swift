@@ -83,23 +83,9 @@ final class ThemeAndModelTests: XCTestCase {
         }
     }
 
-    @MainActor
-    func testNotionAssetCatalogParity() {
-        let catalog = FabledStudioViewModel.standardCatalog
-        XCTAssertEqual(catalog.count, 3, "Catalog must contain 3 standard categories")
-
-        let catNames = catalog.map { $0.category }
-        XCTAssertTrue(catNames.contains("Character Busts"))
-        XCTAssertTrue(catNames.contains("Weapons & Props"))
-        XCTAssertTrue(catNames.contains("Environments"))
-
-        let allAssets = catalog.flatMap { $0.assets }
-        XCTAssertEqual(allAssets.count, 4, "Catalog must contain 4 baseline assets")
-
-        let assetIds = allAssets.map { $0.id }
-        XCTAssertTrue(assetIds.contains("helen-keller-bust"))
-        XCTAssertTrue(assetIds.contains("synthetic-clean-hero"))
-        XCTAssertTrue(assetIds.contains("paladin-shield"))
-        XCTAssertTrue(assetIds.contains("dungeon-pillar"))
+    func testInspectorHasAssetPageTab() {
+        XCTAssertTrue(InspectorSectionTab.allCases.contains(.page))
+        XCTAssertEqual(InspectorSectionTab.page.rawValue, "Page")
+        XCTAssertEqual(Set(InspectorSectionTab.allCases.map { $0.rawValue }).count, InspectorSectionTab.allCases.count)
     }
 }

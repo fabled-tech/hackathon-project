@@ -79,6 +79,8 @@ enum InspectorSectionTab: String, CaseIterable, Identifiable {
     case validator = "Validator"
     case pipeline = "Pipeline"
     case all = "All"
+    /// The connected workspace's asset page (properties, notes, activity, generation card).
+    case page = "Page"
 
     var id: String { rawValue }
 }
@@ -181,27 +183,6 @@ struct ImportProfile {
         LODBudgetItem(level: 2, maxTriangles: 6250, screenSize: 0.25),
         LODBudgetItem(level: 3, maxTriangles: 3125, screenSize: 0.12)
     ]
-}
-
-// MARK: - Notion-Style Asset Hierarchy Models (Feature 16)
-
-struct FabledAssetItem: Identifiable, Hashable {
-    let id: String
-    let name: String
-    let category: String
-    let tag: String
-    let status: String
-    let statusClass: String // "ready", "validating", "draft"
-    let triangles: String
-    let timestamp: String
-    let type: String        // "output", "sample"
-    let dirOrSamplePath: String?
-}
-
-struct FabledAssetCategory: Identifiable {
-    let id: String
-    let category: String
-    var assets: [FabledAssetItem]
 }
 
 // MARK: - Mesh & LOD Runtime Models
@@ -356,110 +337,10 @@ final class FabledStudioViewModel: ObservableObject {
     let pipelineService: PipelineServiceProtocol = ProcessPipelineService()
     let validatorService: ValidatorServiceProtocol = ProcessValidatorService()
 
-    // MARK: - Feature 16: Notion-Style Asset Tree Catalog
-    @Published var selectedAssetId: String = "helen-keller-bust"
-    @Published var assetSearchText: String = ""
-    @Published var assetNotes: [String: String] = [
-        "helen-keller-bust": "Historical head bust scan from Smithsonian CC0. Ingestion profile requires 20.0–80.0 cm height budget. QuadriFlow retopology generated clean quad mesh with LOD0 (25k), LOD1 (12.5k), LOD2 (6.25k), LOD3 (3.125k). Tangent-space normal map and packed ORM maps validated.",
-        "synthetic-clean-hero": "Synthetic humanoid character head mesh with UV0 unwrapped in [0, 1]. Inverted face testing fixture for normal orientation validation.",
-        "paladin-shield": "Hard-surface weapon prop. Small prop asset class budget (5–100 cm). Needs texture slot verification before final build.",
-        "dungeon-pillar": "Modular stone architectural asset with LOD chain generated."
-    ]
-
-    static let standardCatalog: [FabledAssetCategory] = [
-        FabledAssetCategory(
-            id: "busts",
-            category: "Character Busts",
-            assets: [
-                FabledAssetItem(
-                    id: "helen-keller-bust",
-                    name: "Procedural sample head (self-made)",
-                    category: "Character Busts",
-                    tag: "historical",
-                    status: "LOD0-3 Ready",
-                    statusClass: "ready",
-                    triangles: "328k tris",
-                    timestamp: "12m ago",
-                    type: "output",
-                    dirOrSamplePath: "pipeline/output"
-                ),
-                FabledAssetItem(
-                    id: "synthetic-clean-hero",
-                    name: "Synthetic Clean Hero",
-                    category: "Character Busts",
-                    tag: "hero",
-                    status: "Validating",
-                    statusClass: "validating",
-                    triangles: "12.4k tris",
-                    timestamp: "1h ago",
-                    type: "sample",
-                    dirOrSamplePath: "ui/samples/fabled_sample_head.glb"
-                )
-            ]
-        ),
-        FabledAssetCategory(
-            id: "props",
-            category: "Weapons & Props",
-            assets: [
-                FabledAssetItem(
-                    id: "paladin-shield",
-                    name: "Paladin Shield",
-                    category: "Weapons & Props",
-                    tag: "weapon",
-                    status: "Draft",
-                    statusClass: "draft",
-                    triangles: "4.2k tris",
-                    timestamp: "3h ago",
-                    type: "sample",
-                    dirOrSamplePath: "ui/samples/fabled_sample_head.obj"
-                )
-            ]
-        ),
-        FabledAssetCategory(
-            id: "environments",
-            category: "Environments",
-            assets: [
-                FabledAssetItem(
-                    id: "dungeon-pillar",
-                    name: "Dungeon Pillar",
-                    category: "Environments",
-                    tag: "modular",
-                    status: "LOD0-3 Ready",
-                    statusClass: "ready",
-                    triangles: "18.5k tris",
-                    timestamp: "Yesterday",
-                    type: "output",
-                    dirOrSamplePath: "pipeline/output"
-                )
-            ]
-        )
-    ]
-
-    var filteredCategories: [FabledAssetCategory] {
-        let query = assetSearchText.trimmingCharacters(in: .whitespaces).lowercased()
-        guard !query.isEmpty else { return Self.standardCatalog }
-
-        return Self.standardCatalog.compactMap { cat in
-            let matchesCategory = cat.category.lowercased().contains(query)
-            let matchingAssets = cat.assets.filter { asset in
-                matchesCategory ||
-                asset.name.lowercased().contains(query) ||
-                asset.tag.lowercased().contains(query) ||
-                asset.status.lowercased().contains(query)
-            }
-            if matchingAssets.isEmpty { return nil }
-            return FabledAssetCategory(id: cat.id, category: cat.category, assets: matchingAssets)
-        }
-    }
-
-    var selectedAssetItem: FabledAssetItem? {
-        for cat in Self.standardCatalog {
-            if let found = cat.assets.first(where: { $0.id == selectedAssetId }) {
-                return found
-            }
-        }
-        return Self.standardCatalog.first?.assets.first
-    }
+    // MARK: - Connected workspace (live asset tree, asset pages, AI generations)
+    /// Live workspace state from the local Fabled server (ui/server.mjs). Replaces the old hardcoded catalog: every
+    /// asset in the tree now comes from GET /api/workspace.
+    let workspace: WorkspaceStore
 
     // MARK: - Feature 17: Full Validator Report Sheet
     @Published var fullValidatorReport: ValidatorReport? = nil
@@ -521,7 +402,8 @@ final class FabledStudioViewModel: ObservableObject {
         return nil
     }
 
-    init() {
+    init(workspace: WorkspaceStore? = nil) {
+        self.workspace = workspace ?? WorkspaceStore()
         let blender = BlenderDetection.detectHostBlender()
         self.hostBlenderDetected = blender.isAvailable
         self.detectedBlenderPath = blender.path
@@ -572,24 +454,133 @@ final class FabledStudioViewModel: ObservableObject {
         }
     }
 
-    // MARK: - Asset Selection (Feature 16)
+    // MARK: - Connected workspace: opening server assets
 
-    func selectAsset(id: String) async {
-        selectedAssetId = id
-        guard let item = selectedAssetItem else { return }
-
-        if item.type == "output" {
-            await openRealPipelineOutput()
-        } else {
-            if let root = fabledRootURL, let rel = item.dirOrSamplePath {
-                let sampleURL = root.appendingPathComponent(rel)
-                if FileManager.default.fileExists(atPath: sampleURL.path) {
-                    await loadCustomMeshFile(from: sampleURL)
-                    return
-                }
-            }
-            await loadRawSampleSculpt()
+    /// Selects a workspace asset (its page loads in the background) and opens it in the viewers:
+    /// `output` → the run folder read-only from the local fabled checkout; `job` → the uploaded / imported sculpt
+    /// downloaded from GET /api/jobs/<id>/input; `sample` → ui/samples/<file> locally, else downloaded from the server;
+    /// `generation` → page only (there is no mesh until it is imported).
+    func openWorkspaceAsset(_ asset: WorkspaceAsset) async {
+        workspace.select(asset.id)
+        workspace.lastError = nil
+        guard let openInfo = asset.open else {
+            inspectorTab = .page
+            return
         }
+        switch openInfo.type {
+        case "output":
+            await openWorkspaceOutput(asset, dir: openInfo.dir)
+        case "job":
+            guard let jobId = openInfo.jobId, !jobId.isEmpty else {
+                workspace.lastError = "\(asset.name): the server sent no job id to open."
+                return
+            }
+            let filename: String = (openInfo.filename?.isEmpty == false ? openInfo.filename : nil) ?? asset.name
+            await openWorkspaceJob(jobId: jobId, filename: filename, displayName: asset.name)
+        case "sample":
+            await openWorkspaceSample(asset, open: openInfo)
+        case "generation":
+            inspectorTab = .page
+        default:
+            workspace.lastError = "\(asset.name): unknown open type \"\(openInfo.type)\"."
+            inspectorTab = .page
+        }
+    }
+
+    private func openWorkspaceOutput(_ asset: WorkspaceAsset, dir: String?) async {
+        guard let dir = dir, !dir.isEmpty else {
+            workspace.lastError = "\(asset.name): the server sent no run folder."
+            return
+        }
+        guard let root = fabledRootURL else {
+            workspace.lastError = "Opening a pipeline run needs the fabled folder on this machine (set FABLED_ROOT or the fabledRootPath default). Its page is shown instead."
+            inspectorTab = .page
+            return
+        }
+        let rootPath: String = root.standardizedFileURL.path
+        let runDir: URL = root.appendingPathComponent(dir, isDirectory: true).standardizedFileURL
+        guard runDir.path == rootPath || runDir.path.hasPrefix(rootPath + "/") else {
+            workspace.lastError = "\(asset.name): run folder \(dir) is outside the fabled folder."
+            return
+        }
+        guard FileManager.default.fileExists(atPath: runDir.appendingPathComponent("manifest.json").path) else {
+            workspace.lastError = "\(asset.name): no manifest.json in \(dir) on this machine."
+            inspectorTab = .page
+            return
+        }
+        await openRealPipelineOutput(runDirectory: runDir)
+    }
+
+    private func openWorkspaceJob(jobId: String, filename: String, displayName: String) async {
+        isBusy = true
+        busyMessage = "Downloading \(filename) from the Fabled server…"
+        let url: URL
+        do {
+            url = try await workspace.jobInputFile(jobId: jobId, filename: filename)
+        } catch {
+            isBusy = false
+            workspace.lastError = "Could not download \(filename): " + WorkspaceStore.describe(error)
+            return
+        }
+        isBusy = false
+        await loadWorkspaceMesh(from: url, displayName: displayName)
+    }
+
+    private func openWorkspaceSample(_ asset: WorkspaceAsset, open openInfo: AssetOpen) async {
+        let fromURL: String? = openInfo.url.map { ($0 as NSString).lastPathComponent }
+        let rawName: String = (openInfo.filename?.isEmpty == false ? openInfo.filename : nil) ?? fromURL ?? asset.name
+        let filename: String = WorkspaceStore.safeFileName(rawName, fallback: "sample.glb")
+        if let root = fabledRootURL {
+            let local: URL = root.appendingPathComponent("ui/samples", isDirectory: true).appendingPathComponent(filename)
+            if FileManager.default.fileExists(atPath: local.path) {
+                await loadWorkspaceMesh(from: local, displayName: asset.name)
+                return
+            }
+        }
+        isBusy = true
+        busyMessage = "Downloading sample \(filename) from the Fabled server…"
+        let url: URL
+        do {
+            url = try await workspace.sampleFile(urlPath: openInfo.url, filename: filename)
+        } catch {
+            isBusy = false
+            workspace.lastError = "Could not download sample \(filename): " + WorkspaceStore.describe(error)
+            return
+        }
+        isBusy = false
+        await loadWorkspaceMesh(from: url, displayName: asset.name)
+    }
+
+    /// Loads a downloaded / local mesh and titles it with the server-provided asset name.
+    private func loadWorkspaceMesh(from url: URL, displayName: String) async {
+        await loadCustomMeshFile(from: url)
+        guard customMeshURL == url, var mesh = sourceMesh else {
+            workspace.lastError = "Could not read \(url.lastPathComponent) as a GLB or OBJ mesh."
+            return
+        }
+        if !displayName.isEmpty {
+            mesh.displayName = displayName
+            sourceMesh = mesh
+        }
+    }
+
+    /// Imports a finished generation's model as a new upload job, then selects and opens that job.
+    @discardableResult
+    func importGenerationAndOpen(id: String) async -> Bool {
+        guard let result = await workspace.importGeneration(id: id) else { return false }
+        await openImportedJob(jobId: result.jobId, assetId: result.assetId, filename: result.filename)
+        return true
+    }
+
+    /// Opens an imported generation's job (its tree asset when the index has it).
+    func openImportedJob(jobId: String, assetId: String? = nil, filename: String? = nil) async {
+        let id: String = assetId ?? ("job:" + jobId)
+        if let asset = workspace.asset(id: id) {
+            await openWorkspaceAsset(asset)
+            return
+        }
+        workspace.select(id)
+        await openWorkspaceJob(jobId: jobId, filename: filename ?? (jobId + ".glb"), displayName: filename ?? id)
     }
 
     // MARK: - Loading Raw Sample Sculpt & Real Pipeline Output
@@ -650,7 +641,9 @@ final class FabledStudioViewModel: ObservableObject {
         }
     }
 
-    func openRealPipelineOutput() async {
+    /// Opens a pipeline run folder read-only. With no `runDirectory`: `pipeline/runs/latest`, else `pipeline/output`
+    /// (the original behaviour). A workspace run passes its own folder.
+    func openRealPipelineOutput(runDirectory: URL? = nil) async {
         isBusy = true
         busyMessage = "Opening real pipeline output (LOD0–LOD3 + baked Normal/ORM)…"
         defer { isBusy = false }
@@ -660,15 +653,25 @@ final class FabledStudioViewModel: ObservableObject {
             return
         }
 
-        let latestDir = root.appendingPathComponent("pipeline/runs/latest")
-        let outputDir = root.appendingPathComponent("pipeline/output")
-        let runDir = FileManager.default.fileExists(atPath: latestDir.appendingPathComponent("manifest.json").path) ? latestDir : outputDir
+        let runDir: URL
+        if let explicit = runDirectory {
+            runDir = explicit
+        } else {
+            let latestDir = root.appendingPathComponent("pipeline/runs/latest")
+            let outputDir = root.appendingPathComponent("pipeline/output")
+            runDir = FileManager.default.fileExists(atPath: latestDir.appendingPathComponent("manifest.json").path) ? latestDir : outputDir
+        }
         let manifestURL = runDir.appendingPathComponent("manifest.json")
 
         guard let data = try? Data(contentsOf: manifestURL),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             await buildBrowserLODPreviews()
             return
+        }
+
+        // A workspace run: show that run's own input sculpt on the left when the manifest names one that exists here.
+        if runDirectory != nil {
+            loadRunInputSculpt(manifest: json, runDir: runDir)
         }
 
         // Load high-poly sculpt on the left if not already loaded
@@ -685,9 +688,14 @@ final class FabledStudioViewModel: ObservableObject {
         showEditableWhenReadOnly = false
         pipelineOutputLicensedSample = LicensedSamples.match(manifest: json)
 
+        // Only the textures this run's manifest names (no guessed file names from another asset).
         let texturePaths = PipelineManifestTextures.paths(in: json)
-        let normalURL = runDir.appendingPathComponent(texturePaths.normal ?? "export/T_HelenKellerBust_N.png")
-        let ormURL = runDir.appendingPathComponent(texturePaths.orm ?? "export/T_HelenKellerBust_ORM.png")
+        let normalURL: URL? = texturePaths.normal
+            .map { runDir.appendingPathComponent($0) }
+            .flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
+        let ormURL: URL? = texturePaths.orm
+            .map { runDir.appendingPathComponent($0) }
+            .flatMap { FileManager.default.fileExists(atPath: $0.path) ? $0 : nil }
 
         var builtLODs: [BuiltLODMesh] = []
         let rawLods = (json["lods"] as? [[String: Any]]) ?? ((json["outputs"] as? [String: Any])?["lods"] as? [[String: Any]]) ?? []
@@ -709,8 +717,8 @@ final class FabledStudioViewModel: ObservableObject {
                         indices: lodMesh.indices,
                         normals: lodMesh.normals,
                         texcoords: lodMesh.texcoords,
-                        normalMapURL: FileManager.default.fileExists(atPath: normalURL.path) ? normalURL : nil,
-                        ormMapURL: FileManager.default.fileExists(atPath: ormURL.path) ? ormURL : nil
+                        normalMapURL: normalURL,
+                        ormMapURL: ormURL
                     )
                 )
             }
@@ -732,19 +740,32 @@ final class FabledStudioViewModel: ObservableObject {
         }
         pipelineSteps = steps
 
-        usedProfileRows = [
-            ("Validator profile", "DEMO PLACEHOLDER VALUES — Head Bust (NPG.75.16)"),
-            ("Units", "FBX in cm, import scale 1.0, file units trusted"),
-            ("Up axis", "Z up (validator, FBX) · GLB preview is Y up by glTF spec"),
-            ("Height range", "20.0–80.0 cm (bust) · measured 53.1 cm"),
-            ("LOD budgets", "LOD0 25,000 · LOD1 12,500 · LOD2 6,250 · LOD3 3,125"),
-            ("Texel density", "no studio target · measured ~10.24 px/cm (1024 px/m)"),
-            ("Textures", "Normal map (DirectX + OpenGL) + Packed ORM (2048×2048)"),
-            ("Max flipped faces", "0 (all LOD0–LOD3 meshes pass with 0 flipped faces)")
-        ]
+        // "Values used for this output": read from this run's validator profile and manifest; a value neither file
+        // has is left out rather than shown as a made-up number.
+        let profileRel: String = (json["profile"] as? String).flatMap { $0.isEmpty ? nil : $0 } ?? "validator_profile.json"
+        let profileJSON: [String: Any]? = (try? Data(contentsOf: runDir.appendingPathComponent(profileRel)))
+            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [String: Any] }
+        usedProfileRows = PipelineProfileRows.rows(manifest: json, profile: profileJSON)
 
         refreshMapPreviews(fromRunDir: runDir)
         await runPreImportChecks(manifestURL: manifestURL)
+    }
+
+    /// Loads `input.sculpt_path` (or `input.path`, relative to the run folder) as the source sculpt, titled with the
+    /// licensed / procedural display name rules. Leaves the current sculpt alone when the file is not here.
+    private func loadRunInputSculpt(manifest: [String: Any], runDir: URL) {
+        let input = manifest["input"] as? [String: Any]
+        let rawPath: String = (input?["sculpt_path"] as? String) ?? (input?["path"] as? String) ?? ""
+        guard !rawPath.isEmpty else { return }
+        let inputURL: URL = rawPath.hasPrefix("/")
+            ? URL(fileURLWithPath: rawPath)
+            : runDir.appendingPathComponent(rawPath).standardizedFileURL
+        guard FileManager.default.fileExists(atPath: inputURL.path),
+              var mesh = try? MeshAnalyzerAndLoader.loadMesh(from: inputURL) else { return }
+        let procedural: Bool = LicensedSamples.isProceduralSampleRun(manifest: manifest)
+        mesh.displayName = LicensedSamples.displayName(manifest: manifest, short: true) ?? mesh.displayName
+        mesh.isSampleBust = procedural
+        sourceMesh = mesh
     }
 
     // MARK: - Feature 14 & 15: Asynchronous Non-Blocking Pipeline Execution & Polling
@@ -836,6 +857,7 @@ final class FabledStudioViewModel: ObservableObject {
                 currentJobStatus = .completed(runDir: outDir)
                 activeProgress = nil
                 await openRealPipelineOutput()
+                workspace.scheduleRefreshIfConnected()
                 return
             } else {
                 currentJobStatus = .failed(message: "Pipeline process failed; falling back to in-app decimation.")
@@ -1056,6 +1078,7 @@ final class FabledStudioViewModel: ObservableObject {
         )
         if let rep = report {
             applyValidatorReport(rep)
+            workspace.scheduleRefreshIfConnected()
             return
         }
         #endif
@@ -1100,10 +1123,10 @@ final class FabledStudioViewModel: ObservableObject {
     private func refreshMapPreviews(fromRunDir runDir: URL?) {
         guard let dir = runDir else { return }
         let candidates: [(String, String, String)] = [
-            ("High-Poly vs LOD0 Shaded", "328,894 tris vs 25,000 tris + Baked Normal Map", "previews/compare_shaded_highpoly_vs_lod0.png"),
-            ("LOD0–LOD3 Wireframe Strip", "Decimated manifold LOD chain (25k → 3.1k tris)", "previews/lod_strip_wire.png"),
-            ("UV Layout (LOD0)", "Non-overlapping 2-hemisphere UV unwrap", "previews/uv_layout_lod0.png"),
-            ("Tangent-Space Normal Map", "Baked normal detail (1024px preview / 2048px export)", "previews/normal_map_texture_1024.png"),
+            ("High-Poly vs LOD0 Shaded", "High-poly sculpt vs LOD0 + baked normal map", "previews/compare_shaded_highpoly_vs_lod0.png"),
+            ("LOD0–LOD3 Wireframe Strip", "LOD chain wireframes from this run", "previews/lod_strip_wire.png"),
+            ("UV Layout (LOD0)", "LOD0 UV islands from this run", "previews/uv_layout_lod0.png"),
+            ("Tangent-Space Normal Map", "Baked normal detail (preview image)", "previews/normal_map_texture_1024.png"),
             ("Ambient Occlusion / ORM Map", "Baked cavity & occlusion map", "previews/ao_map_texture_1024.png")
         ]
         var cards: [MapPreviewCard] = []
@@ -1143,5 +1166,124 @@ enum PipelineManifestTextures {
             return nil
         }
         return (firstPath("normal"), firstPath("orm"))
+    }
+}
+
+// MARK: - Profile Rows For An Opened Run
+
+/// The "values used for this output" rows for a pipeline run: limits from its `validator_profile.json`, measurements
+/// from its `manifest.json`. Every value comes from one of those two files; a row (or half a row) whose value is not
+/// there is omitted, never filled with a default.
+enum PipelineProfileRows {
+    static func rows(manifest: [String: Any], profile: [String: Any]?) -> [(String, String)] {
+        let p: [String: Any] = profile ?? [:]
+        var rows: [(String, String)] = []
+
+        if let name = p["profile_name"] as? String, !name.isEmpty {
+            var value: String = name
+            if let version = p["profile_version"] as? String, !version.isEmpty {
+                value += " v" + version
+            }
+            rows.append(("Validator profile", value))
+        }
+
+        let profileUnits = p["units"] as? [String: Any]
+        var unitParts: [String] = []
+        if let assumed = profileUnits?["assumed_source_units"] as? String, !assumed.isEmpty {
+            unitParts.append("source " + assumed + " (assumed)")
+        }
+        if let trust = profileUnits?["trust_file_units"] as? Bool {
+            unitParts.append(trust ? "file units trusted" : "file units not trusted")
+        }
+        if let unreal = (manifest["units"] as? [String: Any])?["unreal_units"] as? String, !unreal.isEmpty {
+            unitParts.append("export in " + unreal)
+        }
+        if !unitParts.isEmpty {
+            rows.append(("Units", unitParts.joined(separator: " · ")))
+        }
+
+        var axisParts: [String] = []
+        if let up = (p["axes"] as? [String: Any])?["up"] as? String, !up.isEmpty {
+            axisParts.append("profile " + up + " up")
+        }
+        if let exported = manifest["export_up_axis"] as? String, !exported.isEmpty {
+            axisParts.append("FBX " + exported + " up")
+        }
+        if !axisParts.isEmpty {
+            rows.append(("Up axis", axisParts.joined(separator: " · ")))
+        }
+
+        var heightParts: [String] = []
+        if let range = profileUnits?["expected_height_cm"] as? [String: Any],
+           let low = number(range["min"]), let high = number(range["max"]) {
+            heightParts.append(format(low) + "–" + format(high) + " cm")
+        }
+        if let measured = number((manifest["exported_size"] as? [String: Any])?["fbx_height_cm"]) {
+            heightParts.append("measured " + format(measured) + " cm")
+        }
+        if !heightParts.isEmpty {
+            rows.append(("Height", heightParts.joined(separator: " · ")))
+        }
+
+        let rawBudgets: [Any] = ((p["lods"] as? [String: Any])?["triangle_budgets"] as? [Any]) ?? []
+        let budgets: [Double] = rawBudgets.compactMap { number($0) }.filter { $0 >= 0 && $0 < 1e12 }
+        if !budgets.isEmpty {
+            let parts: [String] = budgets.enumerated().map { (pair: (offset: Int, element: Double)) -> String in
+                return "LOD\(pair.offset) " + WorkspaceStore.fullNumber(Int(pair.element))
+            }
+            rows.append(("LOD budgets", parts.joined(separator: " · ")))
+        }
+
+        let texel = p["texel_density"] as? [String: Any]
+        var texelParts: [String] = []
+        if let target = number(texel?["target_px_per_cm"]) {
+            var text: String = "target " + format(target) + " px/cm"
+            if let tolerance = number(texel?["tolerance_pct"]) {
+                text += " ±" + format(tolerance) + "%"
+            }
+            texelParts.append(text)
+        }
+        let uvStage = (manifest["stages"] as? [String: Any])?["uv"] as? [String: Any]
+        if let measured = number(uvStage?["texel_density_px_per_cm_at_bake_res"]) {
+            texelParts.append("measured " + format(measured, digits: 2) + " px/cm")
+        }
+        if !texelParts.isEmpty {
+            rows.append(("Texel density", texelParts.joined(separator: " · ")))
+        }
+
+        var textureParts: [String] = []
+        if let slots = (p["materials"] as? [String: Any])?["required_texture_slots"] as? [String], !slots.isEmpty {
+            textureParts.append(slots.joined(separator: " + ") + " required")
+        }
+        let bakeStage = (manifest["stages"] as? [String: Any])?["bake"] as? [String: Any]
+        if let resolution = number(bakeStage?["resolution"]), resolution > 0, resolution < 1e9 {
+            textureParts.append("baked at \(Int(resolution)) px")
+        }
+        if !textureParts.isEmpty {
+            rows.append(("Textures", textureParts.joined(separator: " · ")))
+        }
+
+        if let maxFlipped = number((p["normals"] as? [String: Any])?["max_flipped_faces"]) {
+            rows.append(("Max flipped faces", format(maxFlipped)))
+        }
+        return rows
+    }
+
+    /// A finite JSON number (JSONSerialization yields NSNumber on Apple, Int / Double elsewhere); nil otherwise.
+    private static func number(_ value: Any?) -> Double? {
+        if let double = value as? Double, double.isFinite { return double }
+        if let int = value as? Int { return Double(int) }
+        return nil
+    }
+
+    /// "20", "53.1", "25.6": at most `digits` decimals, trailing zeros dropped.
+    private static func format(_ value: Double, digits: Int = 1) -> String {
+        guard value.isFinite else { return String(value) }
+        var text: String = String(format: "%.\(max(digits, 0))f", value)
+        if text.contains(".") {
+            while text.hasSuffix("0") { text.removeLast() }
+            if text.hasSuffix(".") { text.removeLast() }
+        }
+        return text
     }
 }

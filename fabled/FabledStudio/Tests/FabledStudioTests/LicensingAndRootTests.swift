@@ -95,20 +95,18 @@ final class LicensingAndRootTests: XCTestCase {
         XCTAssertFalse(LicensedSamples.isProceduralSampleRun(manifest: ["input": ["sculpt_path": "my_fabled_sample_head.glb"] as [String: Any]]))
     }
 
-    func testCatalogUserVisibleStringsDoNotUseHerName() {
-        for category in FabledStudioViewModel.standardCatalog {
-            XCTAssertFalse(category.category.localizedCaseInsensitiveContains("Keller"))
-            for asset in category.assets {
-                let visible = [asset.name, asset.category, asset.tag, asset.status, asset.triangles, asset.timestamp]
+    func testWorkspaceTreeVisibleStringsDoNotUseHerName() throws {
+        // The tree shows the server-provided names (licensed / procedural naming is applied by the server), group
+        // labels and status labels; `file_asset_name` (the exported mesh name) is never displayed.
+        let index = try WorkspaceFixtures.workspaceIndex()
+        for group in index.groups {
+            XCTAssertFalse(group.label.localizedCaseInsensitiveContains("Keller"))
+            for asset in group.assets {
+                let visible: [String] = [asset.name, asset.status.label, WorkspaceModel.trisLabel(asset) ?? ""]
                 for text in visible {
                     XCTAssertFalse(text.localizedCaseInsensitiveContains("Keller"), "asset \(asset.id) shows \"\(text)\"")
                 }
             }
-        }
-        let vm = FabledStudioViewModel()
-        for (id, note) in vm.assetNotes {
-            XCTAssertFalse(note.localizedCaseInsensitiveContains("Keller"), "note for \(id) uses her name")
-            XCTAssertFalse(note.contains("Davidson"))
         }
     }
 
@@ -219,5 +217,42 @@ final class LicensingAndRootTests: XCTestCase {
         let none = PipelineManifestTextures.paths(in: [:])
         XCTAssertNil(none.normal)
         XCTAssertNil(none.orm)
+    }
+
+    // MARK: - Profile rows for an opened run
+
+    func testProfileRowsComeFromTheRunFilesOnly() throws {
+        // Shapes of pipeline/output/validator_profile.json and manifest.json (parsed the way the app parses them).
+        let profileJSON = """
+        {"profile_name": "Smoke test (example values)", "profile_version": "0.1",
+         "units": {"assumed_source_units": "cm", "trust_file_units": true, "expected_height_cm": {"min": 20, "max": 80}},
+         "axes": {"up": "Z"}, "lods": {"triangle_budgets": [20000, 10000, 5000, 2000]},
+         "materials": {"required_texture_slots": ["Normal", "ORM"]},
+         "texel_density": {"target_px_per_cm": 25.6, "tolerance_pct": 25}, "normals": {"max_flipped_faces": 0}}
+        """
+        let manifestJSON = """
+        {"export_up_axis": "Z", "units": {"unreal_units": "cm"}, "exported_size": {"fbx_height_cm": 53.089},
+         "stages": {"uv": {"texel_density_px_per_cm_at_bake_res": 10.24}, "bake": {"resolution": 2048}}}
+        """
+        let profile = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(profileJSON.utf8)) as? [String: Any])
+        let manifest = try XCTUnwrap(try JSONSerialization.jsonObject(with: Data(manifestJSON.utf8)) as? [String: Any])
+
+        let rows = PipelineProfileRows.rows(manifest: manifest, profile: profile)
+        let byKey: [String: String] = Dictionary(rows.map { ($0.0, $0.1) }, uniquingKeysWith: { first, _ in first })
+        XCTAssertEqual(rows.count, byKey.count, "row keys are unique (the view uses them as ids)")
+        XCTAssertEqual(byKey["Validator profile"], "Smoke test (example values) v0.1")
+        XCTAssertEqual(byKey["Height"], "20–80 cm · measured 53.1 cm")
+        XCTAssertEqual(byKey["LOD budgets"], "LOD0 20,000 · LOD1 10,000 · LOD2 5,000 · LOD3 2,000")
+        XCTAssertEqual(byKey["Texel density"], "target 25.6 px/cm ±25% · measured 10.24 px/cm")
+        XCTAssertEqual(byKey["Up axis"], "profile Z up · FBX Z up")
+        XCTAssertEqual(byKey["Textures"], "Normal + ORM required · baked at 2048 px")
+        XCTAssertEqual(byKey["Max flipped faces"], "0")
+
+        // No profile file and a bare manifest: nothing is invented.
+        XCTAssertTrue(PipelineProfileRows.rows(manifest: [:], profile: nil).isEmpty)
+        let measuredOnly = PipelineProfileRows.rows(manifest: manifest, profile: nil)
+        XCTAssertNil(measuredOnly.first(where: { $0.0 == "Validator profile" }))
+        XCTAssertNil(measuredOnly.first(where: { $0.0 == "LOD budgets" }))
+        XCTAssertEqual(measuredOnly.first(where: { $0.0 == "Height" })?.1, "measured 53.1 cm")
     }
 }

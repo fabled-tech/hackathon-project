@@ -162,41 +162,59 @@ final class Tier5WorkspaceAdversarialTests: XCTestCase {
             String(repeating: "a", count: 1000)
         ]
 
+        let index = try? WorkspaceFixtures.workspaceIndex()
+        XCTAssertNotNil(index)
+        vm.workspace.index = index
         for q in adversarialQueries {
-            vm.assetSearchText = q
-            let filtered = vm.filteredCategories
-            XCTAssertTrue(filtered.allSatisfy { !$0.assets.isEmpty }, "Categories without matching assets must be omitted")
+            vm.workspace.query = q
+            let groups = vm.workspace.filteredGroups
+            XCTAssertEqual(groups.count, index?.groups.count ?? 0, "groups are kept (the tree hides empty ones only while filtering)")
+            XCTAssertEqual(vm.workspace.filteredTotal, groups.reduce(0) { $0 + $1.assets.count })
         }
     }
 
-    func testAssetTreeSelectingNonExistentID() async {
-        let vm = FabledStudioViewModel()
-
-        await vm.selectAsset(id: "nonexistent_asset_id_99999")
-        XCTAssertEqual(vm.selectedAssetId, "nonexistent_asset_id_99999")
-
-        // selectedAssetItem should fall back safely to first catalog item without crashing
-        let fallback = vm.selectedAssetItem
-        XCTAssertNotNil(fallback)
-        XCTAssertEqual(fallback?.id, "helen-keller-bust")
+    private func offlineStore(debounce: TimeInterval = 0.01) throws -> (WorkspaceStore, WorkspaceRouteTransport) {
+        let transport = WorkspaceRouteTransport()
+        try transport.route("GET", "/api/workspace/notes", fixture: "note_empty")
+        try transport.route("PUT", "/api/workspace/notes", fixture: "note_saved")
+        let client = FabledServerClient(baseURL: try XCTUnwrap(URL(string: "http://127.0.0.1:5178")), transport: transport)
+        return (WorkspaceStore(client: client, noteDebounce: debounce), transport)
     }
 
-    func testAssetNotesExtremePersistence() {
-        let vm = FabledStudioViewModel()
+    func testAssetTreeSelectingNonExistentID() async throws {
+        let (store, _) = try offlineStore()
+        store.index = try WorkspaceFixtures.workspaceIndex()
+
+        await store.selectAndWait("nonexistent_asset_id_99999")
+        XCTAssertEqual(store.selectedAssetId, "nonexistent_asset_id_99999")
+        // No fallback to some other asset: the page says the asset is not in the index.
+        XCTAssertNil(store.selectedAsset)
+    }
+
+    func testAssetNotesExtremePersistence() async throws {
+        let (store, transport) = try offlineStore()
+        await store.selectAndWait("run:pipeline/output")
+        XCTAssertTrue(store.noteEditable)
 
         // 1. Extreme long note (50,000 chars)
         let longNote = String(repeating: "Production note for asset verification. ", count: 1250)
-        vm.assetNotes["helen-keller-bust"] = longNote
-        XCTAssertEqual(vm.assetNotes["helen-keller-bust"]?.count, longNote.count)
+        store.editNote(longNote)
+        XCTAssertEqual(store.noteText.count, longNote.count)
+        await store.noteSaveTask?.value
+        XCTAssertEqual(transport.requests("PUT", "/api/workspace/notes").last.flatMap { WorkspaceRouteTransport.bodyText($0) }, longNote)
 
-        // 2. Empty note
-        vm.assetNotes["paladin-shield"] = ""
-        XCTAssertEqual(vm.assetNotes["paladin-shield"], "")
+        // 2. Special unicode characters
+        let unicodeNote = "Verified: CC0 Smithsonian NPG.75.16 · Onorio Ruotolo 1916 💎 \n\r\t \u{FFFF}"
+        store.editNote(unicodeNote)
+        XCTAssertEqual(store.noteText, unicodeNote)
+        await store.noteSaveTask?.value
+        XCTAssertEqual(transport.requests("PUT", "/api/workspace/notes").last.flatMap { WorkspaceRouteTransport.bodyText($0) }, unicodeNote)
 
-        // 3. Special unicode characters
-        let unicodeNote = "Verified: CC0 Smithsonian NPG.75.16 · Onorio Ruotolo 1916 💎 \n\r\t \u{0000} \u{FFFF}"
-        vm.assetNotes["synthetic-clean-hero"] = unicodeNote
-        XCTAssertEqual(vm.assetNotes["synthetic-clean-hero"], unicodeNote)
+        // 3. Empty note (clears it on the server)
+        store.editNote("")
+        XCTAssertEqual(store.noteText, "")
+        await store.noteSaveTask?.value
+        XCTAssertEqual(transport.requests("PUT", "/api/workspace/notes").last.flatMap { WorkspaceRouteTransport.bodyText($0) }, "")
     }
 
     // MARK: - 3. Pre-Import QA Validator Edge-Case Reports

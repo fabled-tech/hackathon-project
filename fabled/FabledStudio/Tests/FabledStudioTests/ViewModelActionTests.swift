@@ -13,7 +13,9 @@ final class ViewModelActionTests: XCTestCase {
         XCTAssertFalse(vm.wireframeEnabled)
         XCTAssertTrue(vm.syncCamerasEnabled)
         XCTAssertTrue(vm.highlightFlippedEnabled)
-        XCTAssertEqual(vm.selectedAssetId, "helen-keller-bust")
+        // The asset tree is the live server workspace now: nothing is selected or invented before it loads.
+        XCTAssertNil(vm.workspace.selectedAssetId)
+        XCTAssertNil(vm.workspace.index)
     }
 
     func testStoryboardBeatsExecution() async {
@@ -71,34 +73,33 @@ final class ViewModelActionTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(vm.sourceMesh?.browserFixedFlips ?? 0, 2)
     }
 
-    func testNotionAssetTreeFiltering() {
+    func testWorkspaceTreeFilteringUsesServerIndex() throws {
         let vm = FabledStudioViewModel()
+        vm.workspace.index = try WorkspaceFixtures.workspaceIndex()
 
-        vm.assetSearchText = ""
-        XCTAssertEqual(vm.filteredCategories.count, 3)
+        vm.workspace.query = ""
+        XCTAssertEqual(vm.workspace.filteredGroups.count, 4)
+        XCTAssertEqual(vm.workspace.filteredTotal, 11)
 
-        vm.assetSearchText = "shield"
-        let filtered = vm.filteredCategories
-        XCTAssertEqual(filtered.count, 1)
-        XCTAssertEqual(filtered.first?.assets.first?.id, "paladin-shield")
+        vm.workspace.query = "potion"
+        XCTAssertEqual(vm.workspace.filteredTotal, 2)
 
-        vm.assetSearchText = "nonexistent_query_xyz"
-        XCTAssertEqual(vm.filteredCategories.count, 0)
+        vm.workspace.query = "nonexistent_query_xyz"
+        XCTAssertEqual(vm.workspace.filteredTotal, 0)
     }
 
-    func testAssetSelectionAndNotesPersistence() async {
-        let vm = FabledStudioViewModel()
+    func testOpeningAGenerationAssetShowsItsPage() async throws {
+        let transport = WorkspaceRouteTransport()
+        let client = FabledServerClient(baseURL: try XCTUnwrap(URL(string: "http://127.0.0.1:5178")), transport: transport)
+        let vm = FabledStudioViewModel(workspace: WorkspaceStore(client: client))
+        let asset = try JSONDecoder().decode(WorkspaceAsset.self, from: Data("""
+        {"id":"gen:gen-1","kind":"generation","name":"knight helmet","status":{"label":"running","tone":"running"},
+         "open":{"type":"generation","task_id":"gen-1"}}
+        """.utf8))
 
-        await vm.selectAsset(id: "paladin-shield")
-        XCTAssertEqual(vm.selectedAssetId, "paladin-shield")
+        await vm.openWorkspaceAsset(asset)
 
-        // Modify note
-        vm.assetNotes["paladin-shield"] = "Updated note for paladin shield."
-        XCTAssertEqual(vm.assetNotes["paladin-shield"], "Updated note for paladin shield.")
-
-        // Switch and switch back
-        await vm.selectAsset(id: "helen-keller-bust")
-        XCTAssertEqual(vm.selectedAssetId, "helen-keller-bust")
-        XCTAssertEqual(vm.assetNotes["paladin-shield"], "Updated note for paladin shield.")
+        XCTAssertEqual(vm.workspace.selectedAssetId, "gen:gen-1")
+        XCTAssertEqual(vm.inspectorTab, .page)
     }
 }

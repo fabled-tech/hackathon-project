@@ -35,6 +35,10 @@ struct ContentView: View {
         .sheet(isPresented: $viewModel.showValidatorReportSheet) {
             ValidatorReportSheet(viewModel: viewModel)
         }
+        .modifier(GenerateSheetPresenter(viewModel: viewModel, store: viewModel.workspace))
+        .task {
+            await viewModel.workspace.refresh()
+        }
     }
 
     // MARK: - Subtle RGB + Theme Top Hairline
@@ -255,165 +259,12 @@ struct ContentView: View {
     private var leftSidebarColumn: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 10) {
-                notionAssetTreeCard
-                notionAssetNotesCard
+                WorkspaceTreeView(viewModel: viewModel, store: viewModel.workspace)
+                ConnectionsView(store: viewModel.workspace)
                 sculptSourceCard
                 studioSpecProfileCard
             }
         }
-    }
-
-    private var notionAssetTreeCard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            sectionTitle(num: "00", title: "PROJECT ASSETS")
-
-            HStack {
-                Image(systemName: "magnifyingglass")
-                    .foregroundStyle(FabledTheme.muted)
-                    .font(.system(size: 11))
-                TextField("Filter assets or tags (⌘K)...", text: $viewModel.assetSearchText)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 11.5))
-                    .foregroundStyle(FabledTheme.dark)
-                if !viewModel.assetSearchText.isEmpty {
-                    Button {
-                        viewModel.assetSearchText = ""
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundStyle(FabledTheme.muted)
-                            .font(.system(size: 11))
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(.horizontal, 8)
-            .padding(.vertical, 5)
-            .background(FabledTheme.elevated)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(FabledTheme.line, lineWidth: 1))
-
-            let categories = viewModel.filteredCategories
-            if categories.isEmpty {
-                Text("No assets matching filter")
-                    .font(.system(size: 11))
-                    .foregroundStyle(FabledTheme.muted)
-                    .padding(.vertical, 8)
-            } else {
-                ForEach(categories) { cat in
-                    DisclosureGroup(isExpanded: .constant(true)) {
-                        VStack(spacing: 4) {
-                            ForEach(cat.assets) { asset in
-                                let isSelected = asset.id == viewModel.selectedAssetId
-                                Button {
-                                    Task { await viewModel.selectAsset(id: asset.id) }
-                                } label: {
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        HStack(spacing: 6) {
-                                            Text("◈")
-                                                .font(.system(size: 10, weight: .bold))
-                                                .foregroundStyle(isSelected ? viewModel.accentColor : FabledTheme.muted)
-                                            Text(asset.name)
-                                                .font(.system(size: 11.5, weight: isSelected ? .semibold : .medium))
-                                                .foregroundStyle(isSelected ? viewModel.accentColor : FabledTheme.dark)
-                                                .lineLimit(1)
-                                            Spacer()
-                                            statusPill(asset.status, statusClass: asset.statusClass)
-                                        }
-
-                                        HStack(spacing: 6) {
-                                            Text(asset.triangles)
-                                                .font(.system(size: 9.5, design: .monospaced))
-                                                .foregroundStyle(FabledTheme.muted)
-                                            Text("·")
-                                                .font(.system(size: 9.5))
-                                                .foregroundStyle(FabledTheme.muted)
-                                            Text("#\(asset.tag)")
-                                                .font(.system(size: 9.5, design: .monospaced))
-                                                .foregroundStyle(viewModel.secondaryAccentColor)
-                                            Spacer()
-                                            Text(asset.timestamp)
-                                                .font(.system(size: 9))
-                                                .foregroundStyle(FabledTheme.muted)
-                                        }
-                                        .padding(.leading, 14)
-                                    }
-                                    .padding(.horizontal, 6)
-                                    .padding(.vertical, 4)
-                                    .background(isSelected ? viewModel.accentColor.opacity(0.12) : Color.clear)
-                                    .clipShape(RoundedRectangle(cornerRadius: 5))
-                                    .overlay(
-                                        RoundedRectangle(cornerRadius: 5)
-                                            .stroke(isSelected ? viewModel.accentColor.opacity(0.4) : Color.clear, lineWidth: 1)
-                                    )
-                                }
-                                .buttonStyle(.plain)
-                            }
-                        }
-                        .padding(.top, 2)
-                    } label: {
-                        HStack {
-                            Text(cat.category.uppercased())
-                                .font(.system(size: 10, weight: .bold, design: .monospaced))
-                                .foregroundStyle(FabledTheme.muted)
-                            Spacer()
-                            Text("(\(cat.assets.count))")
-                                .font(.system(size: 9.5, design: .monospaced))
-                                .foregroundStyle(FabledTheme.muted)
-                        }
-                    }
-                    .font(.system(size: 11))
-                }
-            }
-        }
-        .modifier(FabledCardModifier())
-    }
-
-    private func statusPill(_ text: String, statusClass: String) -> some View {
-        let color: Color = {
-            switch statusClass {
-            case "ready": return FabledTheme.green
-            case "validating": return FabledTheme.amber
-            case "draft": return FabledTheme.muted
-            default: return FabledTheme.muted
-            }
-        }()
-
-        return Text(text)
-            .font(.system(size: 9, weight: .semibold, design: .monospaced))
-            .padding(.horizontal, 5)
-            .padding(.vertical, 1.5)
-            .background(color.opacity(0.18))
-            .foregroundStyle(color)
-            .clipShape(RoundedRectangle(cornerRadius: 3))
-    }
-
-    private var notionAssetNotesCard: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("ASSET PAGE & NOTES")
-                    .font(.system(size: 10, weight: .bold, design: .monospaced))
-                    .foregroundStyle(viewModel.accentColor)
-                Spacer()
-                if let asset = viewModel.selectedAssetItem {
-                    Text(asset.name)
-                        .font(.system(size: 10.5, weight: .semibold))
-                        .foregroundStyle(FabledTheme.dark)
-                }
-            }
-
-            TextEditor(text: Binding(
-                get: { viewModel.assetNotes[viewModel.selectedAssetId] ?? "" },
-                set: { viewModel.assetNotes[viewModel.selectedAssetId] = $0 }
-            ))
-            .font(.system(size: 10.5, design: .monospaced))
-            .scrollContentBackground(.hidden)
-            .padding(6)
-            .frame(minHeight: 65, maxHeight: 95)
-            .background(FabledTheme.elevated)
-            .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(FabledTheme.line, lineWidth: 1))
-        }
-        .modifier(FabledCardModifier())
     }
 
     private var sculptSourceCard: some View {
@@ -752,19 +603,19 @@ struct ContentView: View {
     private var viewerToolbar: some View {
         HStack(spacing: 10) {
             Toggle("Wireframe", isOn: $viewModel.wireframeEnabled)
-                .toggleStyle(.checkbox)
+                .modifier(ToolbarToggleStyleModifier())
                 .font(.system(size: 11.5))
 
             Toggle("Sync", isOn: $viewModel.syncCamerasEnabled)
-                .toggleStyle(.checkbox)
+                .modifier(ToolbarToggleStyleModifier())
                 .font(.system(size: 11.5))
 
             Toggle("Flipped", isOn: $viewModel.highlightFlippedEnabled)
-                .toggleStyle(.checkbox)
+                .modifier(ToolbarToggleStyleModifier())
                 .font(.system(size: 11.5))
 
             Toggle("Baked maps", isOn: $viewModel.showBakedMapsEnabled)
-                .toggleStyle(.checkbox)
+                .modifier(ToolbarToggleStyleModifier())
                 .font(.system(size: 11.5))
 
             toolbarPillButton("Frame") {
@@ -1032,6 +883,10 @@ struct ContentView: View {
                     .background(FabledTheme.voidBg)
                     .clipShape(RoundedRectangle(cornerRadius: 7))
                     .overlay(RoundedRectangle(cornerRadius: 7).stroke(FabledTheme.line, lineWidth: 1))
+
+                    if viewModel.inspectorTab == .page {
+                        AssetPageView(viewModel: viewModel, store: viewModel.workspace)
+                    }
 
                     if viewModel.inspectorTab == .browser || viewModel.inspectorTab == .all {
                         subsectionHeader("BROWSER CHECKS", badge: "computed from mesh")
@@ -1423,6 +1278,18 @@ struct PlatformFileImage: View {
             Text("Image unavailable")
                 .font(.caption)
         }
+        #endif
+    }
+}
+
+/// Checkbox toggles on macOS; `.checkbox` does not exist on iOS, where a compact button-style toggle is used instead.
+private struct ToolbarToggleStyleModifier: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        #if os(macOS)
+        content.toggleStyle(.checkbox)
+        #else
+        content.toggleStyle(.button)
         #endif
     }
 }
