@@ -1,8 +1,12 @@
-# Read-only use of fabled_validator's own loader + analyze() (no edits to their code) to get per-mesh triangle indices.
-import sys, json, numpy as np
-sys.path.insert(0, '/workspace/fabled-demos/prototype/validator')
-from fabled_validator.geometry import analyze
-from fabled_validator.loaders import load_asset
+# Read-only use of sculptline_validator's own loader + analyze() (no edits to their code) to get per-mesh triangle indices.
+import os, sys, json, numpy as np
+sys.path.insert(0, os.path.join(os.path.dirname(os.path.abspath(__file__)), '..', '..', 'validator'))
+try:
+    from sculptline_validator.geometry import analyze
+    from sculptline_validator.loaders import load_asset
+except ImportError:  # checkout from before the SculptLine rebrand
+    from fabled_validator.geometry import analyze
+    from fabled_validator.loaders import load_asset
 a = load_asset(sys.argv[1])
 lod0 = [m for m in a.meshes if m.lod == min(mm.lod for mm in a.meshes)]  # same as checks.Context
 allp = np.concatenate([m.positions[np.unique(m.tris)] for m in lod0])

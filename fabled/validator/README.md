@@ -1,4 +1,4 @@
-# Fabled pre-import check — v0
+# SculptLine pre-import check — v0
 
 A Python 3 CLI that checks a 3D asset against a studio **import profile** before it goes into Unreal, then writes a JSON report and a single-file HTML report. This is shot 6 of the demo storyboard ("pre-import check", hero shot).
 
@@ -11,18 +11,27 @@ cd fabled-demos/prototype/validator
 python3 -m venv .venv && .venv/bin/pip install -r requirements-dev.txt   # runtime needs numpy only
 .venv/bin/python fixtures/make_fixtures.py                                 # (re)generate synthetic fixtures
 .venv/bin/python -m pytest -q tests                                        # run the tests
-.venv/bin/python -m fabled_validator check fixtures/synthetic_storyboard_two_flags.gltf \
+.venv/bin/python -m sculptline_validator check fixtures/synthetic_storyboard_two_flags.gltf \
     --profile profiles/example_studio.json --out reports/
-.venv/bin/python -m fabled_validator check --manifest fixtures/synthetic_pipeline_out/manifest.json \
+.venv/bin/python -m sculptline_validator check --manifest fixtures/synthetic_pipeline_out/manifest.json \
     --profile profiles/demo_placeholder.json --out reports/      # asset omitted: checks the manifest's combined_fbx
 .venv/bin/python run_fixtures.py            # every fixture -> reports/, SUMMARY.md, 1920x1080 PNGs if Chrome is present
 ```
 
+### Renamed from `fabled_validator`
+
+The package was renamed from `fabled_validator` to `sculptline_validator` in the SculptLine rebrand. A thin
+`fabled_validator/` compatibility package stays: `import fabled_validator` re-exports `sculptline_validator`, and
+`python -m fabled_validator …` runs the new CLI with the same arguments and exit code, printing a one-line
+deprecation notice to **stderr** only (stdout stays pure JSON with `--json-only`). New reports say
+`"tool": {"name": "sculptline_validator"}`; older reports with `"fabled_validator"` still validate against the schema.
+`schema_version`, the schema `$id` and the manifest schema id (`fabled.pipeline.manifest/0.1`) are unchanged.
+
 ### CLI usage
 
 ```
-python -m fabled_validator check [ASSET] --profile PROFILE.json [--manifest MANIFEST.json] (--out DIR | --json-only [--out DIR]) [--no-html]
-python -m fabled_validator schema
+python -m sculptline_validator check [ASSET] --profile PROFILE.json [--manifest MANIFEST.json] (--out DIR | --json-only [--out DIR]) [--no-html]
+python -m sculptline_validator schema
 ```
 
 `ASSET` is optional only when `--manifest` is given. In that case the asset is the manifest's `outputs.combined_fbx`.
@@ -148,10 +157,10 @@ The UI in `prototype/ui/` should treat the validator as a subprocess or a Python
 **Subprocess**
 
 ```bash
-python -m fabled_validator check <asset> --profile <profile.json> --json-only           # JSON on stdout only
-python -m fabled_validator check <asset> --profile <profile.json> --json-only --out DIR # also writes JSON+HTML; "wrote …" lines go to stderr
-python -m fabled_validator check --manifest <out>/manifest.json --profile <profile.json> --json-only   # pipeline output: asset = combined_fbx
-python -m fabled_validator schema                                                      # prints schema/report.schema.json
+python -m sculptline_validator check <asset> --profile <profile.json> --json-only           # JSON on stdout only
+python -m sculptline_validator check <asset> --profile <profile.json> --json-only --out DIR # also writes JSON+HTML; "wrote …" lines go to stderr
+python -m sculptline_validator check --manifest <out>/manifest.json --profile <profile.json> --json-only   # pipeline output: asset = combined_fbx
+python -m sculptline_validator schema                                                      # prints schema/report.schema.json
 ```
 
 * stdout carries exactly one JSON document matching `schema/report.schema.json`, even on errors. Errors have `overall_status: "error"` and `error: {type, message}`.
@@ -163,7 +172,7 @@ python -m fabled_validator schema                                               
 **Python**
 
 ```python
-from fabled_validator import validate, exit_code_for
+from sculptline_validator import validate, exit_code_for
 report = validate("asset.glb", "profiles/example_studio.json")  # dict, never raises for bad input
 report = validate(None, "profiles/demo_placeholder.json", manifest_path="out/manifest.json")  # asset = combined_fbx
 code = exit_code_for(report)                                     # same 0/1/2 as the CLI

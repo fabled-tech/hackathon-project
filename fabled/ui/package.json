@@ -1,10 +1,10 @@
 {
-  "name": "fabled-demo-ui",
+  "name": "sculptline-ui",
   "version": "1.0.0",
-  "description": "Fabled demo UI (local prototype)",
+  "description": "SculptLine UI (local prototype) by Fabled",
   "scripts": {
     "start": "node server.mjs",
-    "start:stub": "FABLED_PIPELINE=off FABLED_VALIDATOR=off node server.mjs",
+    "start:stub": "SCULPTLINE_PIPELINE=off SCULPTLINE_VALIDATOR=off node server.mjs",
     "test": "node tools/test_workspace.mjs && node tools/test_connected_workspace.mjs",
     "test:screens": "node tools/screenshot_test.mjs",
     "build:demo": "node tools/build_demo.mjs --src ../pipeline/runs/latest",

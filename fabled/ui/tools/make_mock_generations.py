@@ -3,7 +3,7 @@
 
 Self-made and procedural (signed distance fields, meshed with surface nets, numpy only), with no third-party assets, so
 they are free to use in the demo. They are dense, fully triangulated, closed meshes with smooth normals, like typical
-text-to-3D output, so the Fabled pipeline (retopo, LODs, bake) has real work to do. Unlike samples/fabled_sample_head.glb
+text-to-3D output, so the SculptLine pipeline (retopo, LODs, bake) has real work to do. Unlike samples/fabled_sample_head.glb
 they have NO seeded defects: they are meant to look like a plausible generation, not to exercise the checker.
 
 Outputs (into ../samples/mock_generations/), glTF metres, Y up:

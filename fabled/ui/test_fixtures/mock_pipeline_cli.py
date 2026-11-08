@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """TEST FIXTURE ONLY - fakes the pipeline CLI contract so the UI's progress bar and failed-run handling can be tested
 without launching Blender. Writes <out>/progress.json per step, then a FAILED manifest with one partial LOD
-(a copy of the UI's procedural sample OBJ) and exits 1. Never presented as Fabled output: manifest has test_fixture=true."""
+(a copy of the UI's procedural sample OBJ) and exits 1. Never presented as SculptLine output: manifest has test_fixture=true."""
 import argparse, json, os, shutil, time, datetime
 ap = argparse.ArgumentParser(); ap.add_argument('--input'); ap.add_argument('--out'); ap.add_argument('--config'); ap.add_argument('--validator-profile')
 a = ap.parse_args(); os.makedirs(os.path.join(a.out, 'export'), exist_ok=True)

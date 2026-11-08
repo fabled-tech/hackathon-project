@@ -1,5 +1,7 @@
 # ROADMAP.md
 
+> **2026-11-08: renamed to SculptLine** (by Fabled). Code, CLIs and env vars use `sculptline_*` / `SCULPTLINE_*`; the old `fabled_*` / `FABLED_*` names still work as fallbacks. Data-format ids (`fabled.pipeline.manifest/0.1`, …) are unchanged. Entries below that describe past work keep their historical wording.
+
 ## Status (as of 2026-11-03)
 - **Pipeline v0.1:** works end-to-end on one real CC0 sculpt (frozen run `runs/20261025-224413`, which isn't in the kit). Its validator report is **pass** with 12 pass / 0 warn / 0 fail / 3 not_checked across 15 checks. Linux and Blender 4.5.15 only.
 - **Validator v0:** 15 + 1 checks, report schema 0.2.0. The test suite passes 95/95 here. It has only been tested on synthetic fixtures plus the pipeline's own Blender FBX.
@@ -20,8 +22,8 @@
 - Remaining CONCEPT MOCKUP labels in UI code (intentional; they mark stubs and previews): `public/index.html` global badge and right-viewer badge; `public/app.js` (stub status, browser decimation preview, test-fixture/mockup manifest badges, stub report pill); `server.mjs` stub fallbacks; `stub/*.CONCEPT_MOCKUP.json`; `landing-mockup/index.html` banner.
 
 ## Tickets
-1. **Run the pipeline on macOS arm64.** Scope: make `--blender`/`FABLED_BLENDER` work on a Mac Blender 4.5 build, and replace or rebuild vendored `fast_simplification` for Blender's Python. AC: the bust run completes with `status:"ok"`, and the validator passes with the bust profile. Record Mac wall-clock times as measured.
-2. **Unreal import test.** Scope: run `import_fabled_asset.py` on the frozen bust manifest in UE 5.4/5.5 and fix the API calls. AC: 4 LODs land in one StaticMesh, UE tri counts match the manifest, height reads ~53 cm, normal and ORM are hooked up, screenshots and fixes are committed, and the script header no longer says UNTESTED.
+1. **Run the pipeline on macOS arm64.** Scope: make `--blender`/`SCULPTLINE_BLENDER` work on a Mac Blender 4.5 build, and replace or rebuild vendored `fast_simplification` for Blender's Python. AC: the bust run completes with `status:"ok"`, and the validator passes with the bust profile. Record Mac wall-clock times as measured.
+2. **Unreal import test.** Scope: run `import_sculptline_asset.py` on the frozen bust manifest in UE 5.4/5.5 and fix the API calls. AC: 4 LODs land in one StaticMesh, UE tri counts match the manifest, height reads ~53 cm, normal and ORM are hooked up, screenshots and fixes are committed, and the script header no longer says UNTESTED.
 3. **Real-Blender upload path in the UI.** AC: upload of the sample head → Build → live progress → manifest → validator report, all with the real CLIs. A failed run shows its error.
 4. **Strip absolute paths from the frozen run.** AC: no absolute paths in any FBX or JSON of the demo bundle, and `build:demo` and `check:demo` both pass.
 5. **Fix Mochi geometry issues.** Scope: scale axis bug, rump cavity, paw spike, ear sliver, flipped UV faces, degenerate and reversed triangles. AC: the Mochi profile reports 0 fail, and height is within ±1 cm of 30 cm.

@@ -19,7 +19,7 @@ def main():
     for path in sorted(glob.glob(os.path.join(ROOT, "fixtures", "synthetic_*.*"))):
         if path.rsplit(".", 1)[-1] not in ("obj", "gltf", "glb", "fbx"):
             continue
-        p = subprocess.run([sys.executable, "-m", "fabled_validator", "check", path, "--profile", PROFILE, "--out", OUT],
+        p = subprocess.run([sys.executable, "-m", "sculptline_validator", "check", path, "--profile", PROFILE, "--out", OUT],
                            cwd=ROOT, capture_output=True, text=True)
         stem = os.path.basename(path).replace(".", "_")
         rep = json.load(open(os.path.join(OUT, f"{stem}.report.json")))
@@ -30,7 +30,7 @@ def main():
     demo = os.path.join(ROOT, "profiles", "demo_placeholder.json")
     for mdir in sorted(glob.glob(os.path.join(ROOT, "fixtures", "synthetic_pipeline_out*"))):
         sub = os.path.join(OUT, os.path.basename(mdir))
-        p = subprocess.run([sys.executable, "-m", "fabled_validator", "check", "--manifest", os.path.join(mdir, "manifest.json"),
+        p = subprocess.run([sys.executable, "-m", "sculptline_validator", "check", "--manifest", os.path.join(mdir, "manifest.json"),
                             "--profile", demo, "--out", sub], cwd=ROOT, capture_output=True, text=True)
         rep = json.load(open(glob.glob(os.path.join(sub, "*.report.json"))[0]))
         fl = [f"{c['id']} ({c['status']})" for c in rep["checks"] if c["status"] in ("warn", "fail")]

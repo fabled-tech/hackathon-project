@@ -1,11 +1,11 @@
 #!/usr/bin/env python3
-"""Native Python + NumPy mesh pipeline engine for Fabled (macOS / headless fallback).
+"""Native Python + NumPy mesh pipeline engine for SculptLine (macOS / headless fallback).
 
-Executes all 8 Fabled pipeline stages (01_import_measure -> 08_preview_composites)
+Executes all 8 SculptLine pipeline stages (01_import_measure -> 08_preview_composites)
 when the external Blender binary is not installed or when fast local execution is requested.
 Produces real welded & decimated LOD meshes (GLB 2.0 + Binary FBX 7400 with LodGroup),
 non-overlapping UVs, tangent-space Normal + AO/ORM PNG maps, wireframe/shaded preview PNGs,
-and full step JSONs consumed by build_manifest.py and validated by fabled_validator.
+and full step JSONs consumed by build_manifest.py and validated by sculptline_validator.
 """
 from __future__ import annotations
 
@@ -28,8 +28,8 @@ for p in (VALIDATOR_DIR, FIXTURES_DIR, HERE):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from fabled_validator.loaders import load_asset  # noqa: E402
-from fabled_validator.geometry import analyze as validator_analyze  # noqa: E402
+from sculptline_validator.loaders import load_asset  # noqa: E402
+from sculptline_validator.geometry import analyze as validator_analyze  # noqa: E402
 from _fbx_writer import Arr, C, D, I, L, N, P, S, write_fbx  # noqa: E402
 
 
@@ -444,7 +444,7 @@ def _write_fbx_lods(path: str, asset: str, lod_meshes: list[dict], include_lodgr
     hdr = N("FBXHeaderExtension").add(
         N("FBXHeaderVersion", I(1003)),
         N("FBXVersion", I(7400)),
-        N("Creator", S("Fabled Pipeline v0.1")),
+        N("Creator", S("SculptLine Pipeline v0.1")),
     )
     write_fbx(path, [hdr, gs, N("Documents").add(N("Count", I(0))), N("References"), N("Definitions").add(N("Version", I(100))), objects, conns])
 
@@ -529,7 +529,7 @@ def _write_glb_lod(path: str, asset: str, mesh_dict: dict, n_gl_path: str, orm_p
         blob.append(0)
 
     gltf = {
-        "asset": {"version": "2.0", "generator": "Fabled Pipeline v0.1"},
+        "asset": {"version": "2.0", "generator": "SculptLine Pipeline v0.1"},
         "scene": 0,
         "scenes": [{"name": "Scene", "nodes": [0]}],
         "nodes": [{"name": mesh_dict["name"], "mesh": 0}],
@@ -645,7 +645,7 @@ def _render_mesh_preview(pos_cm: np.ndarray, tris: np.ndarray, size: int = 512, 
 
 
 def run_native_pipeline(inp: str, out: str, cfg: dict, progress_cb=None):
-    """Run all 8 Fabled pipeline stages in pure Python + NumPy and populate <out>/work, export, previews."""
+    """Run all 8 SculptLine pipeline stages in pure Python + NumPy and populate <out>/work, export, previews."""
     work_dir = os.path.join(out, "work")
     export_dir = os.path.join(out, "export")
     previews_dir = os.path.join(out, "previews")

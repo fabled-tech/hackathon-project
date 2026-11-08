@@ -189,11 +189,11 @@ export function initWorkspace(hooks) {
     const s = st.status;
     const rows = [];
     if (s) {
-      rows.push(conn('pipeline', 'Pipeline', s.pipeline.available ? 'fabled_pipeline.py found' : s.pipeline.forced_off ? 'forced to stub (FABLED_PIPELINE=off)' : 'not found: stub', s.pipeline.available ? 'ok' : 'mock', s.pipeline.command_preview));
+      rows.push(conn('pipeline', 'Pipeline', s.pipeline.available ? `${s.pipeline.script || 'pipeline script'} found` : s.pipeline.forced_off ? 'forced to stub (SCULPTLINE_PIPELINE=off)' : 'not found: stub', s.pipeline.available ? 'ok' : 'mock', s.pipeline.command_preview));
       rows.push(conn('engine', 'Blender engine', s.pipeline.blender_path ? 'Headless Blender found' : 'Blender not found: Native Python/NumPy fallback', s.pipeline.blender_path ? 'ok' : 'warn', s.pipeline.blender_path || ''));
-      rows.push(conn('validator', 'Validator', s.validator.available ? `fabled_validator${s.validator.supports_manifest ? ' · --manifest' : ''}` : 'not found: stub', s.validator.available ? 'ok' : 'mock', s.validator.command_preview));
+      rows.push(conn('validator', 'Validator', s.validator.available ? `${s.validator.module || 'validator CLI'}${s.validator.supports_manifest ? ' · --manifest' : ''}` : 'not found: stub', s.validator.available ? 'ok' : 'mock', s.validator.command_preview));
     } else rows.push(conn('pipeline', 'Pipeline & validator', 'checking…', 'neutral'));
-    rows.push(conn('unreal', 'Unreal import', 'Draft script, never run (ROADMAP ticket 2)', 'neutral', 'unreal/import_fabled_asset.py'));
+    rows.push(conn('unreal', 'Unreal import', 'Draft script, never run (ROADMAP ticket 2)', 'neutral', 'unreal/import_sculptline_asset.py'));
     box.innerHTML = rows.join('') + `<div class="conn-sub">AI providers <button type="button" class="linkish" id="conn-open-gen">Generate…</button></div>` +
       (st.providers.length ? st.providers.map((p) => conn(`prov-${p.id}`, p.name,
         p.configured ? `${p.kind_labels.join(' · ')}` : `set ${p.env.join(' / ')} to enable`,

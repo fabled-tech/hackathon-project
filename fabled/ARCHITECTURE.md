@@ -2,10 +2,10 @@
 
 ```
 high-poly sculpt (.obj/.ply/.stl/.fbx/.glb/.gltf)
-  └─ pipeline (fabled_pipeline.py → headless Blender 4.5, one process per step)
+  └─ pipeline (sculptline_pipeline.py → headless Blender 4.5, one process per step)
        └─ <out>/manifest.json  (fabled.pipeline.manifest/0.1) + export/ + previews/ + report.json
-            └─ validator (python -m fabled_validator check --manifest …)  → report JSON/HTML (schema_version 0.2.0)
-                 └─ Unreal import (unreal/import_fabled_asset.py — untested)
+            └─ validator (python -m sculptline_validator check --manifest …)  → report JSON/HTML (schema_version 0.2.0)
+                 └─ Unreal import (unreal/import_sculptline_asset.py — untested)
 UI (server.mjs) orchestrates upload → pipeline → validator over /api/*, and renders manifest + report.
 ```
 
@@ -30,9 +30,9 @@ Report (`schema/report.schema.json`, `schema_version` 0.2.0): asset (path, sha25
 Profiles (`validator/profiles/`, all example/placeholder values): `example_studio`, `demo_placeholder` (char, Y-up 150–220 cm), `demo_placeholder_prop` (Z-up 20–80 cm, 20k/10k/5k/2k), `demo_placeholder_mochi_character` (Y-up 20–40 cm). Pipeline-side copies in `pipeline/config/validator_profile_{bust,mochi}.json` (Mochi: Z-up 20–45 cm).
 
 ## UI ↔ data
-`server.mjs` (port `PORT`, default 5178; host `HOST`) shells out to pipeline/validator if found, else serves `stub/*.CONCEPT_MOCKUP.json`. Env: `FABLED_PIPELINE=off`, `FABLED_VALIDATOR=off`, `FABLED_PIPELINE_CMD`, `FABLED_VALIDATOR_CMD`, `FABLED_PIPELINE_MANIFEST`, `FABLED_CLI_TIMEOUT_MS`, `FABLED_USE_DEMO_PROP_PROFILE`, `PYTHON`.
+`server.mjs` (port `PORT`, default 5178; host `HOST`) shells out to pipeline/validator if found, else serves `stub/*.CONCEPT_MOCKUP.json`. Env: `SCULPTLINE_PIPELINE=off`, `SCULPTLINE_VALIDATOR=off`, `SCULPTLINE_PIPELINE_CMD`, `SCULPTLINE_VALIDATOR_CMD`, `SCULPTLINE_PIPELINE_MANIFEST`, `SCULPTLINE_CLI_TIMEOUT_MS`, `SCULPTLINE_USE_DEMO_PROP_PROFILE`, `PYTHON`.
 API (ui/INTERFACES.md §4): `GET /api/status`; `POST /api/jobs?filename=` (raw bytes); `POST /api/jobs/<id>/process` (UI profile `fabled.import_profile/0.1`); `GET …/progress` (reads progress.json); `GET …/result`; `POST …/validate`; `GET …/files/<rel>`; `POST /api/open-output?dir=` (read-only: `pipeline/output`, `pipeline/runs`, `ui/test_fixtures/*`); `GET /api/saved-reports`, `/api/saved-report?path=`. Jobs live in `ui/work/<job>/`. Browser loads LOD GLBs (FBX fallback) via three.js and keys report rows on check `id`.
 Static demo: `npm run build:demo` bundles the frozen run + its validator report into `dist/` (refuses stubs/fixtures/non-ok manifests); demo mode via `<meta name="fabled-demo">` or `?demo=1`. `vercel.json` is prepped; **not deployed**.
 
 ## Unreal
-`import_fabled_asset.py` reads the manifest, imports the combined FBX via `AssetImportTask` + `FbxImportUI` (scale 1.0, since 1 unit = 1 cm), falls back to per-LOD files, logs per-LOD tri counts. Targets UE 5.3–5.5. Never executed.
+`import_sculptline_asset.py` reads the manifest, imports the combined FBX via `AssetImportTask` + `FbxImportUI` (scale 1.0, since 1 unit = 1 cm), falls back to per-LOD files, logs per-LOD tri counts. Targets UE 5.3–5.5. Never executed.

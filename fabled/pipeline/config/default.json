@@ -1,5 +1,5 @@
 {
-  "_comment": "Fabled mesh pipeline config. Tri budgets are triangles AFTER triangulation (what Unreal counts).",
+  "_comment": "SculptLine mesh pipeline config. Tri budgets are triangles AFTER triangulation (what Unreal counts).",
   "asset_name": null,
   "source_up_axis": "Y",
   "_source_up_axis_note": "Used when fabled_profile.up_axis is absent. Y = source is Y-up (rotated to Z-up on import); Z = already Z-up.",

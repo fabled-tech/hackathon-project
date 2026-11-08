@@ -1,4 +1,4 @@
-# Fabled mesh pipeline: prototype v0.1
+# SculptLine mesh pipeline: prototype v0.1
 
 Headless Blender (bpy) scripts that take one real high-poly sculpt or scan and turn it into an Unreal-ready static mesh: import and measure, retopology, UVs, a LOD chain built from tri budgets, normal and AO bakes, binary FBX (cm, LodGroup) plus GLB, and preview renders. Every number below and in `manifest.json` / `report.json` was measured by the pipeline on this box. **No "time saved" figures anywhere.** The runtimes are this machine's wall-clock only.
 
@@ -6,12 +6,17 @@ Headless Blender (bpy) scripts that take one real high-poly sculpt or scan and t
 
 ```bash
 cd prototype/pipeline
-python3 fabled_pipeline.py --input input/raw/HK_NPG_75_16-full_resolution-obj.obj \
+python3 sculptline_pipeline.py --input input/raw/HK_NPG_75_16-full_resolution-obj.obj \
     --out output --config config/default.json --asset-name HelenKellerBust \
     --validator-profile config/validator_profile_bust.json --freeze
 # The UI's call (also works):
-python3 fabled_pipeline.py --input <sculpt> --out <job>/out --config <job>/pipeline_config.json
+python3 sculptline_pipeline.py --input <sculpt> --out <job>/out --config <job>/pipeline_config.json
 ```
+
+The driver was renamed from `fabled_pipeline.py` in the SculptLine rebrand. `fabled_pipeline.py` remains as a deprecated
+shim that runs `sculptline_pipeline.py` with the same arguments and exit code. The Blender add-on is
+`blender_sculptline_addon.py` (sidebar tab "SculptLine"). Manifests keep `"schema": "fabled.pipeline.manifest/0.1"`;
+new manifests say `"tool": {"name": "SculptLine pipeline"}` (older ones say `fabled-pipeline`).
 
 | CLI flag | Meaning |
 |---|---|
@@ -21,7 +26,7 @@ python3 fabled_pipeline.py --input <sculpt> --out <job>/out --config <job>/pipel
 | `--asset-name` | Name used in `SM_`/`T_`/`M_` file names. Default: config `asset_name`, otherwise the input file stem, sanitised for Unreal |
 | `--validator-profile` | Validator profile JSON. It is copied to `<out>/validator_profile.json`, and the manifest's `profile` field points at that copy |
 | `--freeze` | On success, copy `<out>` to `runs/<ts>/` (without the multi-GB `.blend` intermediates) and repoint `runs/latest` and `runs/latest.txt`. Earlier runs are never deleted |
-| `--blender` | Blender binary. Default: `$FABLED_BLENDER`, otherwise `~/blender/blender-4.5.15-linux-x64/blender` |
+| `--blender` | Blender binary. Default: `$SCULPTLINE_BLENDER` (the old `$FABLED_BLENDER` still works; the new name wins if both are set), otherwise `~/blender/blender-4.5.15-linux-x64/blender` |
 | `--steps` | Dev only: run a subset, e.g. `05,06` |
 
 Exit code 0 means success, and `<out>/manifest.json` has `status:"ok"`. Exit code 1 means a step failed: `manifest.json` is still written with `status:"failed"`, `error`, the failing step marked `"failed"` and an explanation in `warnings[]`. While the run is going, `<out>/progress.json` is rewritten at the start and end of every step:
@@ -105,7 +110,7 @@ LOD budgets are **hard maxima**. `within_tolerance` means `budget·(1−lod_tole
 2. **UVs are automatic:** Smart UV seams are not artist-placed, and 121 islands with 64% use wastes texels.
 3. **LOD1–3** are collapse-decimated triangles that reuse LOD0's maps. No per-LOD bake.
 4. **Materials:** no base colour (the scan has none). Roughness and metallic are constants. No Unreal material graph is built; the FBX only references `T_*_N` and `T_*_ORM`.
-5. **No Unreal import test.** The LodGroup pickup, scale in-editor and material hookup are unverified in UE (checked only by Blender re-import and the Fabled validator).
+5. **No Unreal import test.** The LodGroup pickup, scale in-editor and material hookup are unverified in UE (checked only by Blender re-import and the SculptLine validator).
 6. No collision, no lightmap UV channel, no skeleton or skinning (`skinning: not_implemented`).
 7. Source units are inferred (inches). A human needs to confirm them.
 8. Preview framing (head close-up) is tuned to this asset (`previews.closeup_*` in config).

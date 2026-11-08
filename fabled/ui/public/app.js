@@ -1,4 +1,4 @@
-// Fabled demo UI: wiring. See INTERFACES.md for the server/pipeline/validator contracts.
+// SculptLine UI: wiring. See INTERFACES.md for the server/pipeline/validator contracts.
 import * as THREE from 'three';
 import { loadModel, flatten, SUPPORTED } from './loaders.js';
 import { weld, analyzeTopology, flipTriangles, decimateToTarget, triCount } from './meshops.js';
@@ -26,7 +26,7 @@ const state = {
   manifest: null, manifestSource: null, validator: null, status: null, lodsStale: false,
   engine: 'blender', selectedEngine: 'blender', activeAssetId: null,
 };
-window.__fabled = state; // for debugging / headless verification
+window.__sculptline = window.__fabled = state; // for debugging / headless verification (__fabled: pre-rebrand alias)
 
 // ---------- viewers ----------
 const left = new SideViewer($('view-left'));
@@ -180,10 +180,10 @@ async function refreshStatus() {
   } catch (e) { $('chip-pipeline').textContent = 'Server offline'; $('chip-validator').textContent = 'Server offline'; console.warn('status failed', e); }
   updateMockupBadge();
 }
-// ---------- static demo mode (?demo=1, or the build-time <meta name="fabled-demo"> in dist/) ----------
+// ---------- static demo mode (?demo=1, or the build-time <meta name="sculptline-demo"> in dist/; dists built before the rebrand carry "fabled-demo") ----------
 // Reads only the pre-processed files in demo-data/ (a real pipeline run + its recorded validator report). No /api calls,
 // no upload, no Build, no stubs or fixtures.
-const DEMO = new URLSearchParams(location.search).get('demo') === '1' || !!document.querySelector('meta[name="fabled-demo"]');
+const DEMO = new URLSearchParams(location.search).get('demo') === '1' || !!document.querySelector('meta[name="sculptline-demo"], meta[name="fabled-demo"]');
 const DEMO_BASE = 'demo-data/';
 const fmtPT = (iso) => { const d = new Date(iso); return isNaN(d) ? null : d.toLocaleString('en-US', { timeZone: 'America/Los_Angeles', dateStyle: 'medium', timeStyle: 'short' }) + ' PT'; };
 async function enterDemo() {
@@ -192,7 +192,7 @@ async function enterDemo() {
   // upload, Build, saved reports and the editable profile are hidden (CSS body.demo .demo-hide), not used
   for (const id of ['btn-open-output', 'btn-open-frozen', 'dropzone', 'btn-process', 'process-status', 'saved-reports', 'btn-saved-report', 'btn-show-edit', 'edit-profile', 'edit-profile-tag']) $(id).classList.add('demo-hide');
   $('global-mockup').textContent = ''; $('right-badge').textContent = '';
-  document.querySelector('footer').textContent = 'Fabled (Fable Technologies) · pre-processed real pipeline run · every figure is computed from the files shown or read from the recorded validator report.';
+  document.querySelector('footer').textContent = 'SculptLine by Fabled (Fable Technologies) · pre-processed real pipeline run · every figure is computed from the files shown or read from the recorded validator report.';
   try {
     const get = async (rel) => { const r = await fetch(DEMO_BASE + rel); if (!r.ok) throw new Error(`${rel}: HTTP ${r.status}`); return r.json(); };
     const info = await get('demo.json');
@@ -216,7 +216,7 @@ function updateMockupBadge() {
   if (DEMO) { $('global-mockup').hidden = true; return; }
   const reasons = [];
   if (state.status && !state.status.pipeline.available && !manifestIsReal(state.manifest)) reasons.push('pipeline not connected: retopo/LOD view is a browser decimation preview');
-  if (state.lods.some((l) => l.source === 'preview')) reasons.push('LOD meshes shown are browser decimation previews, not Fabled output');
+  if (state.lods.some((l) => l.source === 'preview')) reasons.push('LOD meshes shown are browser decimation previews, not SculptLine output');
   if (state.lods.length && state.manifest?.test_fixture) reasons.push('manifest is a TEST FIXTURE (not written by the pipeline)');
   else if (state.lods.some((l) => l.mock)) reasons.push('pipeline manifest is marked concept_mockup');
   if (state.validator?.concept_mockup) reasons.push('validator report is stub data, not computed from your file');
@@ -406,7 +406,7 @@ function showPipelineError(resp, profile) {
   const b = document.createElement('button'); b.className = 'btn fix'; b.id = 'btn-preview-fallback';
   b.textContent = 'Show browser decimation preview instead (CONCEPT MOCKUP)';
   b.onclick = async () => { state.lods = []; await buildPreviewLods(profile); busy(null);
-    finishLods('Pipeline failed; right view is a browser decimation preview (CONCEPT MOCKUP), not Fabled output.'); await recheck(); updateMockupBadge(); };
+    finishLods('Pipeline failed; right view is a browser decimation preview (CONCEPT MOCKUP), not SculptLine output.'); await recheck(); updateMockupBadge(); };
   el.appendChild(b);
 }
 
@@ -576,7 +576,7 @@ function showLod(i) {
   const preview = l.source === 'preview';
   $('right-title').textContent = preview ? `LOD${l.level} preview` : `Retopo LOD${l.level}`;
   $('right-badge').hidden = !(preview || l.mock);
-  $('right-badge').textContent = preview ? 'CONCEPT MOCKUP · browser decimation preview, not Fabled output'
+  $('right-badge').textContent = preview ? 'CONCEPT MOCKUP · browser decimation preview, not SculptLine output'
     : l.fixture ? 'CONCEPT MOCKUP · TEST FIXTURE manifest (not written by the pipeline)' : 'CONCEPT MOCKUP · pipeline manifest is marked concept_mockup';
   $('right-stats').textContent = `${fmt(l.tris)} tris · ${fmt(l.verts)} verts (computed from ${preview ? 'preview mesh' : `loaded ${l.format?.toUpperCase() || 'file'}`})` +
     (l.budget != null ? ` · budget ${fmt(l.budget)}` : '') + (l.manifestTris != null ? ` · manifest says ${fmt(l.manifestTris)}` : '') +
@@ -676,7 +676,7 @@ function renderUsedProfile() {
   $('up-rows').innerHTML = rows.join('');
 }
 
-// Validator report (fabled_validator, schema report.schema.json 0.1.0) or the CONCEPT MOCKUP stub.
+// Validator report (sculptline_validator, formerly fabled_validator; schema report.schema.json 0.1.0) or the CONCEPT MOCKUP stub.
 const STATUS_MAP = { pass: ['info', true], warn: ['warning', false], fail: ['error', false], not_checked: ['info', null] };
 const itemLabel = (it) => (typeof it === 'string' ? it : it?.object || it?.mesh || it?.name || it?.file || it?.material || null);
 export function normalizeChecks(report) {
@@ -705,7 +705,7 @@ async function runValidator(profile) {
   head.innerHTML = '';
   if (DEMO) {
     const rep = state.demo.report; state.validator = rep; state.validatorJob = rep;
-    renderReportHead(rep, `fabled_validator ${rep.tool?.version ?? ''} · real report (recorded)`);
+    renderReportHead(rep, `${validatorTool(rep)} · real report (recorded)`);
     const tgt = rep.manifest?.path ? 'the run manifest' : (rep.asset?.file_name || (rep.asset?.path || '').split('/').pop() || 'the run');
     note.textContent = `Recorded validator report (${state.demo.info.validator_report_origin || 'recorded'}), generated ${fmtPT(rep.generated_at) || 'n/a'} on ${tgt}. Profile file: ${state.demo.info.validator_profile_file}. Not re-run in the browser.`;
     renderChecks(list, normalizeChecks(rep)); return;
@@ -721,7 +721,7 @@ async function runValidator(profile) {
     if (rep.concept_mockup) {
       src.textContent = 'CONCEPT MOCKUP · stub, not from your file'; src.className = 'pill mock'; note.textContent = rep.concept_mockup_note || '';
     } else {
-      renderReportHead(rep, `fabled_validator ${rep.tool?.version ?? ''} · real report`);
+      renderReportHead(rep, `${validatorTool(rep)} · real report`);
       const t = j.target || {};
       note.textContent = `Profile file: ${(j.profile_used || '').split('/').slice(-2).join('/')} · Checked ${t.kind === 'manifest' ? 'pipeline manifest' : t.kind === 'combined_fbx' ? 'combined FBX' : 'uploaded sculpt'}: ${(t.path || rep.asset?.path || '').split('/').pop()} · exit ${j.exit_code}`;
     }
@@ -729,8 +729,10 @@ async function runValidator(profile) {
   } catch (e) { src.textContent = 'error'; note.textContent = String(e); console.warn(e); }
 }
 
-// Headline for a real fabled_validator report (schema 0.1.0 / 0.2.0): overall_status, summary as-is,
+// Headline for a real validator report (schema 0.1.0 / 0.2.0): overall_status, summary as-is,
 // complete, error (incl. manifest_error), profile name (DEMO PLACEHOLDER label shown prominently), manifest object.
+// Tool name as recorded in the report (reports written before the rebrand say fabled_validator), then the version.
+const validatorTool = (rep) => `${rep.tool?.name || 'sculptline_validator'} ${rep.tool?.version ?? ''}`;
 function renderReportHead(rep, label) {
   const src = $('validator-source'); src.textContent = label; src.className = 'pill real';
   const os = rep.overall_status; const sm = rep.summary; const pn = rep.profile?.name || '';
@@ -758,11 +760,11 @@ async function showSavedReport(rel) {
   const j = await (await fetch(`/api/saved-report?path=${encodeURIComponent(rel)}`)).json();
   if (!j.ok) { $('validator-note').textContent = j.error; return; }
   const rep = j.report; state.validator = rep;
-  renderReportHead(rep, `fabled_validator ${rep.tool?.version ?? ''} · real report (saved file)`);
+  renderReportHead(rep, `${validatorTool(rep)} · real report (saved file)`);
   $('validator-note').textContent = `Saved report: validator/reports/${rel} · asset ${rep.asset?.file_name ?? ''} · generated ${rep.generated_at_display || rep.generated_at_local || rep.generated_at || ''}`;
   renderChecks($('checks-validator'), normalizeChecks(rep)); updateMockupBadge();
 }
-window.__fabledShowSavedReport = showSavedReport;
+window.__sculptlineShowSavedReport = window.__fabledShowSavedReport = showSavedReport; // __fabled…: pre-rebrand alias
 
 export function renderChecks(ul, checks) {
   ul.innerHTML = '';

@@ -213,7 +213,7 @@ def build(out, cfg, inp, state, source_meta_path=None, blender_version="unknown"
                    "record_urls": src.get("record_urls"),
                    "source_json": "SOURCE.json" if os.path.exists(os.path.join(out, "SOURCE.json")) else None,
                    "units_needs_human_confirmation": (src.get("units") or {}).get("needs_human_confirmation")},
-        "tool": {"name": "fabled-pipeline", "version": TOOL_VERSION, "blender_version": blender_version},
+        "tool": {"name": "SculptLine pipeline", "version": TOOL_VERSION, "blender_version": blender_version},
         "input": {"sculpt_path": r(inp), "sculpt_path_abs": inp, "format": s1.get("input_format", os.path.splitext(inp)[1]).lstrip("."),
                   "bytes": s1.get("input_bytes"),
                   "triangles": (s1.get("highpoly") or {}).get("tris"), "vertices": (s1.get("highpoly") or {}).get("verts"),

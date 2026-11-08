@@ -9,10 +9,10 @@ import numpy as np
 import pytest
 
 from conftest import FIX, PROFILE, ROOT
-from fabled_validator import exit_code_for, validate
-from fabled_validator.geometry import analyze
-from fabled_validator.images import image_size
-from fabled_validator.model import Mesh
+from sculptline_validator import exit_code_for, validate
+from sculptline_validator.geometry import analyze
+from sculptline_validator.images import image_size
+from sculptline_validator.model import Mesh
 
 ALL_FIXTURES = sorted(f for f in os.listdir(FIX) if f.startswith("synthetic_") and f.rsplit(".", 1)[-1] in ("obj", "gltf", "glb", "fbx"))
 
@@ -291,7 +291,7 @@ def test_every_report_matches_schema(name):
 
 
 def test_cli_json_only_and_exit_codes(tmp_path):
-    cmd = [sys.executable, "-m", "fabled_validator", "check"]
+    cmd = [sys.executable, "-m", "sculptline_validator", "check"]
     ok = subprocess.run(cmd + [os.path.join(FIX, "synthetic_storyboard_fixed.gltf"), "--profile", PROFILE, "--json-only"], cwd=ROOT, capture_output=True, text=True)
     assert ok.returncode == 0 and json.loads(ok.stdout)["overall_status"] == "pass"
     bad = subprocess.run(cmd + [os.path.join(FIX, "synthetic_storyboard_two_flags.gltf"), "--profile", PROFILE, "--json-only"], cwd=ROOT, capture_output=True, text=True)
@@ -304,7 +304,7 @@ def test_cli_json_only_and_exit_codes(tmp_path):
 
 
 def test_html_shows_only_measured_values(tmp_path):
-    from fabled_validator.html_report import render_html
+    from sculptline_validator.html_report import render_html
     rep = run("synthetic_storyboard_two_flags.gltf")
     h = render_html(rep)
     assert "2 items flagged" in h and "18,000 cm" in h and "128 of 4,896" in h
@@ -314,7 +314,7 @@ def test_html_shows_only_measured_values(tmp_path):
 
 
 def test_html_keeps_full_messages_and_balances_columns():
-    from fabled_validator.html_report import _split, render_html
+    from sculptline_validator.html_report import _split, render_html
     rep = validate(os.path.join(FIX, "synthetic_storyboard_two_flags.gltf"), os.path.join(ROOT, "profiles", "example_studio.json"))
     k0 = _split(rep["checks"])
     long = "x " * 400

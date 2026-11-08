@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Fabled demo UI: tiny local server (no dependencies beyond Node 18+).
+// SculptLine UI: tiny local server (no dependencies beyond Node 18+).
 // - Serves the static UI (public/), three.js from node_modules, and the sample sculpts.
 // - /api/* shells out to the pipeline / validator CLIs if present (see INTERFACES.md),
 //   otherwise returns the CONCEPT MOCKUP stub JSON from stub/.
@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import crypto from 'node:crypto';
 import { buildWorkspace, NotesStore, ActivityLog, validAssetId } from './workspace.mjs';
 import { listProviders, getProvider, TaskStore, downloadModel, KIND_LABELS } from './providers/index.mjs';
+import { env } from './env.mjs'; // SCULPTLINE_<NAME>, falling back to the legacy FABLED_<NAME>
 
 const UI_DIR = path.dirname(fileURLToPath(import.meta.url));
 const PROTO_DIR = path.resolve(UI_DIR, '..');
@@ -21,7 +22,7 @@ const VALIDATOR_DIR = path.join(PROTO_DIR, 'validator');
 const WORK_DIR = path.join(UI_DIR, 'work');
 const PORT = Number(process.env.PORT || 5178);
 const HOST = process.env.HOST || '127.0.0.1';
-const CLI_TIMEOUT_MS = Number(process.env.FABLED_CLI_TIMEOUT_MS || 60 * 60 * 1000);
+const CLI_TIMEOUT_MS = Number(env('CLI_TIMEOUT_MS') || 60 * 60 * 1000);
 // Connected workspace state (all under the gitignored work/ folder)
 const activity = new ActivityLog(path.join(WORK_DIR, 'activity.jsonl'));
 const notes = new NotesStore(path.join(WORK_DIR, 'workspace_notes.json'));
@@ -39,15 +40,17 @@ const exists = (p) => { try { fs.accessSync(p); return true; } catch { return fa
 const listDocs = (dir) => exists(dir) ? fs.readdirSync(dir).filter((f) => /^(INTERFACE|INTERFACES|README)(\.md)?$/i.test(f)).map((f) => path.join(dir, f)) : [];
 
 // ---- CLI discovery (resolved contracts, see INTERFACES.md) ----
-// Pipeline:  python3 pipeline/fabled_pipeline.py --input <mesh> --out <dir> --config <cfg.json>
+// Pipeline:  python3 pipeline/sculptline_pipeline.py --input <mesh> --out <dir> --config <cfg.json>
 //            writes <out>/progress.json during the run and <out>/manifest.json at the end (also on failure).
-// Validator: validator/.venv/bin/python -m fabled_validator check <asset> --profile <p.json> --json-only
+// Validator: validator/.venv/bin/python -m sculptline_validator check <asset> --profile <p.json> --json-only
+// Pre-rebrand checkouts only have pipeline/fabled_pipeline.py and the fabled_validator package; those are used as a fallback.
 //            (cwd validator/), report JSON on stdout, exit 0 = no flags, 1 = warn/fail, 2 = error (stdout still a report).
 const off = (v) => /^(0|off|false|stub)$/i.test(v || '');
 const PY = process.env.PYTHON || 'python3';
 
 function findBlender() {
-  if (process.env.FABLED_BLENDER && exists(process.env.FABLED_BLENDER)) return process.env.FABLED_BLENDER;
+  const fromEnv = env('BLENDER');
+  if (fromEnv && exists(fromEnv)) return fromEnv;
   const inPath = which('blender') || which('Blender');
   if (inPath && exists(inPath)) return inPath;
   for (const cand of [
@@ -70,23 +73,26 @@ function helpHas(key, cmd, args, cwd, flag, extraEnv = {}) {
   const v = `${r.stdout || ''}${r.stderr || ''}`.includes(flag);
   helpCache.set(key, { t: Date.now(), v }); return v;
 }
-const pipelinePy = () => path.join(PIPELINE_DIR, 'fabled_pipeline.py');
+const pipelinePy = () => { const p = path.join(PIPELINE_DIR, 'sculptline_pipeline.py'); return exists(p) ? p : path.join(PIPELINE_DIR, 'fabled_pipeline.py'); };
+// Validator module: the renamed package first, the legacy name if only that one is present (null when neither is).
+const validatorModule = () => ['sculptline_validator', 'fabled_validator'].find((m) => exists(path.join(VALIDATOR_DIR, m, '__main__.py'))) || null;
 const pipelineTakesAssetName = () => exists(pipelinePy()) && helpHas('p-aname', PY, [pipelinePy(), '--help'], PIPELINE_DIR, '--asset-name');
 const pipelineTakesValidatorProfile = () => exists(pipelinePy()) && helpHas('p-vprof', PY, [pipelinePy(), '--help'], PIPELINE_DIR, '--validator-profile');
-const validatorTakesManifest = () => helpHas('v-manifest', venvPython(), ['-m', 'fabled_validator', 'check', '--help'], VALIDATOR_DIR, '--manifest', {
+const validatorTakesManifest = () => helpHas(`v-manifest:${validatorModule()}`, venvPython(), ['-m', validatorModule(), 'check', '--help'], VALIDATOR_DIR, '--manifest', {
   PYTHONPATH: process.env.PYTHONPATH ? `${VALIDATOR_DIR}:${process.env.PYTHONPATH}` : VALIDATOR_DIR,
 });
 
 function pipelineCommand(input, profile, outDir, config, validatorProfile, assetName = null, engine = null) {
-  if (off(process.env.FABLED_PIPELINE)) return null;
+  if (off(env('PIPELINE'))) return null;
   const blenderFlag = (engine === 'native')
     ? 'none'
     : (engine === 'blender'
       ? (findBlender() || '/opt/homebrew/bin/blender')
       : (findBlender() || 'none'));
 
-  if (process.env.FABLED_PIPELINE_CMD) {
-    return ['sh', ['-c', fill(process.env.FABLED_PIPELINE_CMD, {
+  const pipelineCmd = env('PIPELINE_CMD');
+  if (pipelineCmd) {
+    return ['sh', ['-c', fill(pipelineCmd, {
       input, profile, out: outDir, config, validator_profile: validatorProfile, blender: blenderFlag, engine: engine || (blenderFlag === 'none' ? 'native' : 'blender')
     })]];
   }
@@ -98,12 +104,14 @@ function pipelineCommand(input, profile, outDir, config, validatorProfile, asset
 }
 // manifest: path to <out>/manifest.json when known. Preferred when the validator supports --manifest.
 function validatorCommand(asset, profile, manifest) {
-  if (off(process.env.FABLED_VALIDATOR)) return null;
-  if (process.env.FABLED_VALIDATOR_CMD) return ['sh', ['-c', fill(process.env.FABLED_VALIDATOR_CMD, { asset, profile, manifest })]];
-  if (!exists(path.join(VALIDATOR_DIR, 'fabled_validator', '__main__.py'))) return null;
-  if (manifest && validatorTakesManifest()) return [venvPython(), ['-m', 'fabled_validator', 'check', '--manifest', manifest, '--profile', profile, '--json-only']];
+  if (off(env('VALIDATOR'))) return null;
+  const validatorCmd = env('VALIDATOR_CMD');
+  if (validatorCmd) return ['sh', ['-c', fill(validatorCmd, { asset, profile, manifest })]];
+  const mod = validatorModule();
+  if (!mod) return null;
+  if (manifest && validatorTakesManifest()) return [venvPython(), ['-m', mod, 'check', '--manifest', manifest, '--profile', profile, '--json-only']];
   if (!asset) return null;
-  return [venvPython(), ['-m', 'fabled_validator', 'check', asset, '--profile', profile, '--json-only']];
+  return [venvPython(), ['-m', mod, 'check', asset, '--profile', profile, '--json-only']];
 }
 const venvPython = () => { const v = path.join(VALIDATOR_DIR, '.venv', 'bin', 'python'); return exists(v) ? v : PY; };
 const shq = (s) => `'${String(s).replace(/'/g, `'\\''`)}'`;
@@ -115,21 +123,21 @@ function status() {
   const v = validatorCommand('ASSET', 'PROFILE');
   return {
     pipeline: { dir: PIPELINE_DIR, dir_exists: exists(PIPELINE_DIR), available: !!p, command_preview: p ? [p[0], ...p[1]].join(' ') : null,
-      forced_off: off(process.env.FABLED_PIPELINE), supports_validator_profile: pipelineTakesValidatorProfile(), supports_asset_name: pipelineTakesAssetName(), frozen_run: frozenRun(), latest_output_manifest: exists(path.join(PIPELINE_DIR, 'output', 'manifest.json')),
+      forced_off: off(env('PIPELINE')), script: exists(pipelinePy()) ? path.basename(pipelinePy()) : null, supports_validator_profile: pipelineTakesValidatorProfile(), supports_asset_name: pipelineTakesAssetName(), frozen_run: frozenRun(), latest_output_manifest: exists(path.join(PIPELINE_DIR, 'output', 'manifest.json')),
       blender_path: blenderPath,
       engines: { blender: !!blenderPath, native: true } },
     validator: { dir: VALIDATOR_DIR, dir_exists: exists(VALIDATOR_DIR), available: !!v, command_preview: v ? [v[0], ...v[1]].join(' ') : null,
-      forced_off: off(process.env.FABLED_VALIDATOR), supports_manifest: !!v && validatorTakesManifest() },
+      forced_off: off(env('VALIDATOR')), module: validatorModule(), supports_manifest: !!v && validatorTakesManifest() },
   };
 }
 
-const MANIFEST_NAME = process.env.FABLED_PIPELINE_MANIFEST || 'manifest.json';
+const MANIFEST_NAME = env('PIPELINE_MANIFEST') || 'manifest.json';
 
 // Translate the UI import profile into the pipeline's own config format
 // (prototype/pipeline/config/default.json as observed on 2026-10-25), keeping every other default.
 const UNIT_TO_M = { m: 1, cm: 0.01, mm: 0.001 };
 // Translate the UI import profile into the validator's profile format
-// (prototype/validator/fabled_validator/profile.py DEFAULTS as observed on 2026-10-25).
+// (validator/sculptline_validator/profile.py, formerly fabled_validator, DEFAULTS as observed on 2026-10-25).
 // exportMode = validating pipeline output (manifest / combined FBX): the pipeline already baked units and scale in
 // and exports with its own up axis, so axes.up comes from the manifest's export_up_axis (default Z), import_scale
 // stays 1.0, and units follow the manifest's unreal_units. Raw uploads get the UI's up axis, units and scale.
@@ -161,7 +169,7 @@ async function profileToPipelineConfig(profile, opts = {}) {
   if (profile.asset_class?.height_cm) cfg.expected_height_cm_range = profile.asset_class.height_cm;
   if (Array.isArray(profile.lod_budget)) cfg.lods = profile.lod_budget.map((l) => ({ name: `LOD${l.level}`, target_tris: l.max_triangles, screen_size: l.screen_size }));
   if (profile.texel_density?.texture_size) cfg.bake = { ...(cfg.bake || {}), resolution: profile.texel_density.texture_size };
-  cfg.fabled_profile = profile; // full UI profile (skeleton, texel density target, up axis) for steps that want it
+  cfg.fabled_profile = profile; // config key read by the pipeline (kept on purpose: wire format); full UI profile (skeleton, texel density target, up axis) for steps that want it
   cfg._generated_by = 'prototype/ui/server.mjs from the UI import profile';
   return cfg;
 }
@@ -296,7 +304,7 @@ async function api(req, res, url) {
     await writeJob(dir, job);
     // The profile the validator will use for this read-only job (same rule as /validate), so the UI can show it.
     const demoProp = path.join(VALIDATOR_DIR, 'profiles', 'demo_placeholder_prop.json');
-    const vprof = exists(demoProp) && !off(process.env.FABLED_USE_DEMO_PROP_PROFILE) ? { path: demoProp, content: await readJsonIf(demoProp) } : null;
+    const vprof = exists(demoProp) && !off(env('USE_DEMO_PROP_PROFILE')) ? { path: demoProp, content: await readJsonIf(demoProp) } : null;
     return send(res, 200, { ok: true, source: 'pipeline_output', job_id: id, asset_id: assetId, out_dir: want, manifest, manifest_path: mPath, export_asset: job.export_asset, validator_profile: vprof });
   }
 
@@ -393,7 +401,7 @@ async function api(req, res, url) {
       if (RUNS.get(id)?.running) return send(res, 200, { ok: true, source: 'pipeline', started: true, already_running: true });
       const rawBody = (await readBody(req)).toString('utf8') || '{}';
       const body = JSON.parse(rawBody);
-      const engine = body.engine || body.profile?.engine || process.env.FABLED_ENGINE || null;
+      const engine = body.engine || body.profile?.engine || env('ENGINE') || null;
       const profile = (body.profile && typeof body.profile === 'object' && !Array.isArray(body.profile)) ? body.profile : body;
       const profilePath = path.join(dir, 'profile.json');
       await fsp.writeFile(profilePath, JSON.stringify(profile, null, 2));
@@ -469,7 +477,7 @@ async function api(req, res, url) {
       await fsp.writeFile(vProfilePath, JSON.stringify(profileToValidatorProfile(profile, { exportMode, manifest }), null, 2));
       // Opened pipeline output (the bust): use the validator team's static-prop placeholder profile when present.
       const demoProp = path.join(VALIDATOR_DIR, 'profiles', 'demo_placeholder_prop.json');
-      if (job.readonly && exists(demoProp) && !off(process.env.FABLED_USE_DEMO_PROP_PROFILE)) vProfilePath = demoProp;
+      if (job.readonly && exists(demoProp) && !off(env('USE_DEMO_PROP_PROFILE'))) vProfilePath = demoProp;
       const cmd = validatorCommand(asset, vProfilePath, manifestPath);
       const target = cmd && cmd[1].includes('--manifest') ? { kind: 'manifest', path: manifestPath } : { kind: asset === job.export_asset ? 'combined_fbx' : 'uploaded_sculpt', path: asset };
       if (!cmd) { const r = await loadStub('validator_report.CONCEPT_MOCKUP.json'); r.profile_name = profile.name ?? null; return send(res, 200, { ok: true, source: 'stub', report: r }); }
@@ -521,7 +529,7 @@ const server = http.createServer(async (req, res) => {
 });
 server.listen(PORT, HOST, () => {
   const s = status();
-  console.log(`Fabled demo UI: http://${HOST}:${PORT}/`);
+  console.log(`SculptLine UI: http://${HOST}:${PORT}/`);
   console.log(`  pipeline : ${s.pipeline.available ? s.pipeline.command_preview : 'not found -> CONCEPT MOCKUP stub'}`);
   console.log(`  validator: ${s.validator.available ? s.validator.command_preview : 'not found -> CONCEPT MOCKUP stub'}`);
 });

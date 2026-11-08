@@ -1,5 +1,5 @@
 {
-  "_comment": "DEMO PLACEHOLDER VALUES - not a real studio spec. Static-prop variant. LOD budgets (20k/10k/5k/2k) mirror the Fabled pipeline's own targets, so a pass on them is NOT a studio check; do not present them as one. Texel density target is null on purpose: no real source for a prop target, so the check reports not_checked and shows the measured value as information only.",
+  "_comment": "DEMO PLACEHOLDER VALUES - not a real studio spec. Static-prop variant. LOD budgets (20k/10k/5k/2k) mirror the SculptLine pipeline's own targets, so a pass on them is NOT a studio check; do not present them as one. Texel density target is null on purpose: no real source for a prop target, so the check reports not_checked and shows the measured value as information only.",
   "profile_name": "DEMO PLACEHOLDER VALUES - not a real studio spec (static prop)",
   "profile_version": "0.1",
   "asset_type": "prop",

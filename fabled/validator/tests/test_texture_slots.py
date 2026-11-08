@@ -6,11 +6,11 @@ import shutil
 import pytest
 
 from conftest import FIX, ROOT
-from fabled_validator import validate
-from fabled_validator.checks import classify_textures
-from fabled_validator.loaders.common import merge_orm
-from fabled_validator.model import Asset, Material, TextureRef
-from fabled_validator.profile import load_profile
+from sculptline_validator import validate
+from sculptline_validator.checks import classify_textures
+from sculptline_validator.loaders.common import merge_orm
+from sculptline_validator.model import Asset, Material, TextureRef
+from sculptline_validator.profile import load_profile
 
 DEMO = os.path.join(ROOT, "profiles", "demo_placeholder.json")
 EXAMPLE = os.path.join(ROOT, "profiles", "example_studio.json")

@@ -1,4 +1,4 @@
-"""Automated Integration Test Suite for Fabled Pipeline & Pre-Import Validator Engine.
+"""Automated Integration Test Suite for SculptLine Pipeline & Pre-Import Validator Engine.
 
 Verifies:
 1. End-to-end native engine run (--blender none): all 8 steps, progress.json, manifest.json, FBX with LodGroup.
@@ -22,19 +22,20 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PIPELINE_DIR = os.path.dirname(HERE)
-FABLED_DIR = os.path.dirname(PIPELINE_DIR)
-UI_DIR = os.path.join(FABLED_DIR, "ui")
+ROOT_DIR = os.path.dirname(PIPELINE_DIR)
+UI_DIR = os.path.join(ROOT_DIR, "ui")
 SERVER_MJS = os.path.join(UI_DIR, "server.mjs")
-VALIDATOR_DIR = os.path.join(FABLED_DIR, "validator")
+VALIDATOR_DIR = os.path.join(ROOT_DIR, "validator")
 VALIDATOR_PY = os.path.join(VALIDATOR_DIR, ".venv", "bin", "python")
 if not os.path.exists(VALIDATOR_PY):
     VALIDATOR_PY = sys.executable
 
 FIXTURES_DIR = os.path.join(VALIDATOR_DIR, "fixtures")
 PROFILES_DIR = os.path.join(VALIDATOR_DIR, "profiles")
-PIPELINE_CLI = os.path.join(PIPELINE_DIR, "fabled_pipeline.py")
+PIPELINE_CLI = os.path.join(PIPELINE_DIR, "sculptline_pipeline.py")
 
 BLENDER_CANDIDATES = [
+    os.environ.get("SCULPTLINE_BLENDER"),
     os.environ.get("FABLED_BLENDER"),
     "/opt/homebrew/bin/blender",
     shutil.which("blender"),
@@ -197,7 +198,7 @@ class TestNativePipeline:
                "--blender", "/nonexistent/custom/path/blender"]
         res = subprocess.run(cmd, capture_output=True, text=True, timeout=60)
         assert res.returncode == 0
-        assert "falling back to Fabled native" in res.stdout or "running Fabled native" in res.stdout
+        assert "falling back to SculptLine native" in res.stdout or "running SculptLine native" in res.stdout
         manifest = json.loads((out_dir / "manifest.json").read_text())
         assert manifest["tool"]["blender_version"] == "native-numpy-engine-0.1"
 
@@ -334,7 +335,7 @@ class TestBlenderPipeline:
         # Filter out this test process, blender-mcp, and wrappers
         other_blender = [
             l for l in pgrep.stdout.splitlines()
-            if not any(ign in l for ign in ("blender-mcp", "fabled_pipeline", "pytest", "test_pipeline"))
+            if not any(ign in l for ign in ("blender-mcp", "sculptline_pipeline", "fabled_pipeline", "pytest", "test_pipeline"))
             and any(b in l for b in ("/blender", "Blender.app", " blender"))
         ]
         if other_blender:
@@ -412,7 +413,7 @@ print('FONT_RESOLUTION_SUCCESS')
 # =============================================================================
 class TestValidatorIntegration:
     def test_validator_schema_dump(self, validator_env):
-        cmd = [VALIDATOR_PY, "-m", "fabled_validator", "schema"]
+        cmd = [VALIDATOR_PY, "-m", "sculptline_validator", "schema"]
         res = subprocess.run(cmd, capture_output=True, text=True, env=validator_env, timeout=10)
         assert res.returncode == 0
         schema = json.loads(res.stdout)
@@ -424,7 +425,7 @@ class TestValidatorIntegration:
         manifest_path = out_dir / "manifest.json"
 
         cmd = [
-            VALIDATOR_PY, "-m", "fabled_validator", "check",
+            VALIDATOR_PY, "-m", "sculptline_validator", "check",
             "--manifest", str(manifest_path),
             "--profile", demo_profile,
             "--json-only",
@@ -446,7 +447,7 @@ class TestValidatorIntegration:
             pytest.skip("Reference Blender manifest not found")
 
         cmd = [
-            VALIDATOR_PY, "-m", "fabled_validator", "check",
+            VALIDATOR_PY, "-m", "sculptline_validator", "check",
             "--manifest", blender_manifest,
             "--profile", demo_profile,
             "--json-only",
@@ -461,7 +462,7 @@ class TestValidatorIntegration:
 
     def test_validator_error_exit_code_and_structured_json(self, validator_env, demo_profile):
         cmd = [
-            VALIDATOR_PY, "-m", "fabled_validator", "check",
+            VALIDATOR_PY, "-m", "sculptline_validator", "check",
             "--manifest", "/tmp/nonexistent_manifest_xyz.json",
             "--profile", demo_profile,
             "--json-only",

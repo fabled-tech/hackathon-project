@@ -1,10 +1,10 @@
 {
   "schema": "fabled.pipeline.manifest/0.1",
   "concept_mockup": true,
-  "concept_mockup_note": "CONCEPT MOCKUP. Stub served by prototype/ui/server.mjs because no pipeline CLI was found in prototype/pipeline/. Not Fabled output. Triangle counts are null on purpose: the UI computes counts only from meshes it actually loads.",
+  "concept_mockup_note": "CONCEPT MOCKUP. Stub served by prototype/ui/server.mjs because no pipeline CLI was found in prototype/pipeline/. Not SculptLine output. Triangle counts are null on purpose: the UI computes counts only from meshes it actually loads.",
   "job_id": null,
   "created_at": null,
-  "tool": { "name": "fabled-pipeline (stub)", "version": null, "blender_version": null },
+  "tool": { "name": "sculptline-pipeline (stub)", "version": null, "blender_version": null },
   "input": { "sculpt_path": null, "format": null, "triangles": null, "vertices": null },
   "profile": null,
   "outputs": {

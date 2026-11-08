@@ -1,8 +1,8 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://fabled.local/schema/report/0.2.0",
-  "title": "Fabled pre-import check report",
-  "description": "Output of `python -m fabled_validator check ... --json-only` and of fabled_validator.validate(). schema_version follows semver: additive fields bump minor, renamed/removed fields bump major. 0.2.0 (additive over 0.1.0): optional `manifest` check (only present when --manifest is given, always last), optional top-level `manifest` object, error type `manifest_error`, asset.path/file_name may be null only in error reports where no asset could be found.",
+  "title": "SculptLine pre-import check report",
+  "description": "Output of `python -m sculptline_validator check ... --json-only` and of sculptline_validator.validate() (formerly fabled_validator; tool.name may be either). schema_version follows semver: additive fields bump minor, renamed/removed fields bump major. 0.2.0 (additive over 0.1.0): optional `manifest` check (only present when --manifest is given, always last), optional top-level `manifest` object, error type `manifest_error`, asset.path/file_name may be null only in error reports where no asset could be found.",
   "type": "object",
   "required": [
     "schema_version",
@@ -30,7 +30,10 @@
       ],
       "properties": {
         "name": {
-          "const": "fabled_validator"
+          "enum": [
+            "sculptline_validator",
+            "fabled_validator"
+          ]
         },
         "version": {
           "type": "string"

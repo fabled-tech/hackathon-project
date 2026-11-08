@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Adversarial stress harness for Blender binary fallback in Fabled mesh pipeline.
+"""Adversarial stress harness for Blender binary fallback in SculptLine mesh pipeline.
 
 Tests every corrupt, unexecutable, malformed, permission-denied, and boundary-condition
 scenario for the --blender argument to verify that the pipeline falls back gracefully
@@ -16,7 +16,7 @@ import tempfile
 import pytest
 
 PIPELINE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-PIPELINE_CLI = os.path.join(PIPELINE_ROOT, "fabled_pipeline.py")
+PIPELINE_CLI = os.path.join(PIPELINE_ROOT, "sculptline_pipeline.py")
 REPO_ROOT = os.path.dirname(os.path.dirname(PIPELINE_ROOT))
 # validator/ is a sibling of pipeline/ (works whether this tree is fabled/ in a larger repo or the repo root)
 FIXTURE_MESH = os.path.join(os.path.dirname(PIPELINE_ROOT), "validator", "fixtures", "synthetic_clean_character.obj")
@@ -24,6 +24,7 @@ FIXTURE_MESH = os.path.join(os.path.dirname(PIPELINE_ROOT), "validator", "fixtur
 # Detect host Blender
 HOST_BLENDER = None
 for cand in (
+    os.environ.get("SCULPTLINE_BLENDER"),
     os.environ.get("FABLED_BLENDER"),
     "/opt/homebrew/bin/blender",
     shutil.which("blender"),
@@ -121,7 +122,7 @@ class TestAdversarialBlenderFallback:
 
         res = _run_pipeline(FIXTURE_MESH, out_dir, str(bin_path))
         assert res.returncode == 0, f"Failed with rc={res.returncode}\nSTDOUT:\n{res.stdout}\nSTDERR:\n{res.stderr}"
-        assert "Blender binary not found" in res.stdout or "running Fabled native" in res.stdout
+        assert "Blender binary not found" in res.stdout or "running SculptLine native" in res.stdout
         _verify_pipeline_success(str(out_dir), expected_native=True)
 
     def test_case_05_directory_path(self, tmp_path):
@@ -203,7 +204,7 @@ class TestAdversarialBlenderFallback:
         pgrep = subprocess.run(["pgrep", "-fl", "[Bb]lender"], capture_output=True, text=True)
         other_blender = [
             l for l in pgrep.stdout.splitlines()
-            if not any(ign in l for ign in ("blender-mcp", "fabled_pipeline", "pytest", "test_pipeline"))
+            if not any(ign in l for ign in ("blender-mcp", "sculptline_pipeline", "fabled_pipeline", "pytest", "test_pipeline"))
             and any(b in l for b in ("/blender", "Blender.app", " blender"))
         ]
         if other_blender:

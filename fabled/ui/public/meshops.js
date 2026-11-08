@@ -28,7 +28,7 @@ export function weld(positions, indices) {
 }
 
 // Edge topology + orientation analysis on a welded mesh, using the SAME definition as
-// fabled_validator (validator/fabled_validator/geometry.py analyze() + checks.py check_normals):
+// sculptline_validator (validator/sculptline_validator/geometry.py analyze() + checks.py check_normals):
 //  - weld: positions quantized to bbox-diagonal x 1e-6 (same tolerance as the validator)
 //  - duplicate-index triangles are skipped; zero-area = area <= (diag x 1e-7)^2, never flagged
 //  - edges are matched on welded vertex ids; only edges shared by exactly 2 triangles propagate
@@ -134,7 +134,7 @@ export function flipTriangles(indices, tris) {
   for (const t of tris) { const b = indices[3 * t + 1]; indices[3 * t + 1] = indices[3 * t + 2]; indices[3 * t + 2] = b; }
 }
 
-// Vertex-clustering decimation (browser preview only; NOT Fabled's retopology).
+// Vertex-clustering decimation (browser preview only; NOT SculptLine's retopology).
 function cluster(positions, indices, bbox, R) {
   const [mx, my, mz] = bbox.min; const longest = Math.max(...bbox.size) || 1; const cell = longest / R; const inv = 1 / cell;
   const nV = positions.length / 3; const cid = new Int32Array(nV); const map = new Map(); let n = 0;

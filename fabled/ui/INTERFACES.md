@@ -1,4 +1,4 @@
-# Fabled demo UI: interfaces to the pipeline and validator
+# SculptLine UI: interfaces to the pipeline and validator
 
 Status: **v0.2. Contracts resolved with the pipeline and validator owners on 2026-10-25 (PT).** Anything still
 open is in §6. Where a contract below is owned by another component, that component's code wins, and this file
@@ -9,10 +9,16 @@ browser (public/*.js, three.js)
    │  fetch /api/*
    ▼
 server.mjs  (Node ≥18, no deps, binds 127.0.0.1:5178)
-   ├─ pipeline:  python3 pipeline/fabled_pipeline.py …   → <out>/progress.json (live), <out>/manifest.json (end, also on failure)
-   └─ validator: validator/.venv/bin/python -m fabled_validator check … --json-only → report JSON on stdout
-   No CLI found / FABLED_*=off → stub/*.CONCEPT_MOCKUP.json (labeled in the UI)
+   ├─ pipeline:  python3 pipeline/sculptline_pipeline.py …   → <out>/progress.json (live), <out>/manifest.json (end, also on failure)
+   └─ validator: validator/.venv/bin/python -m sculptline_validator check … --json-only → report JSON on stdout
+   No CLI found / SCULPTLINE_*=off → stub/*.CONCEPT_MOCKUP.json (labeled in the UI)
 ```
+
+Names after the SculptLine rebrand: the server prefers `pipeline/sculptline_pipeline.py` and `-m sculptline_validator`, and
+falls back to `pipeline/fabled_pipeline.py` / `-m fabled_validator` when only those exist. Every setting below is read as
+`SCULPTLINE_<NAME>` first, then the legacy `FABLED_<NAME>` (helper: `env.mjs`). Wire-format ids such as
+`fabled.import_profile/0.1`, `fabled.pipeline.manifest/0.1`, `fabled.workspace/0.1` and the pipeline config key
+`fabled_profile` are unchanged on purpose: they are versioned formats already present in committed manifests and reports.
 
 Each upload job lives in `prototype/ui/work/<job_id>/`: the uploaded sculpt, `profile.json` (UI profile),
 `pipeline_config.json`, `validator_profile.json` / `validator_profile_export.json`, `validator_report.json`, and `out/`
@@ -50,7 +56,7 @@ Profile values are user inputs (the defaults are examples), not measurements.
 | `bake.resolution` | `texel_density.texture_size` |
 | `fabled_profile` | full UI profile. The pipeline honors `up_axis`; skeleton is unused (static mesh only) |
 
-### 1b. To the validator profile (resolved; `validator/fabled_validator/profile.py`)
+### 1b. To the validator profile (resolved; `validator/sculptline_validator/profile.py`)
 There are two modes, because the pipeline output already has units and scale baked in and is exported Z-up:
 
 | validator key | raw upload (`validator_profile.json`) | pipeline output (`validator_profile_export.json`) |
@@ -65,21 +71,21 @@ There are two modes, because the pipeline output already has units and scale bak
 | `profile_name`, `asset_type`, `normals.max_flipped_faces: 0` | | |
 
 - When starting a pipeline run, the export-mode profile is passed as `--validator-profile` (the pipeline copies it into `<out>/validator_profile.json`).
-- When an existing output folder is **opened** (the bust), the server validates with `validator/profiles/demo_placeholder_prop.json` if that file exists. Disable with `FABLED_USE_DEMO_PROP_PROFILE=off`. The UI shows its **DEMO PLACEHOLDER VALUES** label next to the profile name.
+- When an existing output folder is **opened** (the bust), the server validates with `validator/profiles/demo_placeholder_prop.json` if that file exists. Disable with `SCULPTLINE_USE_DEMO_PROP_PROFILE=off`. The UI shows its **DEMO PLACEHOLDER VALUES** label next to the profile name.
 
 ---
 
 ## 2. Pipeline CLI and manifest (resolved; locked shape)
 
 ```
-python3 prototype/pipeline/fabled_pipeline.py --input <sculpt> --out <job>/out --config <job>/pipeline_config.json \
+python3 prototype/pipeline/sculptline_pipeline.py --input <sculpt> --out <job>/out --config <job>/pipeline_config.json \
         [--validator-profile <job>/validator_profile.json]      # added only if `--help` lists it
 ```
-- cwd `prototype/pipeline/`. Blender comes from the pipeline's `FABLED_BLENDER` / `--blender`.
+- cwd `prototype/pipeline/`. Blender comes from the pipeline's `SCULPTLINE_BLENDER` / `--blender` (the UI server resolves it with the same variable and passes `--blender`).
 - Runs asynchronously. The UI polls `GET /api/jobs/<id>/progress` (reads `<out>/progress.json`) and then `GET /api/jobs/<id>/result`.
 - **The manifest is read whenever it exists, including after a non-zero exit.** A failed run writes `status: "failed"`, the failed step's `status: "failed"`, the reason in `warnings`, and partial outputs. The UI shows the failure plus every LOD it can load.
 - No manifest → the UI shows the exit code and log tail, and offers an explicitly labeled browser decimation preview.
-- Overrides: `FABLED_PIPELINE_CMD` (shell template: `{input} {out} {config} {profile} {validator_profile}`), `FABLED_PIPELINE=off` (stub), `FABLED_CLI_TIMEOUT_MS` (default 60 min).
+- Overrides: `SCULPTLINE_PIPELINE_CMD` (shell template: `{input} {out} {config} {profile} {validator_profile}`), `SCULPTLINE_PIPELINE=off` (stub), `SCULPTLINE_CLI_TIMEOUT_MS` (default 60 min), `SCULPTLINE_PIPELINE_MANIFEST` (manifest file name), `SCULPTLINE_ENGINE` (default engine).
 
 ### progress.json (rewritten at each step start and end)
 ```json
@@ -136,10 +142,10 @@ Per-LOD files are `SM_<asset>_LOD<n>.fbx` (plus `.glb` when available), and ther
 ## 3. Validator CLI and report (resolved)
 
 ```
-cd prototype/validator && .venv/bin/python -m fabled_validator check --manifest <out>/manifest.json --profile <p.json> --json-only   # when `check --help` lists --manifest
-cd prototype/validator && .venv/bin/python -m fabled_validator check <asset> --profile <p.json> --json-only                          # otherwise
+cd prototype/validator && .venv/bin/python -m sculptline_validator check --manifest <out>/manifest.json --profile <p.json> --json-only   # when `check --help` lists --manifest
+cd prototype/validator && .venv/bin/python -m sculptline_validator check <asset> --profile <p.json> --json-only                          # otherwise
 ```
-- Auto-discovered; `FABLED_VALIDATOR_CMD` is no longer needed (still honored as an override: `{asset} {profile} {manifest}`). `FABLED_VALIDATOR=off` → stub.
+- Auto-discovered; `SCULPTLINE_VALIDATOR_CMD` is no longer needed (still honored as an override: `{asset} {profile} {manifest}`). `SCULPTLINE_VALIDATOR=off` → stub.
 - **Target:**
   - pipeline manifest via `--manifest` (asset defaults to `combined_fbx`; LOD budgets per mesh via the `_LOD<n>` name pattern);
   - else the combined FBX;
@@ -152,7 +158,7 @@ The UI renders:
 - **Headline:** `overall_status` (pass / warn / fail / error), `summary` counts as-is, `complete`, `profile.name` (with a DEMO PLACEHOLDER VALUES tag when the name says so), and the top-level `manifest` object (path, lod_count, readable, error).
 - **`error`:** `type` + `message`, including `manifest_error`. `checks[]` may be empty.
 - **`checks[]`:** `{id, group, title, status: pass|warn|fail|not_checked, message, measured, expected, items, items_total}`, including the 16th `manifest` row. `fail` → red, `warn` → amber, `pass` → green, `not_checked` → **grey "NOT CHECKED", never green, never counted as a pass**.
-- Real reports are labeled "fabled_validator x.y.z · real report". Stub reports are labeled CONCEPT MOCKUP.
+- Real reports are labeled "<report tool.name> x.y.z · real report" (`sculptline_validator`; reports written before the rebrand say `fabled_validator`). Stub reports are labeled CONCEPT MOCKUP.
 
 ---
 
@@ -184,7 +190,7 @@ The UI renders:
 4. ORM in FBX: the pipeline exports `T_<asset>_ORM.png`, but the validator's FBX slot mapping doesn't see it yet (pipeline + validator to agree).
 
 ## 7. Normals / winding: one definition (added 2026-10-25 22:50 PT)
-The browser check (`public/meshops.js` analyzeTopology) now uses the validator's definition (`validator/fabled_validator/geometry.py` analyze, `checks.py` check_normals):
+The browser check (`public/meshops.js` analyzeTopology) now uses the validator's definition (`validator/sculptline_validator/geometry.py` analyze, `checks.py` check_normals):
 flagged = winding flipped (BFS over 2-face edges on positions welded at bbox-diagonal × 1e-6; closed parts oriented by signed volume, open parts by a stored-normal vote)
 OR stored normals against the face (sum of the 3 corner normals · geometric normal < 0). Zero-area (≤ (diag·1e-7)²) and duplicate-index faces are never flagged.
 Scope matches as well: for pipeline output the browser analyses every loaded LOD (the validator checks all LOD meshes in the combined FBX).

@@ -7,7 +7,7 @@ Stress-tests:
 4. Alternating engine execution (concurrent native and blender pipeline runs).
 5. Robustness of POST /api/jobs/:id/validate against missing jobs, deleted assets,
    malformed JSON, type mismatches, and edge-case profiles.
-6. Non-blocking and concurrency safety of wait_for_other_blender() in fabled_pipeline.py.
+6. Non-blocking and concurrency safety of wait_for_other_blender() in sculptline_pipeline.py.
 """
 from __future__ import annotations
 
@@ -28,14 +28,15 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PIPELINE_DIR = os.path.dirname(HERE)
-FABLED_DIR = os.path.dirname(PIPELINE_DIR)
-UI_DIR = os.path.join(FABLED_DIR, "ui")
+ROOT_DIR = os.path.dirname(PIPELINE_DIR)
+UI_DIR = os.path.join(ROOT_DIR, "ui")
 SERVER_MJS = os.path.join(UI_DIR, "server.mjs")
-VALIDATOR_DIR = os.path.join(FABLED_DIR, "validator")
+VALIDATOR_DIR = os.path.join(ROOT_DIR, "validator")
 FIXTURES_DIR = os.path.join(VALIDATOR_DIR, "fixtures")
 TEST_MESH = os.path.join(FIXTURES_DIR, "synthetic_clean_character.obj")
 
 BLENDER_CANDIDATES = [
+    os.environ.get("SCULPTLINE_BLENDER"),
     os.environ.get("FABLED_BLENDER"),
     "/opt/homebrew/bin/blender",
     shutil.which("blender"),
@@ -482,7 +483,7 @@ class TestWaitForOtherBlender:
     def test_wait_for_other_blender_idle_immediate_return(self, tmp_path, monkeypatch):
         sys.path.insert(0, PIPELINE_DIR)
         import subprocess
-        from fabled_pipeline import wait_for_other_blender
+        from sculptline_pipeline import wait_for_other_blender
 
         orig_run = subprocess.run
         def mock_idle(cmd, *args, **kwargs):
@@ -507,7 +508,7 @@ class TestWaitForOtherBlender:
         """Verify that helper processes like blender-mcp or pytest are ignored."""
         sys.path.insert(0, PIPELINE_DIR)
         import subprocess
-        from fabled_pipeline import wait_for_other_blender
+        from sculptline_pipeline import wait_for_other_blender
 
         orig_run = subprocess.run
         def mock_mcp(cmd, *args, **kwargs):
@@ -515,7 +516,8 @@ class TestWaitForOtherBlender:
                 output = (
                     "5719 /bin/python /bin/blender-mcp --transport stdio\n"
                     "6001 /venv/bin/pytest fabled/pipeline/tests\n"
-                    "6002 python fabled_pipeline.py --input test.obj"
+                    "6002 python fabled_pipeline.py --input test.obj\n"  # deprecated shim name
+                    "6003 python sculptline_pipeline.py --input test.obj"
                 )
                 return subprocess.CompletedProcess(cmd, 0, stdout=output, stderr="")
             return orig_run(cmd, *args, **kwargs)
@@ -537,7 +539,7 @@ class TestWaitForOtherBlender:
         """Verify that an active Blender process is detected, waited on, and cleared."""
         sys.path.insert(0, PIPELINE_DIR)
         import subprocess
-        from fabled_pipeline import wait_for_other_blender
+        from sculptline_pipeline import wait_for_other_blender
 
         call_count = 0
         orig_run = subprocess.run
@@ -568,7 +570,7 @@ class TestWaitForOtherBlender:
         """Verify timeout after max_wait_s when Blender remains busy."""
         sys.path.insert(0, PIPELINE_DIR)
         import subprocess
-        from fabled_pipeline import wait_for_other_blender
+        from sculptline_pipeline import wait_for_other_blender
 
         orig_run = subprocess.run
         def mock_always_busy(cmd, *args, **kwargs):

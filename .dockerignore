@@ -21,3 +21,6 @@ __pycache__
 .ruff_cache
 **/.ruff_cache
 .DS_Store
+
+# SculptLine (fabled/) is a separate product; the RightsRadar images never use it
+fabled

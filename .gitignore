@@ -22,8 +22,8 @@ __pycache__/
 .superpowers/
 .agents/
 .build/
-fabled/FabledStudio/.build/
-fabled/FabledStudio/build/
+fabled/SculptLine/.build/
+fabled/SculptLine/build/
 fabled/ui/work/
 fabled/ui/.build-cache/
 test_results.json

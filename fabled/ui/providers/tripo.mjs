@@ -19,7 +19,7 @@ export default {
   docs: 'https://platform.tripo3d.ai/docs/generation',
   verification: 'unverified',
   verification_note: 'Task create/poll paths seen in third-party integrations; request and response fields not checked against the official docs.',
-  feeds: 'Generated mesh is imported as a new sculpt for the Fabled pipeline.',
+  feeds: 'Generated mesh is imported as a new sculpt for the SculptLine pipeline.',
   configured: (env = process.env) => !!env.TRIPO_API_KEY,
 
   async create({ kind, prompt, image }, { env = process.env, fetchImpl } = {}) {

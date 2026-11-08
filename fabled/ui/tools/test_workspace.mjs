@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Automated Test Runner for Fabled Web Workspace (Milestone 2 Feature 13)
+ * Automated Test Runner for SculptLine Web Workspace (Milestone 2 Feature 13)
  *
  * Verifies:
  * 1. Client Component Data Structures & Schemas
@@ -93,7 +93,7 @@ async function waitForServer(url, timeoutMs = 10000) {
 
 async function main() {
   console.log('================================================================');
-  console.log(' Fabled Web Workspace Automated Test Suite (Milestone 2 / M2)');
+  console.log(' SculptLine Web Workspace Automated Test Suite (Milestone 2 / M2)');
   console.log('================================================================\n');
 
   // ==========================================================================
@@ -279,8 +279,33 @@ async function main() {
       assert.equal(res.status, 200);
       assert(res.headers.get('content-type')?.includes('text/html'));
       const text = await res.text();
-      assert(text.includes('Fabled · Sculpt to Unreal Workspace'));
+      assert(text.includes('<title>SculptLine · Sculpt to Unreal Workspace</title>'));
       assert(text.includes('id="ws-asset-tree-card"'));
+    });
+
+    await testAsync('index.html brand: SculptLine title, header and home-screen name, "by Fabled" byline, no old product name', async () => {
+      const text = await (await fetch(`${serverUrl}/`)).text();
+      assert.match(text, /<title>SculptLine\b[^<]*<\/title>/);
+      assert(text.includes('<meta name="apple-mobile-web-app-title" content="SculptLine" />'));
+      assert(text.includes('<span class="logo">SculptLine</span>'));
+      assert(text.includes('<span class="byline">by Fabled</span>'));
+      assert.match(text, /<footer[^>]*>SculptLine by Fabled \(Fable Technologies\)/);
+      assert(!/Fabled Studio|Fabled ·|class="logo">Fabled</.test(text), 'old product branding left in index.html');
+      const app = await (await fetch(`${serverUrl}/app.js`)).text();
+      assert(app.includes("textContent = 'SculptLine by Fabled (Fable Technologies) · pre-processed real pipeline run"), 'demo-mode footer');
+    });
+
+    await testAsync('licensed.js keeps the verbatim license strings (credit, no-endorsement line, display names)', async () => {
+      const text = await (await fetch(`${serverUrl}/licensed.js`)).text();
+      for (const s of [
+        "displayName: 'Sample asset: historical bust scan (CC0)',",
+        "shortName: 'Historical bust scan (CC0)',",
+        "credit: 'Helen Adams Keller by Onorio Ruotolo, 1916. National Portrait Gallery, Smithsonian Institution (NPG.75.16). 3D model via Smithsonian 3D, CC0.',",
+        "creditUrl: 'https://3d.si.edu/object/3d/helen-adams-keller:d8c64ccc-4ebc-11ea-b77f-2e728ce88125',",
+        "disclaimer: 'Fabled is not affiliated with or endorsed by the Smithsonian Institution.',",
+        "export const PROCEDURAL_SAMPLE_NAME = 'Procedural sample head (self-made)';",
+      ]) assert(text.includes(s), `licensed.js changed: ${s}`);
+      assert(!/SculptLine/.test(text), 'licensed.js must not be rebranded');
     });
 
     await testAsync('GET /styles.css serves dark theme stylesheet', async () => {

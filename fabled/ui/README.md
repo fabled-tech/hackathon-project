@@ -1,6 +1,6 @@
-# Fabled demo UI (local prototype)
+# SculptLine UI (local prototype)
 
-The local web app for the Fabled demo (storyboard shots 3, 4, 5 and 6): drop a sculpt in, set the studio import
+SculptLine by Fabled. The local web app for the SculptLine demo (storyboard shots 3, 4, 5 and 6): drop a sculpt in, set the studio import
 profile, compare the high-poly and retopo meshes side by side with synced cameras, wireframe and a LOD switcher,
 then run the pre-import check.
 
@@ -9,7 +9,7 @@ dependency-free Node server. Runs on localhost only. Nothing is deployed or publ
 
 ## Run
 ```bash
-cd /workspace/fabled-demos/prototype/ui
+cd fabled/ui
 npm install            # once: three + playwright-core (playwright is only for the screenshot test)
 npm start              # http://127.0.0.1:5178/  uses pipeline/validator CLIs if found, else stubs
 npm run start:stub     # same, but forces the CONCEPT MOCKUP stubs (fast demo while the pipeline isn't finished)
@@ -17,7 +17,10 @@ npm run start:stub     # same, but forces the CONCEPT MOCKUP stubs (fast demo wh
 Open http://127.0.0.1:5178/ and either drop a file on the drop zone or click **Load sample sculpt**.
 Use `PORT=5180 npm start` for another port.
 
-> While `prototype/pipeline/` is still being built, `npm start` will find `fabled_pipeline.py` and actually
+Settings are environment variables named `SCULPTLINE_*` (for example `SCULPTLINE_PIPELINE=off`, `SCULPTLINE_VALIDATOR_CMD`,
+`SCULPTLINE_PROVIDER_MOCK=off`). The pre-rebrand `FABLED_*` names are still read as a fallback when the `SCULPTLINE_*` one is unset.
+
+> While `prototype/pipeline/` is still being built, `npm start` will find `sculptline_pipeline.py` (or the older `sculptline_pipeline.py`) and actually
 > launch Blender when you click **Build retopo + LODs**. A full run can take minutes. If it fails, the UI shows
 > the error and offers an explicitly labeled browser preview instead. Use `npm run start:stub` to skip the pipeline.
 
@@ -36,8 +39,8 @@ Use `PORT=5180 npm start` for another port.
 | Loading .obj/.fbx/.glb/.gltf/.ply/.stl in the browser | **Real**. Tested: GLB, OBJ, PLY, and the pipeline's GLB LODs. The FBX loader is the fallback when a LOD has no GLB |
 | Tri/vertex counts, bounds, browser checks | **Real**, computed from loaded geometry (`checks.js`, `meshops.js`) |
 | **Open latest pipeline output** (read-only) | **Real**: loads `pipeline/output/manifest.json`, the LOD GLBs, previews, textures and source credit, then runs the real validator with `--manifest` |
-| Validator | **Real** `fabled_validator` (auto-discovered, exit 0/1/2 parsed). Saved reports in `validator/reports/` can be rendered too. The stub is used only with `FABLED_VALIDATOR=off` |
-| Build retopo + LODs from an upload | `npm start` runs the **real pipeline** (async, live step bar from `progress.json`; manifest read even on failure). Tested only against `test_fixtures/mock_pipeline_cli.py` (TEST FIXTURE), not a real Blender run from the UI. With `FABLED_PIPELINE=off`: browser decimation preview, labeled CONCEPT MOCKUP |
+| Validator | **Real** `sculptline_validator` (auto-discovered, `sculptline_validator` on pre-rebrand checkouts; exit 0/1/2 parsed). Saved reports in `validator/reports/` can be rendered too. The stub is used only with `SCULPTLINE_VALIDATOR=off` |
+| Build retopo + LODs from an upload | `npm start` runs the **real pipeline** (async, live step bar from `progress.json`; manifest read even on failure). Tested only against `test_fixtures/mock_pipeline_cli.py` (TEST FIXTURE), not a real Blender run from the UI. With `SCULPTLINE_PIPELINE=off`: browser decimation preview, labeled CONCEPT MOCKUP |
 | "Preview unified winding" | **Browser preview only.** The check stays flagged and the validator still checks the file on disk |
 | Skeleton control | Shown, labeled "not used by the pipeline yet" (static mesh only) |
 | Workspace tree, asset pages, notes, activity | **Real** (2026-11-06): built from manifests, validator reports, upload jobs and samples on disk (`GET /api/workspace`). Notes and activity persist in `work/` |
@@ -79,7 +82,7 @@ Screenshots go to `screenshots/`, with the log and console output in `screenshot
 - `providers/`: AI provider plugins (`index.mjs` registry + task store, one file per provider). `PROVIDERS.md`: what is verified, how to enable one, how to add one
 - `tools/make_sample_sculpt.py`, `tools/screenshot_test.mjs`
 - `work/`: per-job uploads and CLI outputs (gitignored)
-- `../unreal/import_fabled_asset.py`, `../unreal/CAPTURE_NOTES.md`: Unreal import script and shot-7 capture notes (**untested**)
+- `../unreal/import_sculptline_asset.py`, `../unreal/CAPTURE_NOTES.md`: Unreal import script and shot-7 capture notes (**untested**)
 
 ## Static demo build (Vercel-ready, prep only: nothing deployed)
 A backend-free build that shows one **pre-processed real run** (frozen pipeline run + its recorded validator report). It has no Blender, no validator and no `/api` calls in the browser.
@@ -96,7 +99,7 @@ node tools/demo_test.mjs http://127.0.0.1:5190/          # headless check + scre
 ```
 - What it bundles: `dist/` = `public/`, the three.js modules it imports (traced) and `demo-data/` (manifest.json, LOD GLBs, textures, previews, SOURCE.json, validator_report.json, validator_profile.json, demo.json, BUILD_INFO.json). Run files are copied unchanged. In the report and profile copies, box-local absolute paths are replaced with `<frozen-run>`, `<validator>` and `<prototype>`.
 - What the build refuses: samples, test fixtures, stub/CONCEPT_MOCKUP files, the mock CLI, `.blend` files, a manifest or report marked concept_mockup/test_fixture, a manifest whose status isn't ok, or a report made for a different run.
-- Demo mode turns on via `<meta name="fabled-demo">` (added to dist/index.html) or `?demo=1` (the local server also serves `/demo-data/` from dist/). It hides upload, Build, saved reports and the editable profile. The header reads "Pre-processed real run, recorded <manifest created_at, PT>".
+- Demo mode turns on via `<meta name="sculptline-demo">` (added to dist/index.html; dists built before the rebrand carry `fabled-demo`, which still works) or `?demo=1` (the local server also serves `/demo-data/` from dist/). It hides upload, Build, saved reports and the editable profile. The header reads "Pre-processed real run, recorded <manifest created_at, PT>".
 - `vercel.json` (ui/): static output `dist/`, no functions, `buildCommand` only runs the dist check. The host cannot build the data, so run `build:demo` locally first. `dist/vercel.json` lets `dist/` be deployed alone as plain static files. `dist/` is in .gitignore (~15 MB).
 - Size (2026-10-25 23:06 PT build): 15.0 MB, 46 files (was 54.8 MB). Largest: display normal map WebP 3.6 MB, three.module.js 1.2 MB, previews/normal_map_texture_1024.png 1.2 MB, Inter.ttf 0.8 MB, preview wireframes 0.7-0.8 MB, LOD0.glb 0.6 MB, ORM WebP 0.6 MB.
 - Downsizing (derived copies only; the run folder is never modified, intermediates are cached in `.build-cache/`):

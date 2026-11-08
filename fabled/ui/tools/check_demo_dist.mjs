@@ -9,5 +9,6 @@ const FORBID = [/demo-data\/export\/T_[^/]+\.png$/, /(^|\/)samples\//, /test_fix
 const files = fs.readdirSync(OUT, { recursive: true }).map((f) => f.split(path.sep).join('/'));
 const bad = files.filter((f) => FORBID.some((re) => re.test(f)));
 if (bad.length) { console.error(`forbidden files in dist: ${bad.join(', ')}`); process.exit(1); }
-if (!fs.readFileSync(path.join(OUT, 'index.html'), 'utf8').includes('name="fabled-demo"')) { console.error('dist/index.html lacks the demo flag'); process.exit(1); }
+// demo flag: sculptline-demo, or fabled-demo in dists built before the rebrand
+if (!/name="(sculptline|fabled)-demo"/.test(fs.readFileSync(path.join(OUT, 'index.html'), 'utf8'))) { console.error('dist/index.html lacks the demo flag'); process.exit(1); }
 console.log(`dist OK (${files.length} entries)`);

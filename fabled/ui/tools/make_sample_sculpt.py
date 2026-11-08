@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Procedurally generate the Fabled demo sample sculpt (a stylized bust-like head).
+"""Procedurally generate the SculptLine demo sample sculpt (a stylized bust-like head).
 
 Self-made, procedurally generated, no third-party assets: free to use in the demo.
 Outputs (into ../samples/):

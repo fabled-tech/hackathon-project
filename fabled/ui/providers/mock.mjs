@@ -2,8 +2,11 @@
 // no network. After a short fake progress ramp it returns one of three procedural models from samples/mock_generations/
 // (self-made by tools/make_mock_generations.py, no license restrictions): picked by keywords in the prompt, otherwise
 // deterministically from the prompt text. It does not read the prompt or image beyond that. Every task and every asset
-// made from it carries concept_mockup: true, and the UI labels it. Turn it off with FABLED_PROVIDER_MOCK=off.
-const DURATION_MS = Number(process.env.FABLED_PROVIDER_MOCK_MS || 2500);
+// made from it carries concept_mockup: true, and the UI labels it. Turn it off with SCULPTLINE_PROVIDER_MOCK=off
+// (legacy FABLED_PROVIDER_MOCK still honored).
+import { env as envVar } from '../env.mjs';
+
+const DURATION_MS = Number(envVar('PROVIDER_MOCK_MS') || 2500);
 
 export const MOCK_MODELS = [
   { file: 'knight_helmet.glb', words: /helm|knight|armou?r|medieval|warrior|paladin|soldier|crusader/i },
@@ -28,7 +31,7 @@ const mock = {
   verification_note: 'Not a real provider. Returns the procedural sample sculpt so the workflow can be demoed offline.',
   feeds: 'Returns a procedural knight helmet, mushroom cottage or potion flask (picked from prompt keywords) as the "generated" mesh.',
   concept_mockup: true,
-  configured: (env = process.env) => !/^(0|off|false)$/i.test(env.FABLED_PROVIDER_MOCK || ''),
+  configured: (env = process.env) => !/^(0|off|false)$/i.test(envVar('PROVIDER_MOCK', env) || ''),
 
   async create({ kind, prompt, image }) {
     if (!mock.kinds.includes(kind)) throw new Error(`mock does not support ${kind}`);

@@ -1,4 +1,4 @@
-"""Shared helpers for the Fabled Blender step scripts (run inside `blender -b --python`)."""
+"""Shared helpers for the SculptLine Blender step scripts (run inside `blender -b --python`)."""
 import bpy, bmesh, json, os, sys, time
 import numpy as np
 
@@ -387,7 +387,7 @@ def weld(obj, dist):
 
 # ---------------------------------------------------------------- mesh hygiene (pass 2)
 _VALIDATOR_GEOM = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))),
-                               "validator", "fabled_validator", "geometry.py")
+                               "validator", "sculptline_validator", "geometry.py")
 
 
 def _validator_analyze():

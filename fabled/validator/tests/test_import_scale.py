@@ -1,5 +1,5 @@
 import json
-from fabled_validator import validate
+from sculptline_validator import validate
 
 def _run(tmp_path, profile_path, asset, scale):
     p = json.load(open(profile_path))

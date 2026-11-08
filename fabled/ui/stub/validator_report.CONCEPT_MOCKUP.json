@@ -5,7 +5,7 @@
   "manifest_path": null,
   "profile_name": null,
   "created_at": null,
-  "tool": { "name": "fabled-validator (stub)", "version": null },
+  "tool": { "name": "sculptline-validator (stub)", "version": null },
   "checks": [
     { "id": "scale.unit_mismatch", "severity": "error", "passed": false, "object": "(example)", "message": "Example: asset height is outside the profile's expected range; likely a cm/m unit mismatch.", "fix_hint": "Set the profile scale or source units." },
     { "id": "normals.flipped_faces", "severity": "error", "passed": false, "object": "(example)", "message": "Example: a set of faces has reversed winding (flipped normals).", "fix_hint": "Recalculate normals outside before export." },

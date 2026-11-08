@@ -81,7 +81,7 @@ async function waitForServer(url, timeoutMs = 10000) {
 
 async function main() {
   console.log('================================================================');
-  console.log(' Fabled Web Workspace Empirical Challenger Stress Suite (M2)');
+  console.log(' SculptLine Web Workspace Empirical Challenger Stress Suite (M2)');
   console.log('================================================================\n');
 
   // ==========================================================================
@@ -124,9 +124,10 @@ async function main() {
     assert.equal(idSet.size, 16);
   });
 
-  // Cross-check against Python validator definition in fabled_validator/checks.py
-  test('VALIDATOR_CHECKS_INFO strictly matches Python fabled_validator/checks.py CHECKS definition', () => {
-    const pythonChecksPath = path.resolve(UI_DIR, '../validator/fabled_validator/checks.py');
+  // Cross-check against Python validator definition in sculptline_validator/checks.py (fabled_validator before the rebrand)
+  test('VALIDATOR_CHECKS_INFO strictly matches Python sculptline_validator/checks.py CHECKS definition', () => {
+    const pythonChecksPath = ['sculptline_validator', 'fabled_validator'].map((m) => path.resolve(UI_DIR, '../validator', m, 'checks.py')).find((p) => fs.existsSync(p))
+      || path.resolve(UI_DIR, '../validator/sculptline_validator/checks.py');
     assert(fs.existsSync(pythonChecksPath), 'Python validator checks.py must exist');
     const pyContent = fs.readFileSync(pythonChecksPath, 'utf8');
 
@@ -469,7 +470,7 @@ async function main() {
 
   const serverProc = spawn('node', ['server.mjs'], {
     cwd: UI_DIR,
-    env: { ...process.env, PORT: String(port), FABLED_PIPELINE: 'off', FABLED_VALIDATOR: 'off' },
+    env: { ...process.env, PORT: String(port), SCULPTLINE_PIPELINE: 'off', SCULPTLINE_VALIDATOR: 'off' },
     stdio: 'pipe',
   });
 
@@ -535,7 +536,7 @@ async function main() {
       assert(item, 'a sample asset must be listed');
       const id = await item.getAttribute('data-asset-id');
       await item.click();
-      await page.waitForFunction((want) => document.querySelector('#asset-tree .wst-item.active')?.dataset.assetId?.length > 0 && window.__fabled.src, id, { timeout: 15000 });
+      await page.waitForFunction((want) => document.querySelector('#asset-tree .wst-item.active')?.dataset.assetId?.length > 0 && window.__sculptline.src, id, { timeout: 15000 });
       const title = await page.textContent('#page-title');
       assert(title && title !== 'Workspace', 'asset page should show the selected asset');
     });
@@ -547,7 +548,7 @@ async function main() {
 
       // Send live telemetry update for step 2 running
       await page.evaluate(() => {
-        window.__fabled.updateStageTelemetry = window.__fabled.updateStageTelemetry || null;
+        window.__sculptline.updateStageTelemetry = window.__sculptline.updateStageTelemetry || null;
       });
 
       // Call updateStageTelemetry directly in page

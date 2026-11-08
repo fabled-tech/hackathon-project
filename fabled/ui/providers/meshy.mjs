@@ -1,4 +1,4 @@
-// Meshy (meshy.ai): text-to-3D and image-to-3D. The output is a mesh that can go straight into the Fabled pipeline as a sculpt.
+// Meshy (meshy.ai): text-to-3D and image-to-3D. The output is a mesh that can go straight into the SculptLine pipeline as a sculpt.
 //
 // Verification (2026-11-06): the base URL https://api.meshy.ai/openapi, the POST /v1/image-to-3d and GET /v1/image-to-3d/{id}
 // paths, Bearer auth, the task id in `result`, and the SUCCEEDED/FAILED statuses were confirmed via search results that quote

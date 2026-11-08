@@ -44,7 +44,7 @@ function fakeFetch(routes) {
 }
 
 async function main() {
-  console.log('Fabled connected workspace + provider plugin tests\n');
+  console.log('SculptLine connected workspace + provider plugin tests\n');
   const { default: meshy } = await import('../providers/meshy.mjs');
   const { default: tripo } = await import('../providers/tripo.mjs');
   const { default: runway } = await import('../providers/runway.mjs');
@@ -133,8 +133,23 @@ async function main() {
     for (const m of ['knight_helmet', 'mushroom_cottage', 'potion_flask']) assert(fs.statSync(path.join(UI_DIR, 'samples', 'mock_generations', `${m}.glb`)).size > 100_000);
   });
 
+  console.log('\nSuite 1b: SCULPTLINE_* settings with FABLED_* fallback');
+  await test('env(): SCULPTLINE_<NAME> wins, FABLED_<NAME> is the fallback, empty SCULPTLINE_ counts as unset', async () => {
+    const { env } = await import('../env.mjs');
+    assert.equal(env('PIPELINE', { SCULPTLINE_PIPELINE: 'off', FABLED_PIPELINE: 'on' }), 'off');
+    assert.equal(env('PIPELINE', { FABLED_PIPELINE: 'off' }), 'off');
+    assert.equal(env('PIPELINE', { SCULPTLINE_PIPELINE: '', FABLED_PIPELINE: 'off' }), 'off');
+    assert.equal(env('PIPELINE', {}), undefined);
+  });
+  await test('mock provider: SCULPTLINE_PROVIDER_MOCK and legacy FABLED_PROVIDER_MOCK both switch it off; new name wins', () => {
+    assert.equal(mock.configured({}), true);
+    assert.equal(mock.configured({ SCULPTLINE_PROVIDER_MOCK: 'off' }), false);
+    assert.equal(mock.configured({ FABLED_PROVIDER_MOCK: 'off' }), false);
+    assert.equal(mock.configured({ SCULPTLINE_PROVIDER_MOCK: 'on', FABLED_PROVIDER_MOCK: 'off' }), true);
+  });
+
   console.log('\nSuite 2: TaskStore + downloadModel');
-  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'fabled-ws-'));
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'sculptline-ws-'));
   await test('listProviders exposes env var names only, never values', () => {
     const list = listProviders({ MESHY_API_KEY: 'super-secret-value' });
     const json = JSON.stringify(list);
@@ -165,12 +180,24 @@ async function main() {
 
   console.log('\nSuite 3: live server endpoints');
   const port = await new Promise((r) => { const s = net.createServer(); s.listen(0, '127.0.0.1', () => { const p = s.address().port; s.close(() => r(p)); }); });
-  const server = spawn(process.execPath, ['server.mjs'], { cwd: UI_DIR, env: { ...process.env, PORT: String(port), FABLED_PIPELINE: 'off', FABLED_PROVIDER_MOCK_MS: '300', MESHY_API_KEY: 'sk-live-should-never-leak' }, stdio: 'pipe' });
+  const server = spawn(process.execPath, ['server.mjs'], { cwd: UI_DIR, env: { ...process.env, PORT: String(port), SCULPTLINE_PIPELINE: 'off', SCULPTLINE_PROVIDER_MOCK_MS: '300', MESHY_API_KEY: 'sk-live-should-never-leak' }, stdio: 'pipe' });
   const base = `http://127.0.0.1:${port}`;
   const j = async (p, o) => (await fetch(base + p, o)).json();
   try {
     for (let i = 0; i < 100; i++) { try { await fetch(`${base}/api/status`); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
 
+    await test('GET /api/status: SCULPTLINE_PIPELINE=off honored; validator discovered under its new module name (old name only as fallback)', async () => {
+      const s = await j('/api/status');
+      assert.equal(s.pipeline.forced_off, true);
+      assert.equal(s.pipeline.available, false);
+      const vdir = path.resolve(UI_DIR, '..', 'validator');
+      const want = fs.existsSync(path.join(vdir, 'sculptline_validator', '__main__.py')) ? 'sculptline_validator'
+        : fs.existsSync(path.join(vdir, 'fabled_validator', '__main__.py')) ? 'fabled_validator' : null;
+      assert.equal(s.validator.module, want);
+      if (s.validator.available) assert(s.validator.command_preview.includes(`-m ${want} check`), s.validator.command_preview);
+      const ps = fs.existsSync(path.resolve(UI_DIR, '..', 'pipeline', 'sculptline_pipeline.py')) ? 'sculptline_pipeline.py' : 'fabled_pipeline.py';
+      assert.equal(s.pipeline.script, fs.existsSync(path.resolve(UI_DIR, '..', 'pipeline', ps)) ? ps : null);
+    });
     await test('GET /api/workspace: groups, real pipeline runs, licensed name applied, sample tri counts from SAMPLE_INFO', async () => {
       const ws = await j('/api/workspace');
       assert.equal(ws.schema, 'fabled.workspace/0.1');

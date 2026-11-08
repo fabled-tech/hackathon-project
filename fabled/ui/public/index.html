@@ -2,12 +2,12 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Fabled · Sculpt to Unreal Workspace</title>
+  <title>SculptLine · Sculpt to Unreal Workspace</title>
   <meta name="color-scheme" content="dark" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <meta name="apple-mobile-web-app-title" content="Fabled Studio" />
+  <meta name="apple-mobile-web-app-title" content="SculptLine" />
   <link rel="icon" href="data:," />
   <link rel="stylesheet" href="/styles.css" />
   <script type="importmap">
@@ -21,7 +21,8 @@
     <div class="brand">
       <button type="button" id="btn-toggle-left" class="ws-pane-btn" title="Toggle Left Workspace Sidebar (⌘B)" aria-label="Toggle Left Sidebar">☰</button>
       <span class="ws-icon" aria-hidden="true">◆</span>
-      <span class="logo">Fabled</span>
+      <span class="logo">SculptLine</span>
+      <span class="byline">by Fabled</span>
       <span class="ws-divider">/</span>
       <span class="tagline">From sculpt to screen</span>
       <span class="stage-tag">Foundry Workspace</span>
@@ -209,7 +210,7 @@
         </div>
         <div class="viewer" id="view-right">
           <div class="vlabel"><span class="vp-tag accent">OUTPUT</span> <strong id="right-title">Retopo mesh</strong> <span id="right-stats" class="stats"></span></div>
-          <div class="vbadge" id="right-badge" hidden>CONCEPT MOCKUP · browser decimation preview, not Fabled output</div>
+          <div class="vbadge" id="right-badge" hidden>CONCEPT MOCKUP · browser decimation preview, not SculptLine output</div>
           <div class="vempty" id="right-empty">Run “Build retopo + LODs”</div>
         </div>
       </div>
@@ -286,7 +287,7 @@
       <div class="map-dialog-head">
         <div>
           <h2 id="gen-dialog-title">Generate with an AI provider</h2>
-          <p class="small muted">Requests go from the local server to the provider with the server's API key; keys never reach the browser. Meshes come back into the workspace as sculpts for the pipeline.</p>
+          <p class="small muted">Requests go from the local SculptLine server to the provider with the server's API key; keys never reach the browser. Meshes come back into the workspace as sculpts for the SculptLine pipeline.</p>
         </div>
         <button type="button" id="btn-close-gen" class="btn small-btn">Close</button>
       </div>
@@ -308,7 +309,7 @@
       </div>
     </div>
   </dialog>
-  <footer class="foot small muted">Fabled (Fable Technologies) · Foundry Workspace · all geometry figures are computed from the loaded files, or labeled CONCEPT MOCKUP.</footer>
+  <footer class="foot small muted">SculptLine by Fabled (Fable Technologies) · Foundry Workspace · all geometry figures are computed from the loaded files, or labeled CONCEPT MOCKUP.</footer>
   <script type="module" src="/app.js"></script>
 </body>
 </html>

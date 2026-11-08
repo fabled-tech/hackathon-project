@@ -13,7 +13,7 @@ page.on('requestfailed', (r) => errors.push(`requestfailed: ${r.url()} ${r.failu
 page.on('response', (r) => { requests.push(r.url()); if (r.status() >= 400) errors.push(`HTTP ${r.status()} ${r.url()}`); });
 const shot = async (n) => { const p = path.join(OUT, n); await page.screenshot({ path: p }); console.log('screenshot', p); };
 await page.goto(URL_, { waitUntil: 'networkidle' });
-await page.waitForFunction(() => window.__fabled?.src?.fromPipeline && document.getElementById('busy').hidden && document.querySelectorAll('#checks-validator li').length > 0, null, { timeout: 180000 });
+await page.waitForFunction(() => (window.__sculptline || window.__fabled)?.src?.fromPipeline && document.getElementById('busy').hidden && document.querySelectorAll('#checks-validator li').length > 0, null, { timeout: 180000 });
 await page.waitForTimeout(1500); await page.evaluate(() => { document.querySelector('.report').scrollTop = 0; });
 await shot('demo_01_overview_profile_used.png');
 await page.check('#t-wire'); await page.waitForTimeout(1200); await shot('demo_02_side_by_side_LOD0_wire.png');
@@ -27,7 +27,7 @@ const info = await page.evaluate(() => {
   const vis = (id) => { const el = document.getElementById(id); return !!el && el.offsetParent !== null; };
   return { text: document.body.innerText, chip: document.getElementById('chip-pipeline').textContent, validatorChip: document.getElementById('chip-validator').textContent,
     visibleControls: ['dropzone', 'file-input', 'btn-sample', 'btn-process', 'btn-open-fixture', 'btn-open-output', 'saved-reports'].filter(vis),
-    lods: window.__fabled.lods.map((l) => ({ level: l.level, tris: l.tris, manifestTris: l.manifestTris, format: l.format })), loadErrors: window.__fabled.lodLoadErrors,
+    lods: (window.__sculptline || window.__fabled).lods.map((l) => ({ level: l.level, tris: l.tris, manifestTris: l.manifestTris, format: l.format })), loadErrors: (window.__sculptline || window.__fabled).lodLoadErrors,
     headline: document.getElementById('validator-headline').innerText,
     normals: document.querySelector('#checks-browser li[data-id="normals.flipped"]')?.innerText };
 });

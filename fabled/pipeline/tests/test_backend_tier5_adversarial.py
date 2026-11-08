@@ -1,4 +1,4 @@
-"""Tier 5 White-Box Adversarial Stress Test Suite for Fabled Backend Pipelines and Validator.
+"""Tier 5 White-Box Adversarial Stress Test Suite for SculptLine Backend Pipelines and Validator.
 
 Covers:
 1. Malformed meshes (non-manifold edges, isolated vertices, extreme aspect ratios, inverted winding, NaN coordinates, zero-area faces).
@@ -21,11 +21,11 @@ import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 PIPELINE_DIR = os.path.dirname(HERE)
-FABLED_DIR = os.path.dirname(PIPELINE_DIR)
-VALIDATOR_DIR = os.path.join(FABLED_DIR, "validator")
+ROOT_DIR = os.path.dirname(PIPELINE_DIR)
+VALIDATOR_DIR = os.path.join(ROOT_DIR, "validator")
 FIXTURES_DIR = os.path.join(VALIDATOR_DIR, "fixtures")
 PROFILES_DIR = os.path.join(VALIDATOR_DIR, "profiles")
-PIPELINE_CLI = os.path.join(PIPELINE_DIR, "fabled_pipeline.py")
+PIPELINE_CLI = os.path.join(PIPELINE_DIR, "sculptline_pipeline.py")
 CLEAN_MESH = os.path.join(FIXTURES_DIR, "synthetic_clean_character.obj")
 DEMO_PROFILE = os.path.join(PROFILES_DIR, "demo_placeholder.json")
 
@@ -35,9 +35,9 @@ if VALIDATOR_DIR not in sys.path:
 if PIPELINE_DIR not in sys.path:
     sys.path.insert(0, PIPELINE_DIR)
 
-from fabled_validator.report import validate, exit_code_for
-from fabled_validator.geometry import analyze as validator_analyze
-from fabled_validator.model import ParseError, UnsupportedFormatError
+from sculptline_validator.report import validate, exit_code_for
+from sculptline_validator.geometry import analyze as validator_analyze
+from sculptline_validator.model import ParseError, UnsupportedFormatError
 
 
 # =============================================================================

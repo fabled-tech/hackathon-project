@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Tier 5 White-Box Adversarial Stress Test Suite for Fabled Web Workspace
+ * Tier 5 White-Box Adversarial Stress Test Suite for SculptLine Web Workspace
  *
  * Exercises:
  * 1. Web Server Concurrency & Robustness

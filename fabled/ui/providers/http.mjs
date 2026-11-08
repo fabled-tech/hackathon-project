@@ -1,5 +1,7 @@
 // Shared HTTP helpers for provider adapters. Node >= 18 (global fetch). No dependencies.
 
+import { env } from '../env.mjs';
+
 export class ProviderError extends Error {
   constructor(message, { status = null, body = null } = {}) {
     super(message);
@@ -8,7 +10,7 @@ export class ProviderError extends Error {
   }
 }
 
-const TIMEOUT_MS = Number(process.env.FABLED_PROVIDER_TIMEOUT_MS || 30000);
+const TIMEOUT_MS = Number(env('PROVIDER_TIMEOUT_MS') || 30000);
 
 // JSON request with a timeout. Never logs headers (they carry API keys).
 export async function requestJson(url, { method = 'GET', headers = {}, body = undefined, fetchImpl = globalThis.fetch } = {}) {

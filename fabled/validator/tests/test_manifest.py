@@ -7,7 +7,7 @@ import sys
 import pytest
 
 from conftest import FIX, ROOT
-from fabled_validator import exit_code_for, validate
+from sculptline_validator import exit_code_for, validate
 
 DEMO = os.path.join(ROOT, "profiles", "demo_placeholder.json")
 EXAMPLE = os.path.join(ROOT, "profiles", "example_studio.json")
@@ -167,7 +167,7 @@ def test_matching_up_axis_and_units_pass(pipe_copy):
 def test_paths_are_relative_to_manifest_dir_not_cwd(pipe_copy, tmp_path):
     d, edit = pipe_copy
     mp = edit(lambda m: None)
-    r = subprocess.run([sys.executable, "-m", "fabled_validator", "check", "--manifest", mp, "--profile", DEMO, "--json-only"],
+    r = subprocess.run([sys.executable, "-m", "sculptline_validator", "check", "--manifest", mp, "--profile", DEMO, "--json-only"],
                        cwd=str(tmp_path), capture_output=True, text=True, env={**os.environ, "PYTHONPATH": ROOT})
     assert r.returncode == 0, r.stderr
     assert mcheck(json.loads(r.stdout))["status"] == "pass"
@@ -238,7 +238,7 @@ def test_reports_match_schema_and_old_shape_still_valid():
 
 
 def test_cli_manifest_asset_omitted_and_exit_codes(tmp_path):
-    base = [sys.executable, "-m", "fabled_validator", "check", "--profile", DEMO]
+    base = [sys.executable, "-m", "sculptline_validator", "check", "--profile", DEMO]
     ok = subprocess.run(base + ["--manifest", os.path.join(PIPE, "manifest.json"), "--json-only"], cwd=ROOT, capture_output=True, text=True)
     assert ok.returncode == 0 and json.loads(ok.stdout)["asset"]["file_name"] == "SM_SyntheticProxy.fbx"
     bad = subprocess.run(base + ["--manifest", os.path.join(FIX, "synthetic_pipeline_out_tri_mismatch", "manifest.json"), "--out", str(tmp_path)],
@@ -295,7 +295,7 @@ def test_export_up_axis_absent_keeps_old_up_axis_comparison(pipe_copy):
 
 
 def test_html_manifest_card_lists_every_warning_in_full(pipe_copy):
-    from fabled_validator.html_report import render_html
+    from sculptline_validator.html_report import render_html
     d, edit = pipe_copy
     ws = [f"warning {i}: " + "long text " * 40 for i in range(5)]
     rep = validate(None, DEMO, manifest_path=edit(lambda m: m["warnings"].extend(ws)))

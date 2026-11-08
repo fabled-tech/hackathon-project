@@ -4,7 +4,7 @@ Status as of 2026-11-06. The plugin layer is in `providers/`. Each adapter is **
 server's environment**. Keys stay on the local server: they are never sent to the browser, written to disk or logged.
 The browser only sees env var *names* and a `configured` flag (`GET /api/providers`).
 
-## Where providers fit in Fabled
+## Where providers fit in SculptLine
 
 ```
  text / reference image ──► 3D generator (Meshy, Tripo, …) ──► Import as sculpt ──► pipeline (retopo, LODs, bake)
@@ -12,7 +12,7 @@ The browser only sees env var *names* and a `configured` flag (`GET /api/provide
  pipeline preview render ──► video generator (Higgsfield, Runway, …) ──► clip on the generation page (previs, turntable, pitch)
 ```
 
-Generated meshes are where Fabled adds value. Text- and image-to-3D output is usually dense, triangulated and
+Generated meshes are where SculptLine adds value. Text- and image-to-3D output is usually dense, triangulated and
 inconsistent in scale and axis, which is what the pipeline and the validator are for. (The Mochi test in `ROADMAP.md` was
 already a generated mesh: Hunyuan output.) Video providers are the other half of an "entertainment workspace": they turn an
 approved asset's preview render into a moving shot without leaving the workspace.
@@ -25,7 +25,7 @@ approved asset's preview render into a moving shot without leaving the workspace
 | `tripo` | Tripo | text→3D, image→3D (public image URL only) | `TRIPO_API_KEY` | **No.** `POST /v2/openapi/task` and `GET /v2/openapi/task/{id}` were seen in third-party integrations. The host, field names and image upload flow are unverified. |
 | `higgsfield` | Higgsfield | image→video | `HIGGSFIELD_API_KEY` (+ optional `HIGGSFIELD_API_SECRET`) | **No.** One endpoint path (`platform.higgsfield.ai/minimax/hailuo-2.3/standard/image-to-video`, fields `prompt`, `image_url`, async status) came from a connector page. Auth header, scheme, status path and output field are configurable guesses; see the header of `providers/higgsfield.mjs`. |
 | `runway` | Runway | image→video | `RUNWAYML_API_SECRET` | **Partly.** `POST /v1/image_to_video`, Bearer auth and `X-Runway-Version: 2024-11-06` were confirmed from mirrors of the API reference. Task polling (`GET /v1/tasks/{id}`), model name and output fields are unverified. |
-| `mock` | Offline mock | text→3D, image→3D | none (`FABLED_PROVIDER_MOCK=off` disables it) | n/a. **CONCEPT MOCKUP**: returns one of three procedural models (knight helmet, mushroom cottage, potion flask; picked from prompt keywords, else from a hash of the prompt) so the loop can be demoed offline. Everything it produces is labeled. |
+| `mock` | Offline mock | text→3D, image→3D | none (`SCULPTLINE_PROVIDER_MOCK=off` disables it; legacy `FABLED_PROVIDER_MOCK` also read) | n/a. **CONCEPT MOCKUP**: returns one of three procedural models (knight helmet, mushroom cottage, potion flask; picked from prompt keywords, else from a hash of the prompt) so the loop can be demoed offline. Everything it produces is labeled. |
 
 Why "unverified": every vendor docs host (docs.meshy.ai, platform.tripo3d.ai, docs.higgsfield.ai, docs.dev.runwayml.com)
 was outside the network allow-list of the session that wrote these adapters. The adapters are therefore defensive: they
@@ -45,7 +45,7 @@ preview render of the open pipeline run, or an uploaded PNG/JPEG/WebP of 10 MB o
 sculpt → pipeline** button. Video results play on the generation's page. Overrides for unverified details:
 `MESHY_BASE_URL`, `TRIPO_BASE_URL`, `RUNWAY_BASE_URL`, `RUNWAY_MODEL`, `RUNWAY_RATIO`, `RUNWAY_DURATION`, `RUNWAY_VERSION`,
 `HIGGSFIELD_BASE_URL`, `HIGGSFIELD_I2V_PATH`, `HIGGSFIELD_AUTH_HEADER`, `HIGGSFIELD_AUTH_SCHEME`, `HIGGSFIELD_STATUS_PATH`,
-`FABLED_PROVIDER_TIMEOUT_MS`.
+`SCULPTLINE_PROVIDER_TIMEOUT_MS` (legacy `FABLED_PROVIDER_TIMEOUT_MS` also read).
 
 ## Adding a provider
 

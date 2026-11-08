@@ -1,6 +1,6 @@
 {
   "_comment": "Pipeline smoke-test profile for the Mochi test (stylized low-poly cat character, static mesh). Example values chosen by the pipeline engineer, not a studio's real rules. LOD budgets mirror the pipeline's own targets.",
-  "profile_name": "Fabled pipeline smoke test - stylized creature/character, static mesh (example values)",
+  "profile_name": "SculptLine pipeline smoke test - stylized creature/character, static mesh (example values)",
   "profile_version": "0.1",
   "asset_type": "character",
   "units": {

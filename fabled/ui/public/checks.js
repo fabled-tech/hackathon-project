@@ -25,7 +25,7 @@ export function runBrowserChecks({ src, topo, profile, lods, manifest, validator
     fix_hint: scaleOk ? null : (suggestion ? `Scale ${suggestion} would put it at ${fmtLen(heightUnits * UNIT_TO_CM[profile.units] * suggestion)}.` : 'Check source units and scale.'),
     fix: !scaleOk && suggestion ? { kind: 'scale', value: suggestion } : null });
 
-  // 2. Normals: same definition as fabled_validator's "normals" check (see meshops.analyzeTopology):
+  // 2. Normals: same definition as sculptline_validator's "normals" check (see meshops.analyzeTopology):
   //    flagged = winding disagrees with its connected surface OR stored vertex normals point against the face.
   //    The validator's number is authoritative; the browser figure is labeled with what it was measured on.
   out.push(normalsCheck({ src, topo, lods, validator }));
@@ -131,7 +131,7 @@ function normalsCheck({ src, topo, lods, validator }) {
   if (!v) {
     return { id: 'normals.flipped', severity: 'error', passed: src.browserFixedFlips ? false : b.flagged === 0, object: label,
       message: `${label}: ${bText}. Validator result not available yet, so this browser figure is provisional.${preview}`,
-      fix_hint: b.flagged ? 'Definition (same as fabled_validator): a triangle is flagged if its winding disagrees with its connected surface or its stored vertex normals point against it.' : null, fix };
+      fix_hint: b.flagged ? 'Definition (same as the SculptLine validator): a triangle is flagged if its winding disagrees with its connected surface or its stored vertex normals point against it.' : null, fix };
   }
   // Compare on the same scope: per LOD when we have LODs, else totals.
   let agree = v.flagged === b.flagged && v.triangles === b.triangles;

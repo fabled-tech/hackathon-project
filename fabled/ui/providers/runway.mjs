@@ -1,4 +1,4 @@
-// Runway (runwayml.com): image-to-video. In Fabled this turns a pipeline preview render (or any still) into a short clip
+// Runway (runwayml.com): image-to-video. In SculptLine this turns a pipeline preview render (or any still) into a short clip
 // for previs, pitch reels or asset turntables. The output is a video, not a mesh, so it is attached to the asset page.
 //
 // Verification (2026-11-06): POST /v1/image_to_video, Bearer auth and the required `X-Runway-Version: 2024-11-06` header

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 /**
- * Empirical Adversarial Probe & Stress Harness for Fabled Web Workspace
+ * Empirical Adversarial Probe & Stress Harness for SculptLine Web Workspace
  *
  * Target: fabled/ui/server.mjs
  * Probes:
@@ -78,7 +78,7 @@ async function createTestJob(serverUrl, filename = 'probe_sculpt.obj') {
 
 async function main() {
   console.log('================================================================');
-  console.log(' EMPIRICAL ADVERSARIAL STRESS HARNESS: Fabled Web Workspace API');
+  console.log(' EMPIRICAL ADVERSARIAL STRESS HARNESS: SculptLine Web Workspace API');
   console.log('================================================================\n');
 
   const testPort = await getFreePort();
