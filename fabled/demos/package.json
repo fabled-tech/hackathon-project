@@ -1,0 +1,14 @@
+{
+  "name": "fabled-industry-demos",
+  "version": "0.1.0",
+  "description": "Fabled industry demos: Fabled Shots (film) and Fabled Forge (games). Zero-dependency Node server.",
+  "type": "module",
+  "private": true,
+  "license": "UNLICENSED",
+  "scripts": {
+    "start": "node server.mjs",
+    "test": "node tools/test_demos.mjs",
+    "test:screens": "node tools/screenshot_demos.mjs"
+  },
+  "engines": { "node": ">=18" }
+}

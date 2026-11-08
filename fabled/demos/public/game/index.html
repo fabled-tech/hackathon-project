@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="en" data-industry="game">
+<head>
+  <meta charset="utf-8" />
+  <title>Fabled Forge · pitch to Unreal blockout</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="icon" href="data:," />
+  <link rel="stylesheet" href="/shared.css" />
+  <link rel="stylesheet" href="/game/game.css" />
+</head>
+<body>
+  <div class="hairline"></div>
+  <header class="topbar">
+    <div class="brand"><a href="/" class="logo" style="color:inherit;text-decoration:none">Fabled</a><span class="sep">/</span><span class="product">Forge</span><span class="tag">Games · kit room</span></div>
+    <nav class="tabs" id="tabs">
+      <button class="btn tiny active" data-tab="board">Kit board</button>
+      <button class="btn tiny" data-tab="layout">Level layout</button>
+      <button class="btn tiny" data-tab="profiles">Import profiles</button>
+      <button class="btn tiny" data-tab="unreal">Unreal &amp; export</button>
+    </nav>
+    <span class="spacer"></span>
+    <label class="small muted">Acting as <select id="role"></select></label>
+    <label class="small muted">Generate with <select id="provider"></select></label>
+    <span class="pill" id="sync">synced</span>
+  </header>
+  <div class="layout">
+    <aside class="pane">
+      <div class="section"><h2>Projects</h2><div class="tree" id="projects"></div><button class="btn tiny" id="btn-new" style="margin-top:8px">+ New from pitch</button></div>
+      <div class="section" id="new-project" hidden>
+        <h2>New project</h2>
+        <textarea id="new-text" placeholder="Paste a game pitch. Optional structured lines: Title:, Genre:, Camera:, Style:, Characters:, Props:, Environment:"></textarea>
+        <div class="row" style="margin-top:6px"><button class="btn tiny" id="btn-sample">Load sample pitch</button><button class="btn tiny primary" id="btn-create">Build kit</button><button class="btn tiny" id="btn-cancel">Cancel</button></div>
+        <p class="small muted">Rule-based, offline. Budgets are <span class="badge-est">DEMO PLACEHOLDER VALUES</span> from the sample validator profiles.</p>
+      </div>
+      <div class="section" id="kit-summary"></div>
+      <div class="section"><h2>Activity</h2><div class="activity"><ul id="activity"></ul></div></div>
+    </aside>
+    <main class="main">
+      <div id="empty" class="card"><h3 style="margin:0 0 6px">Start with a pitch</h3><p class="muted">Fabled Forge turns a game pitch into an asset kit: every character, creature, prop and environment piece becomes a card with a studio import profile (scale, axis, LOD budget, texel density, rig). The team or vendor generates meshes (Meshy, Tripo or the offline mock), pushes them through Fabled Studio's pipeline and pre-import check, lays out the level, and exports a blockout builder for Unreal Engine.</p><button class="btn primary" id="btn-empty-new">New project</button></div>
+      <section id="tab-board" hidden><div class="row" id="stats"></div><div class="kanban" id="kanban"></div></section>
+      <section id="tab-layout" hidden>
+        <div class="row" style="margin-bottom:8px"><select id="add-asset"></select><button class="btn tiny" id="btn-add">Place at centre</button><span class="muted small">Drag to move · R rotates 15° · Delete removes · grid 1 m · 40 m × 40 m</span><span class="spacer"></span><button class="btn tiny primary" id="btn-save-layout">Save layout</button></div>
+        <canvas id="layout-canvas" width="900" height="900"></canvas>
+      </section>
+      <section id="tab-profiles" hidden></section>
+      <section id="tab-unreal" hidden></section>
+    </main>
+    <aside class="pane" id="detail"><div class="section"><h2>Asset</h2><p class="muted small">Select a card.</p></div></aside>
+  </div>
+  <div id="toast" class="toast" hidden></div>
+  <script type="module" src="/game/app.js"></script>
+</body>
+</html>

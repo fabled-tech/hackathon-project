@@ -1,0 +1,10 @@
+.tabs { display: flex; gap: 4px; } .tabs .btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent-bright); }
+.kanban { display: grid; grid-template-columns: repeat(6, minmax(150px, 1fr)); gap: 10px; margin-top: 10px; align-items: start; }
+.col h3 { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: var(--muted); margin: 0 0 8px; display: flex; justify-content: space-between; }
+.col .card { padding: 9px 10px; cursor: pointer; } .col .card .name { font-weight: 600; } .col .card .cat { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.progress { height: 4px; background: var(--bg-elevated); border-radius: 2px; margin-top: 6px; overflow: hidden; } .progress i { display: block; height: 100%; background: var(--accent); }
+#layout-canvas { width: 100%; max-width: 900px; aspect-ratio: 1; background: var(--bg-panel); border: 1px solid var(--line-strong); border-radius: 10px; cursor: crosshair; touch-action: none; }
+.detail-field { display: grid; grid-template-columns: 90px 1fr; gap: 6px; align-items: center; margin: 4px 0; font-size: 12px; }
+pre.code { background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 11px; overflow: auto; max-height: 300px; }
+.steps li { margin: 6px 0; }
+.swatch { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }

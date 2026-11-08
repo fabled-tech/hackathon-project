@@ -1,0 +1,16 @@
+Title: Mossgate
+Genre: Cozy action RPG
+Camera: Third person
+Style: Stylized, hand-painted
+Engine: Unreal Engine 5
+
+A small village built around a ruined gate in a mushroom forest. The player is a young knight who inherits
+the village shrine and has to relight it before the fog returns. Daytime is spent helping villagers: the
+merchant wants her cart fixed, the farmer lost a potion flask in the well, and a stray fox follows you home.
+At night slimes and a wolf drift in from the ruins and you defend the lanterns along the bridge with a sword
+and a shield. A tavern and a windmill anchor the two ends of the village; a mushroom cottage is the player's
+home. Treasure chests and barrels hold crafting parts. The boss is a knight made of fog who waits in the gate.
+
+Characters: knight, merchant, farmer, fog knight
+Props: sword, shield, lantern, potion flask, treasure chest, barrel, cart
+Environment: mushroom cottage, tavern, windmill, bridge, ruined gate, shrine, well
