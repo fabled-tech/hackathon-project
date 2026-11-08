@@ -444,7 +444,7 @@ def test_t1_f07_03_server_process_profile_dispatch(http_client, project_paths):
 def test_t1_f07_04_server_forced_off_mode(project_paths):
     """FABLED_PIPELINE=off activates stub response."""
     server_mjs = (project_paths["ui"] / "server.mjs").read_text()
-    assert "off(process.env.FABLED_PIPELINE)" in server_mjs
+    assert "off(env('PIPELINE'))" in server_mjs  # SCULPTLINE_PIPELINE, falling back to FABLED_PIPELINE (ui/env.mjs)
     assert "manifest.CONCEPT_MOCKUP.json" in server_mjs
 
 
@@ -980,7 +980,9 @@ def test_t1_f21_03_test_isolation_fixture(tmp_path):
 
 def test_t1_f21_04_runner_script_exists(project_paths):
     """Project test infrastructure provides runner scripts."""
-    assert (project_paths["root"] / "Makefile").exists() or (project_paths["root"] / "package.json").exists()
+    # SculptLine has no root Makefile; its runners are tests/e2e/runner.py and the ui npm scripts
+    assert (project_paths["root"] / "tests" / "e2e" / "runner.py").exists()
+    assert (project_paths["ui"] / "package.json").exists()
 
 
 def test_t1_f21_05_clean_exit_code_contract():

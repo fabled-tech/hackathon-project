@@ -374,15 +374,15 @@ def test_t2_f07_01_toggle_unrecognized_engine(http_client):
 
 
 def test_t2_f07_02_toggle_env_cmd_template(project_paths):
-    """Server honors FABLED_PIPELINE_CMD template override."""
+    """Server honors SCULPTLINE_PIPELINE_CMD (or legacy FABLED_PIPELINE_CMD) template override."""
     server_mjs = (project_paths["ui"] / "server.mjs").read_text()
-    assert "process.env.FABLED_PIPELINE_CMD" in server_mjs
+    assert "env('PIPELINE_CMD')" in server_mjs
 
 
 def test_t2_f07_03_toggle_env_validator_cmd(project_paths):
-    """Server honors FABLED_VALIDATOR_CMD template override."""
+    """Server honors SCULPTLINE_VALIDATOR_CMD (or legacy FABLED_VALIDATOR_CMD) template override."""
     server_mjs = (project_paths["ui"] / "server.mjs").read_text()
-    assert "process.env.FABLED_VALIDATOR_CMD" in server_mjs
+    assert "env('VALIDATOR_CMD')" in server_mjs
 
 
 def test_t2_f07_04_toggle_profile_export_mode(project_paths):
@@ -611,7 +611,7 @@ def test_t2_f13_02_npm_scripts_stub_mode(project_paths):
     """package.json defines start:stub with FABLED_PIPELINE=off."""
     pkg = json.loads((project_paths["ui"] / "package.json").read_text())
     assert "start:stub" in pkg["scripts"]
-    assert "FABLED_PIPELINE=off" in pkg["scripts"]["start:stub"]
+    assert "SCULPTLINE_PIPELINE=off" in pkg["scripts"]["start:stub"]
 
 
 def test_t2_f13_03_demo_build_missing_manifest(project_paths):
@@ -678,7 +678,7 @@ def test_t2_f15_01_studio_escaped_file_paths(project_paths):
 def test_t2_f15_02_studio_missing_input_early_check(project_paths):
     """ViewModel checks fabledRootURL presence before running."""
     content = (project_paths["studio"] / "Sources" / "Models" / "SculptLineModels.swift").read_text()
-    assert "fabledRootURL" in content
+    assert "sculptlineRootURL" in content
 
 
 def test_t2_f15_03_studio_default_config_path(project_paths):
