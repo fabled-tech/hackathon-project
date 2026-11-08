@@ -574,7 +574,7 @@ struct ConnectionsView: View {
                           tone: .neutral, help: nil)
         }
         ConnectionRow(name: "Unreal import", detail: "Draft script, never run", tone: .neutral,
-                      help: "fabled/unreal/import_fabled_asset.py (untested draft)")
+                      help: "unreal/import_fabled_asset.py (untested draft)")
     }
 
     private var providersHeader: some View {

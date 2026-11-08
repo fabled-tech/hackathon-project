@@ -20,7 +20,6 @@ import * as THREE from 'three';
 import { chromium } from 'playwright-core';
 
 const UI_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const REPO_ROOT = path.resolve(UI_DIR, '../..');
 
 let totalTests = 0;
 let passedTests = 0;
@@ -127,7 +126,7 @@ async function main() {
 
   // Cross-check against Python validator definition in fabled_validator/checks.py
   test('VALIDATOR_CHECKS_INFO strictly matches Python fabled_validator/checks.py CHECKS definition', () => {
-    const pythonChecksPath = path.resolve(REPO_ROOT, 'fabled/validator/fabled_validator/checks.py');
+    const pythonChecksPath = path.resolve(UI_DIR, '../validator/fabled_validator/checks.py');
     assert(fs.existsSync(pythonChecksPath), 'Python validator checks.py must exist');
     const pyContent = fs.readFileSync(pythonChecksPath, 'utf8');
 

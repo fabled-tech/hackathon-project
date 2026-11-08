@@ -18,7 +18,8 @@ import pytest
 PIPELINE_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 PIPELINE_CLI = os.path.join(PIPELINE_ROOT, "fabled_pipeline.py")
 REPO_ROOT = os.path.dirname(os.path.dirname(PIPELINE_ROOT))
-FIXTURE_MESH = os.path.join(REPO_ROOT, "fabled", "validator", "fixtures", "synthetic_clean_character.obj")
+# validator/ is a sibling of pipeline/ (works whether this tree is fabled/ in a larger repo or the repo root)
+FIXTURE_MESH = os.path.join(os.path.dirname(PIPELINE_ROOT), "validator", "fixtures", "synthetic_clean_character.obj")
 
 # Detect host Blender
 HOST_BLENDER = None

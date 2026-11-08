@@ -193,7 +193,7 @@ export function initWorkspace(hooks) {
       rows.push(conn('engine', 'Blender engine', s.pipeline.blender_path ? 'Headless Blender found' : 'Blender not found: Native Python/NumPy fallback', s.pipeline.blender_path ? 'ok' : 'warn', s.pipeline.blender_path || ''));
       rows.push(conn('validator', 'Validator', s.validator.available ? `fabled_validator${s.validator.supports_manifest ? ' · --manifest' : ''}` : 'not found: stub', s.validator.available ? 'ok' : 'mock', s.validator.command_preview));
     } else rows.push(conn('pipeline', 'Pipeline & validator', 'checking…', 'neutral'));
-    rows.push(conn('unreal', 'Unreal import', 'Draft script, never run (ROADMAP ticket 2)', 'neutral', 'fabled/unreal/import_fabled_asset.py'));
+    rows.push(conn('unreal', 'Unreal import', 'Draft script, never run (ROADMAP ticket 2)', 'neutral', 'unreal/import_fabled_asset.py'));
     box.innerHTML = rows.join('') + `<div class="conn-sub">AI providers <button type="button" class="linkish" id="conn-open-gen">Generate…</button></div>` +
       (st.providers.length ? st.providers.map((p) => conn(`prov-${p.id}`, p.name,
         p.configured ? `${p.kind_labels.join(' · ')}` : `set ${p.env.join(' / ')} to enable`,
