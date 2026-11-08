@@ -30,3 +30,6 @@ test_results.json
 mcp.json
 *.pyc
 *.tsbuildinfo
+
+fabled/demos/work/
+fabled/demos/screenshots/

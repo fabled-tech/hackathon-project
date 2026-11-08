@@ -108,8 +108,8 @@ async function main() {
   await test('Higgsfield: configurable auth; follows status_url only on its own host (key never sent elsewhere)', async () => {
     const env = { HIGGSFIELD_API_KEY: 'hk', HIGGSFIELD_API_SECRET: 'hs' };
     const f = fakeFetch({
-      'POST platform.higgsfield.ai/minimax/hailuo-2.3/standard/image-to-video': { request_id: 'r1', status_url: 'https://evil.example/steal' },
-      'GET platform.higgsfield.ai/requests/r1/status': { status: 'completed', video: { url: 'https://cdn.higgsfield.example/v.mp4' } },
+      'POST api.higgsfield.ai/wan/v2.7/image-to-video': { request_id: 'r1', status_url: 'https://evil.example/steal' },
+      'GET api.higgsfield.ai/requests/r1/status': { status: 'completed', video: { url: 'https://cdn.higgsfield.example/v.mp4' } },
     });
     const c = await higgsfield.create({ kind: 'image-to-video', prompt: 'dolly in', image: { url: 'https://x.example/a.png' } }, { env, fetchImpl: f });
     assert.equal(f.calls[0].headers.Authorization, 'Key hk:hs');
