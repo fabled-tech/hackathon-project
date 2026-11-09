@@ -5,7 +5,7 @@ profile, compare the high-poly and retopo meshes side by side with synced camera
 then run the pre-import check.
 
 Plain HTML/ES modules plus three.js 0.169 (served from `node_modules`, no CDN, no build step), and a
-dependency-free Node server. Runs on localhost only. Nothing is deployed or published.
+dependency-free Node server. Binds to localhost by default (LAN mode for the iPad app is opt-in, see below). Nothing is deployed or published.
 
 ## Run
 ```bash
@@ -16,6 +16,29 @@ npm run start:stub     # same, but forces the CONCEPT MOCKUP stubs (fast demo wh
 ```
 Open http://127.0.0.1:5178/ and either drop a file on the drop zone or click **Load sample sculpt**.
 Use `PORT=5180 npm start` for another port.
+
+### Who can talk to the server
+The server has no login, so it only answers its own page and native clients (details and the full rules:
+`INTERFACES.md` §11).
+- **Default (`HOST=127.0.0.1`)**: open it as `http://127.0.0.1:5178` or `http://localhost:5178`. Any other `Host`
+  name is a 403 (DNS-rebinding defence).
+- **LAN mode for the iPad app (`HOST=0.0.0.0 npm start`)**: also reachable by any of this machine's own addresses, e.g.
+  `http://192.168.1.20:5178`. To use a name instead, list it: `FABLED_ALLOWED_HOSTS=my-mac.local HOST=0.0.0.0 npm start`.
+  There is still no authentication, so every device on that network can upload, run the pipeline and start generations
+  with your provider keys. Trusted networks only.
+- **Other websites are refused**: a request to `/api/*` whose `Origin` is not this server gets a 403, and no CORS
+  headers are ever sent.
+- **JSON endpoints need `Content-Type: application/json`** (415 otherwise). With curl:
+  `curl -X POST -H 'Content-Type: application/json' -d '{}' http://127.0.0.1:5178/api/jobs/<id>/validate`.
+  Uploads take raw bytes with any type: `curl --data-binary @mesh.glb 'http://127.0.0.1:5178/api/jobs?filename=mesh.glb'`.
+
+| Env var | Default | What |
+|---|---|---|
+| `HOST` / `PORT` | `127.0.0.1` / `5178` | bind address and port |
+| `FABLED_ALLOWED_HOSTS` | none | extra `Host` names to accept, comma-separated |
+| `FABLED_UPLOAD_MAX_BYTES` | `1073741824` (1 GiB) | largest accepted upload; larger is a 413 |
+| `FABLED_PIPELINE`, `FABLED_VALIDATOR`, `FABLED_PIPELINE_CMD`, `FABLED_VALIDATOR_CMD`, `FABLED_CLI_TIMEOUT_MS`, `FABLED_BLENDER`, `FABLED_ENGINE`, `PYTHON` | | pipeline / validator discovery and overrides (`INTERFACES.md` §2, §3) |
+| provider keys and overrides | | `PROVIDERS.md` |
 
 > While `prototype/pipeline/` is still being built, `npm start` will find `fabled_pipeline.py` and actually
 > launch Blender when you click **Build retopo + LODs**. A full run can take minutes. If it fails, the UI shows
@@ -46,6 +69,9 @@ Use `PORT=5180 npm start` for another port.
 A **CONCEPT MOCKUP** badge in the header is visible whenever any stub, preview or test fixture is on screen.
 
 Connected workspace + provider plugin tests (no keys or network): `npm run test:connected` (also part of `npm test`).
+Its last suite is the server hardening tests (cross-site guard, Content-Type rule, security headers, path traversal,
+limits, LAN mode), which also run alone: `node tools/test_server_security.mjs`. That suite starts one server on
+`0.0.0.0` (an ephemeral port) for a few seconds to test LAN mode.
 
 Extra tests: `node tools/test_mock_pipeline.mjs` (progress bar + failed run, with the mock CLI server on :5179; see the file header) and `node tools/shot_saved_report.mjs [report-rel] [png]`.
 
@@ -70,7 +96,7 @@ npm run test:screens   # loads page, drops the sample, builds LODs, applies fixe
 Screenshots go to `screenshots/`, with the log and console output in `screenshots/run_log.json`.
 
 ## Files
-- `server.mjs`: local server and API. Shells out to the pipeline/validator, or serves the stubs.
+- `server.mjs`: local server and API. Shells out to the pipeline/validator, or serves the stubs. Also the cross-site request guard, body limits and security headers (`INTERFACES.md` §11)
 - `public/index.html`, `styles.css`: UI (cream and brown deck palette, Playfair Display + Inter, SIL OFL fonts in `public/fonts/`)
 - `public/app.js`: wiring. `loaders.js`: three.js loaders. `meshops.js`: weld, topology, decimation, texel density. `checks.js`: browser checks. `viewer.js`: synced side-by-side viewers
 - `stub/*.CONCEPT_MOCKUP.json`: stub manifest and report (tri counts are null on purpose)

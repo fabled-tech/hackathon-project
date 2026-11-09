@@ -155,7 +155,7 @@ export function initWorkspace(hooks) {
       clearTimeout(st.noteTimer);
       st.noteTimer = setTimeout(async () => {
         try {
-          const j = await api(`/api/workspace/notes?asset=${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ text: ta.value }) });
+          const j = await api(`/api/workspace/notes?asset=${encodeURIComponent(id)}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ text: ta.value }) });
           if (st.lastNoteFor === id && $('page-note-status')) $('page-note-status').textContent = j.ok ? 'saved' : `not saved: ${j.error}`;
           const a = findAsset(st.ws, id); if (a && a.has_note !== !!j.note) { a.has_note = !!j.note; renderTree(); }
         } catch (e) { $('page-note-status').textContent = `not saved: ${e.message}`; }
@@ -278,7 +278,7 @@ export function initWorkspace(hooks) {
     }
     $('gen-submit').disabled = true; $('gen-msg').textContent = 'Submitting…';
     try {
-      const j = await api(`/api/providers/${encodeURIComponent(pid)}/generations`, { method: 'POST', body: JSON.stringify(body) });
+      const j = await api(`/api/providers/${encodeURIComponent(pid)}/generations`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
       if (!j.ok) { $('gen-msg').textContent = `Not started: ${j.error}`; return; }
       st.generations.set(j.generation.id, j.generation);
       $('gen-msg').textContent = 'Started. It appears under AI generations in the tree.';

@@ -342,7 +342,7 @@ async function buildLods() {
     busy('Preparing…'); await state.upload;
     if (!state.jobId) { await buildPreviewLods(profile); finishLods('Local server offline: right view is a browser decimation preview (CONCEPT MOCKUP).'); return; }
     const payload = { ...profile, engine: state.engine };
-    const r = await fetch(`/api/jobs/${state.jobId}/process`, { method: 'POST', body: JSON.stringify(payload) });
+    const r = await fetch(`/api/jobs/${state.jobId}/process`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
     const resp = await r.json();
     if (resp.engine) setEngine(resp.engine);
     if (!r.ok || resp.ok === false) { showPipelineError(resp, profile); return; }
@@ -713,7 +713,7 @@ async function runValidator(profile) {
   await state.upload; const jobAtStart = state.jobId;
   if (!state.jobId) { src.textContent = 'server offline'; src.className = 'pill'; note.textContent = 'Local server not reachable; validator not run.'; list.innerHTML = ''; return; }
   try {
-    const r = await fetch(`/api/jobs/${state.jobId}/validate`, { method: 'POST', body: JSON.stringify(profile) }); const j = await r.json();
+    const r = await fetch(`/api/jobs/${state.jobId}/validate`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(profile) }); const j = await r.json();
     if (state.jobId !== jobAtStart) return; // a different file/output was opened meanwhile; drop this stale result
     if (!r.ok || j.ok === false) { state.validator = null; src.textContent = 'validator error'; src.className = 'pill'; note.textContent = `${j.error} ${(j.stderr || '').trim().split('\n').slice(-2).join(' | ')}`; list.innerHTML = ''; console.warn('validator error', j); return; }
     const rep = j.report; state.validator = rep; state.validatorJob = rep.concept_mockup ? null : rep;

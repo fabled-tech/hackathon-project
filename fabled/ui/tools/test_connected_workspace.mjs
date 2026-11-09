@@ -8,6 +8,8 @@
  *    non-https and out-of-root model downloads refused.
  * 3. Live server (ephemeral port): /api/workspace, notes, activity, providers (no secret values leaked),
  *    mock generate → poll → import → reopen input, and bad input handling.
+ * 4. Server hardening (tools/test_server_security.mjs): cross-site guard, Content-Type rule, security headers,
+ *    traversal, limits, LAN mode. Also runnable on its own.
  *
  * Run: node tools/test_connected_workspace.mjs
  */
@@ -18,6 +20,7 @@ import net from 'node:net';
 import { spawn } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
+import { runServerSecurityTests } from './test_server_security.mjs';
 
 const UI_DIR = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 let total = 0; let passed = 0; const failures = [];
@@ -118,6 +121,59 @@ async function main() {
     assert.equal(p.status, 'succeeded'); assert.equal(p.outputs[0].type, 'video');
     await assert.rejects(higgsfield.create({ kind: 'image-to-video', image: { url: 'https://x' } }, { env, fetchImpl: f }), /needs a prompt/);
   });
+  await test('Higgsfield image input: public https URL as documented; a data URI is sent as image_url only under the size cap', async () => {
+    const env = { HIGGSFIELD_API_KEY: 'hk', HIGGSFIELD_API_SECRET: 'hs' };
+    const routes = { 'POST api.higgsfield.ai/wan/v2.7/image-to-video': { request_id: 'r2' } };
+    const small = `data:image/png;base64,${'A'.repeat(4000)}`;
+    // Default behavior is unchanged: a small data URI goes out in image_url (whether the API accepts it is unverified).
+    let f = fakeFetch(routes);
+    await higgsfield.create({ kind: 'image-to-video', prompt: 'orbit', image: { data_uri: small } }, { env, fetchImpl: f });
+    assert.equal(f.calls.length, 1); assert.deepEqual(f.calls[0].body, { prompt: 'orbit', image_url: small });
+    // A public https URL is passed through whatever the cap is; a URL wins over a data URI.
+    f = fakeFetch(routes);
+    await higgsfield.create({ kind: 'image-to-video', prompt: 'orbit', image: { url: 'https://cdn.example/still.png', data_uri: small } }, { env: { ...env, HIGGSFIELD_MAX_DATA_URI_BYTES: '0' }, fetchImpl: f });
+    assert.equal(f.calls[0].body.image_url, 'https://cdn.example/still.png');
+    await assert.rejects(higgsfield.create({ kind: 'image-to-video', prompt: 'orbit', image: { url: 'http://insecure.example/still.png' } }, { env, fetchImpl: f }), /public https URL/);
+    await assert.rejects(higgsfield.create({ kind: 'image-to-video', prompt: 'orbit', image: {} }, { env, fetchImpl: f }), /needs a still image/);
+  });
+  await test('Higgsfield size guard: a data URI over the limit (default 8 MB, HIGGSFIELD_MAX_DATA_URI_BYTES) is refused before any network call', async () => {
+    const env = { HIGGSFIELD_API_KEY: 'hk', HIGGSFIELD_API_SECRET: 'hs' };
+    const routes = { 'POST api.higgsfield.ai/wan/v2.7/image-to-video': { request_id: 'r3' } };
+    const { DEFAULT_MAX_DATA_URI_BYTES } = await import('../providers/higgsfield.mjs');
+    assert.equal(DEFAULT_MAX_DATA_URI_BYTES, 8 * 1024 * 1024);
+    const prefix = 'data:image/png;base64,';
+    const atLimit = prefix + 'A'.repeat(DEFAULT_MAX_DATA_URI_BYTES - prefix.length);
+    const create = (data_uri, extraEnv, f) => higgsfield.create({ kind: 'image-to-video', prompt: 'dolly in', image: { data_uri } }, { env: { ...env, ...extraEnv }, fetchImpl: f });
+    let f = fakeFetch(routes);
+    await create(atLimit, {}, f);
+    assert.equal(f.calls.length, 1, 'exactly at the limit is still sent');
+    f = fakeFetch(routes);
+    await assert.rejects(create(`${atLimit}A`, {}, f), (e) => {
+      assert.match(e.message, /8\.0 MB limit/); assert.match(e.message, /HIGGSFIELD_MAX_DATA_URI_BYTES/);
+      assert.match(e.message, /public https/); assert.match(e.message, /upload step/); assert.match(e.message, /unverified/);
+      assert(!e.message.includes('AAAA'), 'the error must not echo image data');
+      return true;
+    });
+    assert.equal(f.calls.length, 0, 'nothing may be sent to Higgsfield when the image is refused');
+    // The limit is configurable; 0 refuses every data URI; junk values fall back to the default.
+    f = fakeFetch(routes);
+    await assert.rejects(create(prefix + 'A'.repeat(2000), { HIGGSFIELD_MAX_DATA_URI_BYTES: '1000' }, f), /over the 0\.0 MB limit/);
+    await assert.rejects(create(prefix + 'AAAA', { HIGGSFIELD_MAX_DATA_URI_BYTES: '0' }, f), /public https/);
+    assert.equal(f.calls.length, 0);
+    await create(prefix + 'A'.repeat(2000), { HIGGSFIELD_MAX_DATA_URI_BYTES: '4000' }, f);
+    await create(`${atLimit}AAAA`, { HIGGSFIELD_MAX_DATA_URI_BYTES: String(16 * 1024 * 1024) }, f);
+    for (const junk of ['', 'abc', '-5', 'NaN']) await assert.rejects(create(`${atLimit}A`, { HIGGSFIELD_MAX_DATA_URI_BYTES: junk }, f), /8\.0 MB limit/);
+    assert.equal(f.calls.length, 2);
+    // No upload endpoint is invented: even with an upload-looking env var set, the only request is the generation itself.
+    f = fakeFetch(routes);
+    await create(prefix + 'AAAA', { HIGGSFIELD_UPLOAD_PATH: 'files/upload' }, f);
+    assert.deepEqual(f.calls.map((c) => c.key), ['POST api.higgsfield.ai/wan/v2.7/image-to-video']);
+    // Through the task store (what the server does): the refusal is an error message, nothing is stored or sent.
+    f = fakeFetch(routes);
+    const store = new TaskStore(path.join(os.tmpdir(), `fabled-hf-${process.pid}.json`), { env, fetchImpl: f });
+    await assert.rejects(store.create('higgsfield', { kind: 'image-to-video', prompt: 'dolly in', image: { data_uri: `${atLimit}A` } }), /8\.0 MB limit/);
+    assert.equal(store.list().length, 0); assert.equal(f.calls.length, 0);
+  });
   await test('Mock provider is labeled CONCEPT MOCKUP and returns the local sample after its ramp', async () => {
     assert.equal(mock.concept_mockup, true);
     const c = await mock.create({ kind: 'text-to-3d', prompt: 'x' });
@@ -168,6 +224,8 @@ async function main() {
   const server = spawn(process.execPath, ['server.mjs'], { cwd: UI_DIR, env: { ...process.env, PORT: String(port), FABLED_PIPELINE: 'off', FABLED_PROVIDER_MOCK_MS: '300', MESHY_API_KEY: 'sk-live-should-never-leak' }, stdio: 'pipe' });
   const base = `http://127.0.0.1:${port}`;
   const j = async (p, o) => (await fetch(base + p, o)).json();
+  // JSON endpoints require Content-Type: application/json (a plain string body would be sent as text/plain → 415).
+  const jsonBody = (method, value) => ({ method, headers: { 'Content-Type': 'application/json' }, body: typeof value === 'string' ? value : JSON.stringify(value) });
   try {
     for (let i = 0; i < 100; i++) { try { await fetch(`${base}/api/status`); break; } catch { await new Promise((r) => setTimeout(r, 100)); } }
 
@@ -193,17 +251,19 @@ async function main() {
     });
     await test('Notes: reject bad ids, save, read back, clear', async () => {
       assert.equal((await fetch(`${base}/api/workspace/notes?asset=../../etc`)).status, 400);
-      assert.equal((await fetch(`${base}/api/workspace/notes?asset=sample:x`, { method: 'PUT', body: 'not json' })).status, 400);
+      assert.equal((await fetch(`${base}/api/workspace/notes?asset=sample:x`, jsonBody('PUT', 'not json'))).status, 400);
+      assert.equal((await fetch(`${base}/api/workspace/notes?asset=sample:x`, { method: 'PUT', body: JSON.stringify({ text: 'sent as text/plain' }) })).status, 415);
+      assert.equal((await j('/api/workspace/notes?asset=sample:x')).note, null);
       const id = 'sample:fabled_sample_head.glb';
-      const saved = await j(`/api/workspace/notes?asset=${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ text: 'Use as the seeded-issues demo.' }) });
+      const saved = await j(`/api/workspace/notes?asset=${encodeURIComponent(id)}`, jsonBody('PUT', { text: 'Use as the seeded-issues demo.' }));
       assert.equal(saved.note.text, 'Use as the seeded-issues demo.');
       assert.equal((await j(`/api/workspace/notes?asset=${encodeURIComponent(id)}`)).note.text, 'Use as the seeded-issues demo.');
       const ws = await j('/api/workspace');
       assert.equal(ws.groups.flatMap((g) => g.assets).find((a) => a.id === id).has_note, true);
-      assert.equal((await j(`/api/workspace/notes?asset=${encodeURIComponent(id)}`, { method: 'PUT', body: JSON.stringify({ text: '' }) })).note, null);
+      assert.equal((await j(`/api/workspace/notes?asset=${encodeURIComponent(id)}`, jsonBody('PUT', { text: '' }))).note, null);
     });
     await test('Mock generation: start → poll → import as job → input served → appears in workspace with provenance', async () => {
-      const g = await j('/api/providers/mock/generations', { method: 'POST', body: JSON.stringify({ kind: 'text-to-3d', prompt: 'test prompt from suite' }) });
+      const g = await j('/api/providers/mock/generations', jsonBody('POST', { kind: 'text-to-3d', prompt: 'test prompt from suite' }));
       assert(g.ok, g.error);
       let st;
       for (let i = 0; i < 40; i++) { st = (await j(`/api/generations/${g.generation.id}`)).generation; if (st.status === 'succeeded') break; await new Promise((r) => setTimeout(r, 250)); }
@@ -222,15 +282,15 @@ async function main() {
       assert(acts.some((e) => e.type === 'generation_imported'));
     });
     await test('Generation input validation: bad image sources and unknown ids are refused cleanly', async () => {
-      const bad1 = await j('/api/providers/mock/generations', { method: 'POST', body: JSON.stringify({ kind: 'image-to-3d', image: { data_uri: 'data:text/html;base64,PHNjcmlwdD4=' } }) });
+      const bad1 = await j('/api/providers/mock/generations', jsonBody('POST', { kind: 'image-to-3d', image: { data_uri: 'data:text/html;base64,PHNjcmlwdD4=' } }));
       assert.equal(bad1.ok, false);
-      const bad2 = await j('/api/providers/mock/generations', { method: 'POST', body: JSON.stringify({ kind: 'image-to-3d', image: { url: 'http://insecure.example/a.png' } }) });
+      const bad2 = await j('/api/providers/mock/generations', jsonBody('POST', { kind: 'image-to-3d', image: { url: 'http://insecure.example/a.png' } }));
       assert.equal(bad2.ok, false);
-      const bad3 = await j('/api/providers/mock/generations', { method: 'POST', body: JSON.stringify({ kind: 'image-to-3d', image: { job_id: 'zzzzzzzz-0000', rel: '../../server.mjs' } }) });
+      const bad3 = await j('/api/providers/mock/generations', jsonBody('POST', { kind: 'image-to-3d', image: { job_id: 'zzzzzzzz-0000', rel: '../../server.mjs' } }));
       assert.equal(bad3.ok, false);
       assert.equal((await fetch(`${base}/api/generations/nope`)).status, 404);
-      assert.equal((await fetch(`${base}/api/providers/nope/generations`, { method: 'POST', body: '{}' })).status, 404);
-      const meshy = await j('/api/providers/meshy/generations', { method: 'POST', body: JSON.stringify({ kind: 'text-to-3d' }) });
+      assert.equal((await fetch(`${base}/api/providers/nope/generations`, jsonBody('POST', '{}'))).status, 404);
+      const meshy = await j('/api/providers/meshy/generations', jsonBody('POST', { kind: 'text-to-3d' }));
       assert.equal(meshy.ok, false); // configured, but no prompt → adapter refuses before any network call
       assert.match(meshy.error, /prompt/);
     });
@@ -248,6 +308,9 @@ async function main() {
     server.kill();
     fs.rmSync(tmp, { recursive: true, force: true });
   }
+
+  console.log('\nSuite 4: server hardening (tools/test_server_security.mjs)');
+  await runServerSecurityTests(test);
 
   console.log(`\n Connected workspace summary: ${passed}/${total} passed (${total - passed} failed)`);
   if (failures.length) process.exit(1);

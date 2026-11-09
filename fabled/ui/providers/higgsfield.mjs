@@ -15,12 +15,53 @@
 //   HIGGSFIELD_AUTH_HEADER  default Authorization
 //   HIGGSFIELD_AUTH_SCHEME  default "Key"
 //   HIGGSFIELD_STATUS_PATH  default requests/{id}/status  (used only when the response has no status_url)
-// Note: providers reject SVG; send PNG/JPEG stills. image_url may be a public https URL or a data URI (unverified).
+//   HIGGSFIELD_MAX_DATA_URI_BYTES  default 8388608 (8 MB); 0 refuses every data URI (public https URLs only)
+//
+// OPEN QUESTION: the image input. What the notes establish is that the docs describe the image-to-video input as a
+// *public URL* in `image_url` (Wan 2.7 page; the Seedance example is https://example.com/input.jpg). What this
+// adapter sends depends on what it is given:
+//   image.url       a public https URL                      -> sent as image_url. The documented form.
+//   image.data_uri  a base64 data: URI (what the Fabled server builds from a preview render or an uploaded still,
+//                   because those files are not on any public URL) -> also sent as image_url. UNVERIFIED: nothing in
+//                   the notes says the API accepts a data URI there, and no request has been made with a real key.
+//                   It may be rejected with an HTTP 4xx, or accepted and fail later.
+// The official SDKs have an upload step for local files (Python: upload / upload_file / upload_image; Node agent
+// API: client.agents.media.upload), but the notes record only those function names, not the REST endpoint, its
+// request shape or what it returns. So no upload call is implemented here and there is deliberately no upload-path
+// env var: it would be a guess. To settle this: read the upload section of docs.higgsfield.ai (or the SDK source),
+// or send one small data URI with a real key and record the answer in PROVIDERS.md.
+// Until then a data URI above HIGGSFIELD_MAX_DATA_URI_BYTES is refused before any network call, so a multi-megabyte
+// body is never posted to an endpoint that may not take it. Providers reject SVG; send PNG/JPEG stills.
 import { requestJson, clampProgress, findMediaUrl } from './http.mjs';
 
 const BASE = () => (process.env.HIGGSFIELD_BASE_URL || 'https://api.higgsfield.ai').replace(/\/$/, '');
 const STATUS = { queued: 'queued', in_queue: 'queued', pending: 'queued', in_progress: 'running', processing: 'running', running: 'running',
   completed: 'succeeded', succeeded: 'succeeded', success: 'succeeded', failed: 'failed', error: 'failed', nsfw: 'failed', canceled: 'failed', cancelled: 'failed' };
+
+export const DEFAULT_MAX_DATA_URI_BYTES = 8 * 1024 * 1024;
+function maxDataUriBytes(env) {
+  const raw = env.HIGGSFIELD_MAX_DATA_URI_BYTES;
+  const n = Number(raw);
+  return raw != null && String(raw).trim() !== '' && Number.isFinite(n) && n >= 0 ? Math.floor(n) : DEFAULT_MAX_DATA_URI_BYTES;
+}
+const mb = (bytes) => (bytes / (1024 * 1024)).toFixed(1);
+
+// The value for image_url: a public https URL as documented, or (unverified) a size-capped data URI.
+function imageUrlFor(image, env) {
+  if (image.url) {
+    if (!/^https:\/\//i.test(image.url)) throw new Error('Higgsfield image_url must be a public https URL');
+    return image.url;
+  }
+  const bytes = Buffer.byteLength(String(image.data_uri));
+  const limit = maxDataUriBytes(env);
+  if (bytes > limit) {
+    throw new Error(`Higgsfield: this image would be sent inline as a ${mb(bytes)} MB data URI, over the ${mb(limit)} MB limit `
+      + '(HIGGSFIELD_MAX_DATA_URI_BYTES). Higgsfield documents image_url as a public https URL, and whether it accepts a data URI at all is unverified. '
+      + 'Give a public https image URL, or use a smaller image; an upload step would be needed for large local files and is not implemented '
+      + '(the REST upload endpoint is not documented in docs/research).');
+  }
+  return image.data_uri;
+}
 
 function authHeaders(env) {
   const header = env.HIGGSFIELD_AUTH_HEADER || 'Authorization';
@@ -37,7 +78,7 @@ export default {
   env: ['HIGGSFIELD_API_KEY'],
   docs: 'https://docs.higgsfield.ai',
   verification: 'partly',
-  verification_note: 'Base URL, Key auth, per-model image-to-video path and the request_id/status_url polling shape come from the official SDK READMEs (Nov 2026); not yet exercised with a real key from this repo.',
+  verification_note: 'Base URL, Key auth, per-model image-to-video path and the request_id/status_url polling shape come from the official SDK READMEs (Nov 2026); not yet exercised with a real key from this repo. Open question: the docs describe image_url as a public URL; local stills are sent as a data URI (8 MB cap), which is unverified.',
   feeds: 'Turns a preview render into a cinematic clip on the asset page.',
   configured: (env = process.env) => !!env.HIGGSFIELD_API_KEY,
 
@@ -46,7 +87,8 @@ export default {
     if (!image?.url && !image?.data_uri) throw new Error('image-to-video needs a still image');
     if (!prompt) throw new Error('Higgsfield image-to-video needs a prompt (camera move / action)');
     const path = (env.HIGGSFIELD_I2V_PATH || 'wan/v2.7/image-to-video').replace(/^\//, '');
-    const json = await requestJson(`${BASE()}/${path}`, { method: 'POST', headers: authHeaders(env), body: { prompt, image_url: image.url || image.data_uri }, fetchImpl });
+    const imageUrl = imageUrlFor(image, env); // throws before any network call when the image cannot be sent
+    const json = await requestJson(`${BASE()}/${path}`, { method: 'POST', headers: authHeaders(env), body: { prompt, image_url: imageUrl }, fetchImpl });
     const id = json?.request_id || json?.id || json?.job_id || json?.data?.id;
     if (!id) throw new Error('Higgsfield did not return a request id');
     return { remote_id: String(id), status_url: typeof json?.status_url === 'string' ? json.status_url : null };

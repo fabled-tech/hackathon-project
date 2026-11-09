@@ -8,7 +8,7 @@ records how the UI reads it.
 browser (public/*.js, three.js)
    │  fetch /api/*
    ▼
-server.mjs  (Node ≥18, no deps, binds 127.0.0.1:5178)
+server.mjs  (Node ≥18, no deps, binds 127.0.0.1:5178; cross-site request guard + limits: §11)
    ├─ pipeline:  python3 pipeline/fabled_pipeline.py …   → <out>/progress.json (live), <out>/manifest.json (end, also on failure)
    └─ validator: validator/.venv/bin/python -m fabled_validator check … --json-only → report JSON on stdout
    No CLI found / FABLED_*=off → stub/*.CONCEPT_MOCKUP.json (labeled in the UI)
@@ -80,6 +80,7 @@ python3 prototype/pipeline/fabled_pipeline.py --input <sculpt> --out <job>/out -
 - **The manifest is read whenever it exists, including after a non-zero exit.** A failed run writes `status: "failed"`, the failed step's `status: "failed"`, the reason in `warnings`, and partial outputs. The UI shows the failure plus every LOD it can load.
 - No manifest → the UI shows the exit code and log tail, and offers an explicitly labeled browser decimation preview.
 - Overrides: `FABLED_PIPELINE_CMD` (shell template: `{input} {out} {config} {profile} {validator_profile}`), `FABLED_PIPELINE=off` (stub), `FABLED_CLI_TIMEOUT_MS` (default 60 min).
+- The pipeline and the validator are started with an argument array (no shell), with the server's environment minus the provider API keys. The two `*_CMD` overrides are the exception: they are shell templates set by whoever starts the server, and every `{value}` is inserted single-quoted.
 
 ### progress.json (rewritten at each step start and end)
 ```json
@@ -161,14 +162,19 @@ The UI renders:
 | Method & path | Body | Returns |
 |---|---|---|
 | `GET /api/status` | | `{pipeline:{available, command_preview, supports_validator_profile, latest_output_manifest}, validator:{available, command_preview, supports_manifest}}` |
-| `POST /api/jobs?filename=x.glb` | raw bytes | `{job_id, input_path}` |
-| `POST /api/jobs/<id>/process` | UI profile | stub: `{ok, source:"stub", manifest}` · pipeline: `{ok, source:"pipeline", started:true}` |
+| `POST /api/jobs?filename=x.glb` | raw bytes (any or no `Content-Type` except `multipart/form-data`; ≤ `FABLED_UPLOAD_MAX_BYTES`, default 1 GiB) | `{job_id, input_path}`. The stored name keeps only `[A-Za-z0-9_.-]` |
+| `POST /api/jobs/<id>/process` | UI profile (JSON object, ≤ 1 MB; optional `engine: "blender"\|"native"`) | stub: `{ok, source:"stub", manifest}` · pipeline: `{ok, source:"pipeline", started:true}`; a second request while a run is active gets `already_running:true` |
 | `GET /api/jobs/<id>/progress` | | `{running, exit_code, progress:<progress.json>\|null}` |
 | `GET /api/jobs/<id>/result` | | `{ok, exit_code, failed, manifest, manifest_path, export_asset, stdout, stderr}` (ok whenever a manifest exists), or `{ok:false, error, …}` |
 | `POST /api/open-output?dir=pipeline/output` | | read-only job over an existing output folder (allowed: `pipeline/output`, `ui/test_fixtures/*`): `{ok, job_id, manifest, out_dir, export_asset}` |
 | `POST /api/jobs/<id>/validate` | UI profile | `{ok, source:"validator"\|"stub", exit_code, target:{kind:manifest\|combined_fbx\|uploaded_sculpt, path}, profile_used, report}` |
 | `GET /api/jobs/<id>/files/<rel>` | | file bytes, `<rel>` resolved against the job's output folder only |
 | `GET /api/saved-reports` / `GET /api/saved-report?path=<rel>` | | list / read `validator/reports/**/*.report.json` |
+
+Bodies marked "UI profile" or JSON must be sent with `Content-Type: application/json`. Status codes shared by all
+routes: **403** (Host or Origin refused), **415** (wrong `Content-Type`), **413** (body over the limit), **400**
+(malformed JSON, bad job id, path outside its folder), **404** (unknown job, file or endpoint). Error bodies are
+`{ok:false, error}`. Details in §11.
 
 ---
 
@@ -209,8 +215,8 @@ status, and it titled the licensed bust with her name. All state is under the gi
 | Method & path | Body | Returns |
 |---|---|---|
 | `GET /api/workspace` | | `fabled.workspace/0.1`: `groups[runs, uploads, generated, samples]` of assets `{id, kind, name, status{label,tone}, triangles{input,lod_count,lod0_triangles}, created_at, folder, open, validator, provenance, concept_mockup, has_note}` (built from disk each call, see `workspace.mjs`) |
-| `GET /api/workspace/notes?asset=<id>` / `PUT` same | `{text}` (≤ 20,000 chars; empty clears) | `{ok, note:{text, updated_at}\|null}` stored in `work/workspace_notes.json` |
-| `GET /api/activity?asset=<id>&limit=n` | | newest-first events from `work/activity.jsonl`: `uploaded, pipeline_started/finished/failed, validator_run, generation_started/succeeded/failed/imported, note` |
+| `GET /api/workspace/notes?asset=<id>` / `PUT` same | `{text}` (≤ 20,000 chars; empty clears; body ≤ 256 KB) | `{ok, note:{text, updated_at}\|null}` stored in `work/workspace_notes.json` (at most 2,000 notes; one more is a 507) |
+| `GET /api/activity?asset=<id>&limit=n` | | newest-first events from `work/activity.jsonl` (trimmed to its newest 2,000 lines once it passes 2 MB): `uploaded, pipeline_started/finished/failed, validator_run, generation_started/succeeded/failed/imported, note` |
 | `GET /api/providers` | | `{providers:[{id,name,category,kinds,env (names only),configured,docs,verification,…}], generations:[…]}` |
 | `POST /api/providers/<id>/generations` | `{kind, prompt, image:{job_id,rel}\|{data_uri,label}\|{url}, source_asset_id}` | `{ok, generation}`. The image is sent to the provider but never stored |
 | `GET /api/generations/<id>` | | polls the provider (≤ every 2 s) and returns the task |
@@ -223,3 +229,61 @@ Asset ids: `run:<path from fabled/>`, `job:<job id>`, `gen:<generation id>`, `sa
 live Re-check may use a different profile (e.g. the bust run's stored report reads 10 pass / 3 warn / 0 fail / 3 not checked,
 while a Re-check with `demo_placeholder_prop` reads 9 / 3 / 0 / 4). Provider details and verification status are in `PROVIDERS.md`.
 
+## 11. Request guard, limits and response headers (added 2026-11-09)
+The server has no login. What protects it is that only the right clients can reach the API: the browser tab it
+served, and native clients on the same machine or, in LAN mode, the same network. Any other website open in the user's
+browser can *send* requests to `http://127.0.0.1:5178`, so `server.mjs` refuses them. Tests: `tools/test_server_security.mjs`.
+
+**Host allow-list (all routes, 403).** Defeats DNS rebinding. The hostname in the `Host` header (any port) must be:
+
+| Server bound to | Accepted Host names |
+|---|---|
+| a loopback address (default `HOST=127.0.0.1`) | `localhost`, `127.0.0.1`, `[::1]` |
+| anything else (`HOST=0.0.0.0`, the iPad / LAN mode in `FabledStudio/README.md`) | the above, the `HOST` value, and every address of this machine's network interfaces (`os.networkInterfaces()`, re-read every 5 s) |
+| either | plus the names in `FABLED_ALLOWED_HOSTS` (comma-separated, e.g. `my-mac.local,studio.lan`) |
+
+So an iPad pointed at `http://192.168.1.20:5178` works with `HOST=0.0.0.0` alone; a name such as `my-mac.local` needs
+`FABLED_ALLOWED_HOSTS=my-mac.local`. LAN mode still has no authentication: every device on that network can use the
+API (uploads, pipeline runs, notes, generations that spend provider credits). Only use it on a network you trust.
+
+**Origin (`/api/*`, 403).** If a request has an `Origin` header, its host and port must equal the `Host` header
+(default ports 80/443 count as equal to none). `Origin: null` is refused. If it has `Sec-Fetch-Site`, the value must be
+`same-origin` or `none`. Browsers add `Origin` to every cross-origin fetch and to every POST/PUT, and
+`Sec-Fetch-Site` covers cross-site GETs such as `<img src>`. Native clients (the Swift app, curl, the Node tests)
+send neither header and are not affected. The server never sends an `Access-Control-Allow-*` header and never answers
+a CORS preflight, so no other origin can read a response or send a non-simple request.
+
+**Content-Type (415).** `POST …/process`, `POST …/validate`, `PUT /api/workspace/notes` and
+`POST /api/providers/<id>/generations` require `Content-Type: application/json`. A cross-site page cannot send that
+without a preflight. One exception exists for the web UI as shipped: `public/app.js` and `public/workspace.js` post
+JSON strings without a `Content-Type` header, which the browser labels `text/plain`; that is accepted only together
+with a same-origin `Origin` (or `Sec-Fetch-Site: same-origin`), which a page cannot forge. From any other client
+`text/plain` is a 415 (with curl, add `-H 'Content-Type: application/json'`). The upload route takes any type because
+its body is the mesh itself (the web UI sends none, tools send `text/plain`, curl sends form-urlencoded); it relies on
+the Origin check, and refuses only `multipart/form-data`. `POST /api/open-output` and
+`POST /api/generations/<id>/import` have no body and no Content-Type rule; they also rely on the Origin check.
+
+**Limits.** Upload ≤ `FABLED_UPLOAD_MAX_BYTES` (default 1073741824), streamed to disk; profile JSON ≤ 1 MB; note
+body ≤ 256 KB; generation request ≤ 16 MB (it can carry a base64 image). Over the limit is a 413.
+
+**Files.** Every route that maps a URL to a file resolves it against one folder and refuses anything outside it,
+including through symlinks for job output files, saved reports and opened output folders. Job ids must match
+`[a-z0-9-]{8,40}`. An upload can never be named like a file the server writes into the job folder (`job.json`,
+`profile.json`, `pipeline_config.json`, `validator_profile*.json`, `validator_report.json`, `out`): it gets an
+`upload_` prefix. Files served from job folders are never served as HTML or JavaScript (`text/plain` instead).
+
+**Response headers.** Every response: `X-Content-Type-Options: nosniff`, `Referrer-Policy: no-referrer`,
+`X-Frame-Options: DENY`, `Cross-Origin-Resource-Policy: same-origin`. HTML gets a Content-Security-Policy:
+`default-src 'self'`; `script-src 'self'` plus the sha256 of each inline script in the file being served (today only
+the `<script type="importmap">` in `public/index.html`; the hash is computed from the served bytes, so editing the
+import map needs no other change); `style-src 'self' 'unsafe-inline'` (inline `style=""` attributes);
+`img-src` / `media-src 'self' data: blob: https:` (textures, provider thumbnails and videos);
+`connect-src 'self' data: blob:` (fetch stays same-origin); `object-src 'none'`; `base-uri 'none'`;
+`frame-ancestors 'none'`; `form-action 'self'`. If the hashes could not be computed the policy is sent without
+`default-src` / `script-src` rather than breaking the app. Everything else (JSON, job files, samples) gets
+`default-src 'none'; sandbox`, so navigating to an uploaded file shows inert content. **If you add an inline
+`<script>` or load a script, font or fetch from another origin, the CSP in `htmlCsp()` must change with it.**
+
+**Error text** never contains absolute paths of this machine (paths under `fabled/` are shown relative to it).
+Successful responses still carry the absolute `input_path`, `out_dir`, `manifest_path`, `report_path` and
+`profile_used` fields the clients read.

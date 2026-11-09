@@ -20,6 +20,9 @@ const isDir = (p) => { try { return fs.statSync(p).isDirectory(); } catch { retu
 
 export const UPLOADS_SHOWN = 12;
 export const NOTE_MAX_CHARS = 20000;
+export const NOTES_MAX_COUNT = 2000;                 // notes file stays bounded: 2,000 notes of at most 20,000 chars
+export const ACTIVITY_MAX_BYTES = 2 * 1024 * 1024;   // activity.jsonl is trimmed to its newest lines past this size
+export const ACTIVITY_KEEP_LINES = 2000;
 
 function validatorStatus(report) {
   if (!report || typeof report !== 'object') return null;
@@ -207,8 +210,8 @@ const ASSET_ID_RE = /^(run|job|gen|sample):[\w./:@-]{1,300}$/;
 export const validAssetId = (id) => typeof id === 'string' && ASSET_ID_RE.test(id) && !id.includes('..');
 
 export class NotesStore {
-  constructor(file) { this.file = file; this.lock = Promise.resolve(); }
-  all() { return readJson(this.file)?.notes || {}; }
+  constructor(file, { maxNotes = NOTES_MAX_COUNT } = {}) { this.file = file; this.maxNotes = maxNotes; this.lock = Promise.resolve(); }
+  all() { const n = readJson(this.file)?.notes; return n && typeof n === 'object' && !Array.isArray(n) ? n : {}; }
   get(assetId) { return this.all()[assetId] || null; }
   async set(assetId, text) {
     if (!validAssetId(assetId)) throw new Error('bad asset id');
@@ -216,8 +219,14 @@ export class NotesStore {
     // serialize writes so two quick saves cannot interleave
     const run = this.lock.then(async () => {
       const notes = this.all();
-      if (clean.trim()) notes[assetId] = { text: clean, updated_at: new Date().toISOString() };
-      else delete notes[assetId];
+      if (clean.trim()) {
+        // Any syntactically valid asset id is accepted, so the number of notes is capped (editing or clearing an
+        // existing note always works).
+        if (!Object.hasOwn(notes, assetId) && Object.keys(notes).length >= this.maxNotes) {
+          throw Object.assign(new Error(`note store is full (${this.maxNotes} notes); clear an old note first`), { code: 'FABLED_NOTES_FULL' });
+        }
+        notes[assetId] = { text: clean, updated_at: new Date().toISOString() };
+      } else delete notes[assetId];
       await fsp.mkdir(path.dirname(this.file), { recursive: true });
       const tmp = `${this.file}.tmp.${process.pid}.${Date.now()}`;
       await fsp.writeFile(tmp, JSON.stringify({ schema: 'fabled.workspace_notes/0.1', notes }, null, 2));
@@ -231,12 +240,33 @@ export class NotesStore {
 
 // ---- activity ----
 export class ActivityLog {
-  constructor(file) { this.file = file; }
+  constructor(file, { maxBytes = ACTIVITY_MAX_BYTES, keepLines = ACTIVITY_KEEP_LINES } = {}) {
+    this.file = file; this.maxBytes = maxBytes; this.keepLines = keepLines; this.lock = Promise.resolve();
+  }
   async add(evt) {
     const e = { at: new Date().toISOString(), ...evt };
     if (e.message) e.message = String(e.message).slice(0, 500);
-    try { await fsp.mkdir(path.dirname(this.file), { recursive: true }); await fsp.appendFile(this.file, JSON.stringify(e) + '\n'); } catch { /* activity is best-effort */ }
+    // Appends (and the occasional trim) run one at a time, so a trim can never drop a line being appended.
+    const run = this.lock.then(async () => {
+      try {
+        await fsp.mkdir(path.dirname(this.file), { recursive: true });
+        await fsp.appendFile(this.file, JSON.stringify(e) + '\n');
+        await this.trim();
+      } catch { /* activity is best-effort */ }
+    });
+    this.lock = run;
+    await run;
     return e;
+  }
+  // Keeps the log bounded: past maxBytes it is rewritten with its newest keepLines lines (atomic rename).
+  async trim() {
+    const st = await fsp.stat(this.file);
+    if (st.size <= this.maxBytes) return;
+    let lines = (await fsp.readFile(this.file, 'utf8')).split('\n').filter(Boolean).slice(-this.keepLines);
+    while (lines.length > 1 && lines.reduce((n, l) => n + Buffer.byteLength(l) + 1, 0) > this.maxBytes) lines = lines.slice(Math.ceil(lines.length / 2));
+    const tmp = `${this.file}.tmp.${process.pid}.${Date.now()}`;
+    await fsp.writeFile(tmp, lines.join('\n') + '\n');
+    await fsp.rename(tmp, this.file);
   }
   list({ assetId = null, limit = 50 } = {}) {
     let lines = [];
