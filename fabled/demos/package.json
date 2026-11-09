@@ -7,8 +7,11 @@
   "license": "UNLICENSED",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node tools/test_demos.mjs",
-    "test:screens": "node tools/screenshot_demos.mjs"
+    "test": "node tools/test_engines.mjs && node tools/test_demos.mjs",
+    "test:screens": "node tools/screenshot_demos.mjs",
+    "test:unreal": "python3 tools/test_unreal_scripts.py"
   },
-  "engines": { "node": ">=18" }
+  "engines": {
+    "node": ">=18"
+  }
 }
