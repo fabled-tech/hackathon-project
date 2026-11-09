@@ -8,12 +8,12 @@
   <link rel="stylesheet" href="/shared.css" />
   <link rel="stylesheet" href="/game/game.css" />
 </head>
-<body>
+<body class="app">
   <div class="hairline"></div>
   <header class="topbar">
-    <div class="brand"><a href="/" class="logo" style="color:inherit;text-decoration:none">Fabled</a><span class="sep">/</span><span class="product">Forge</span><span class="tag">Games · kit room</span></div>
-    <nav class="tabs" id="tabs">
-      <button class="btn tiny active" data-tab="board">Kit board</button>
+    <div class="brand"><a href="/" class="logo">Fabled</a><span class="sep">/</span><span class="product">Forge</span><span class="tag">Games · kit room</span></div>
+    <nav class="tabs" id="tabs" aria-label="Views">
+      <button class="btn tiny active" data-tab="board" aria-current="page">Kit board</button>
       <button class="btn tiny" data-tab="layout">Level layout</button>
       <button class="btn tiny" data-tab="profiles">Import profiles</button>
       <button class="btn tiny" data-tab="unreal">Unreal &amp; export</button>
@@ -21,13 +21,14 @@
     <span class="spacer"></span>
     <label class="small muted">Acting as <select id="role"></select></label>
     <label class="small muted">Generate with <select id="provider"></select></label>
-    <span class="pill" id="sync">synced</span>
+    <span class="pill" id="sync" role="status" title="Other people's changes show up here within a few seconds">synced</span>
   </header>
   <div class="layout">
-    <aside class="pane">
+    <aside class="pane" aria-label="Projects and kit summary">
       <div class="section"><h2>Projects</h2><div class="tree" id="projects"></div><button class="btn tiny" id="btn-new" style="margin-top:8px">+ New from pitch</button></div>
       <div class="section" id="new-project" hidden>
         <h2>New project</h2>
+        <label class="small muted block" for="new-text">Game pitch</label>
         <textarea id="new-text" placeholder="Paste a game pitch. Optional structured lines: Title:, Genre:, Camera:, Style:, Characters:, Props:, Environment:"></textarea>
         <div class="row" style="margin-top:6px"><button class="btn tiny" id="btn-sample">Load sample pitch</button><button class="btn tiny primary" id="btn-create">Build kit</button><button class="btn tiny" id="btn-cancel">Cancel</button></div>
         <p class="small muted">Rule-based, offline. Budgets are <span class="badge-est">DEMO PLACEHOLDER VALUES</span> from the sample validator profiles.</p>
@@ -36,18 +37,34 @@
       <div class="section"><h2>Activity</h2><div class="activity"><ul id="activity"></ul></div></div>
     </aside>
     <main class="main">
-      <div id="empty" class="card"><h3 style="margin:0 0 6px">Start with a pitch</h3><p class="muted">Fabled Forge turns a game pitch into an asset kit: every character, creature, prop and environment piece becomes a card with a studio import profile (scale, axis, LOD budget, texel density, rig). The team or vendor generates meshes (Meshy, Tripo or the offline mock), pushes them through Fabled Studio's pipeline and pre-import check, lays out the level, and exports a blockout builder for Unreal Engine.</p><button class="btn primary" id="btn-empty-new">New project</button></div>
+      <div id="empty" class="card"><h3>Start with a pitch</h3><p class="muted">Fabled Forge turns a game pitch into an asset kit: every character, creature, prop and environment piece becomes a card with a studio import profile (scale, axis, LOD budget, texel density, rig). The team or vendor generates meshes (Meshy, Tripo or the offline mock), pushes them through Fabled Studio's pipeline and pre-import check, lays out the level, and exports a blockout builder for Unreal Engine.</p><button class="btn primary" id="btn-empty-new">New project</button></div>
       <section id="tab-board" hidden><div class="row" id="stats"></div><div class="kanban" id="kanban"></div></section>
       <section id="tab-layout" hidden>
-        <div class="row" style="margin-bottom:8px"><select id="add-asset"></select><button class="btn tiny" id="btn-add">Place at centre</button><span class="muted small">Drag to move · R rotates 15° · Delete removes · grid 1 m · 40 m × 40 m</span><span class="spacer"></span><button class="btn tiny primary" id="btn-save-layout">Save layout</button></div>
-        <canvas id="layout-canvas" width="900" height="900"></canvas>
+        <div class="row layout-bar">
+          <label class="sr-only" for="add-asset">Asset to place</label><select id="add-asset"></select>
+          <button class="btn tiny" id="btn-add" title="Places the asset on the free grid spot nearest to the centre">Place asset</button>
+          <span class="spacer"></span>
+          <span class="pill generating" id="layout-dirty" hidden>unsaved changes</span>
+          <button class="btn tiny" id="btn-revert-layout" hidden>Discard</button>
+          <button class="btn tiny" id="btn-save-layout">Save layout</button>
+        </div>
+        <div class="notice" id="layout-conflict" role="status" hidden><span>Someone else saved a different layout while yours has unsaved changes.</span><button class="btn tiny" id="btn-keep-mine" title="Keep editing your version; saving will replace theirs">Keep mine</button><button class="btn tiny" id="btn-load-theirs" title="Drop your unsaved changes and show their layout">Load theirs</button></div>
+        <div class="layout-editor">
+          <canvas id="layout-canvas" width="900" height="900" tabindex="0" role="application" aria-roledescription="level layout editor" aria-label="Level layout, top-down" aria-describedby="layout-help"></canvas>
+          <div class="layout-side">
+            <p class="small muted" id="layout-help">Drag to move. Arrow keys nudge the selected item one grid step (Shift: five). R rotates 15° (Shift+R back), + and − scale, Delete removes, [ and ] select the previous or next item, Esc clears the selection. <span id="layout-dims"></span></p>
+            <p class="small" id="layout-status" role="status" aria-live="polite"></p>
+            <h3>Placed items (<span id="layout-count">0</span>)</h3>
+            <ol class="tree" id="layout-list"></ol>
+          </div>
+        </div>
       </section>
       <section id="tab-profiles" hidden></section>
       <section id="tab-unreal" hidden></section>
     </main>
-    <aside class="pane" id="detail"><div class="section"><h2>Asset</h2><p class="muted small">Select a card.</p></div></aside>
+    <aside class="pane" id="detail" aria-label="Selected asset"></aside>
   </div>
-  <div id="toast" class="toast" hidden></div>
+  <div id="toast" class="toast" role="status" aria-live="polite" aria-atomic="true"></div>
   <script type="module" src="/game/app.js"></script>
 </body>
 </html>

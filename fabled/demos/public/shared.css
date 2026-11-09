@@ -10,6 +10,7 @@
   --text: #f1f5f9; --muted: #8b95a7; --muted-dim: #5b6478;
   --red: #f43f5e; --red-bg: rgba(244, 63, 94, 0.12); --amber: #f59e0b; --amber-bg: rgba(245, 158, 11, 0.12); --green: #10b981; --green-bg: rgba(16, 185, 129, 0.12);
   --mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  --focus: #f8fafc;
   accent-color: var(--accent);
 }
 :root[data-industry="film"] { --accent: #f59e0b; --accent-bright: #fbbf24; --accent-dim: rgba(245, 158, 11, 0.14); --accent-glow: rgba(245, 158, 11, 0.35); }
@@ -22,7 +23,7 @@ a { color: var(--accent-bright); }
 .hairline { height: 2px; background: linear-gradient(90deg, var(--accent) 0%, #6366f1 30%, var(--cyan) 68%, var(--pink) 100%); }
 .topbar { display: flex; align-items: center; gap: 12px; padding: 10px 16px; border-bottom: 1px solid var(--line); background: var(--bg-panel); position: sticky; top: 0; z-index: 5; flex-wrap: wrap; }
 .brand { display: flex; align-items: center; gap: 8px; }
-.brand .logo { font-family: "Playfair Display", Georgia, serif; font-size: 18px; font-weight: 700; letter-spacing: 0.01em; }
+.brand .logo { color: inherit; text-decoration: none; font-family: "Playfair Display", Georgia, serif; font-size: 18px; font-weight: 700; letter-spacing: 0.01em; }
 .brand .product { color: var(--accent-bright); font-weight: 600; }
 .brand .sep { color: var(--muted-dim); }
 .tag { font-size: 10.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); border: 1px solid var(--line-strong); border-radius: 999px; padding: 2px 8px; }
@@ -35,19 +36,23 @@ a { color: var(--accent-bright); }
 .btn.primary:hover { background: var(--accent-bright); }
 .btn.tiny { padding: 3px 8px; font-size: 11.5px; border-radius: 6px; }
 .btn:disabled { opacity: .45; cursor: not-allowed; }
-select, input[type=text], input[type=number], textarea { font: inherit; color: var(--text); background: var(--bg-card); border: 1px solid var(--line-strong); border-radius: 7px; padding: 6px 9px; }
+select, input[type=text], input[type=number], textarea { font: inherit; color: var(--text); background: var(--bg-card); border: 1px solid var(--line-strong); border-radius: 7px; padding: 6px 9px; max-width: 100%; }
+/* A field the user edited that the server has not accepted yet. */
+input.unsaved, textarea.unsaved, select.unsaved { border-color: var(--amber); box-shadow: 0 0 0 1px var(--amber-bg); }
 textarea { width: 100%; min-height: 220px; font-family: var(--mono); font-size: 12px; line-height: 1.5; resize: vertical; }
-.layout { display: grid; grid-template-columns: 300px 1fr 320px; gap: 0; flex: 1; min-height: 0; }
+.layout { display: grid; grid-template-columns: 300px minmax(0, 1fr) 320px; gap: 0; flex: 1; min-height: 0; }
 .pane { border-right: 1px solid var(--line); background: var(--bg-panel); overflow: auto; }
 .pane:last-child { border-right: 0; border-left: 1px solid var(--line); }
-.main { overflow: auto; padding: 16px 20px; }
+.main { overflow: auto; padding: 16px 20px; min-width: 0; }
 .section { padding: 12px 14px; border-bottom: 1px solid var(--line); }
 .section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
 .card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
+.card h3 { margin: 0 0 6px; }
 .card + .card { margin-top: 8px; }
 .card.active { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent-dim), 0 0 24px var(--accent-dim); }
 .row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
 .muted { color: var(--muted); } .small { font-size: 11.5px; } .mono { font-family: var(--mono); font-size: 11.5px; }
+.pill.wrap { white-space: normal; overflow-wrap: anywhere; }
 .pill { display: inline-block; font-size: 10.5px; border-radius: 999px; padding: 2px 8px; border: 1px solid var(--line-strong); color: var(--muted); white-space: nowrap; }
 .pill.proposed, .pill.requested { color: var(--muted); }
 .pill.approved, .pill.validated, .pill.imported { color: var(--green); border-color: var(--green); background: var(--green-bg); }
@@ -57,19 +62,63 @@ textarea { width: 100%; min-height: 220px; font-family: var(--mono); font-size: 
 .stat { display: flex; flex-direction: column; gap: 2px; padding: 8px 10px; background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px; min-width: 90px; }
 .stat b { font-size: 18px; font-weight: 600; } .stat span { font-size: 10.5px; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
 .tree a, .tree button.item { display: block; width: 100%; text-align: left; font: inherit; color: var(--text); background: none; border: 0; padding: 5px 8px; border-radius: 6px; cursor: pointer; }
+.tree button.item { overflow-wrap: anywhere; }
 .tree button.item:hover { background: var(--bg-hover); } .tree button.item.active { background: var(--accent-dim); color: var(--accent-bright); }
 .activity li { padding: 6px 0; border-bottom: 1px dashed var(--line); font-size: 11.5px; } .activity ul { list-style: none; margin: 0; padding: 0; }
 .comment { padding: 6px 8px; border-left: 2px solid var(--accent); background: var(--bg-card); margin: 6px 0; font-size: 12px; }
 .comment .who { color: var(--accent-bright); font-weight: 600; margin-right: 6px; }
-.toast { position: fixed; right: 16px; bottom: 16px; background: var(--bg-elevated); border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 8px; max-width: 420px; z-index: 20; box-shadow: 0 10px 40px rgba(0,0,0,.5); }
+/* The toast is an aria-live region: it stays in the accessibility tree and is only visually absent while empty. */
+.toast { position: fixed; right: 16px; bottom: 16px; background: var(--bg-elevated); border: 1px solid var(--line-strong); border-left: 3px solid var(--accent); padding: 10px 14px; border-radius: 8px; max-width: min(420px, calc(100vw - 32px)); z-index: 20; box-shadow: 0 10px 40px rgba(0,0,0,.5); overflow-wrap: anywhere; }
+.toast:empty { opacity: 0; padding: 0; border: 0; box-shadow: none; pointer-events: none; }
 .toast.err { border-left-color: var(--red); }
 table.grid { width: 100%; border-collapse: collapse; font-size: 12px; }
 table.grid th { text-align: left; font-size: 10.5px; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); padding: 6px 8px; border-bottom: 1px solid var(--line-strong); position: sticky; top: 0; background: var(--bg-void); }
 table.grid td { padding: 6px 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+table.grid tr[data-id] { cursor: pointer; }
+table.grid tr:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+table.grid tr:focus-visible td { background: var(--bg-hover); box-shadow: inset 0 2px 0 var(--focus), inset 0 -2px 0 var(--focus); }
 table.grid tr:hover td { background: var(--bg-card); } table.grid tr.active td { background: var(--accent-dim); }
 .landing { max-width: 980px; margin: 48px auto; padding: 0 20px; }
 .landing h1 { font-family: "Playfair Display", Georgia, serif; font-size: 40px; margin: 0 0 8px; }
 .landing .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 24px; }
 .landing .card h2 { margin: 0 0 6px; font-size: 20px; }
 .landing .card ol { padding-left: 18px; color: var(--muted); line-height: 1.6; }
-@media (max-width: 1000px) { .layout { grid-template-columns: 1fr; } .pane { border: 0; border-bottom: 1px solid var(--line); } .landing .grid2 { grid-template-columns: 1fr; } }
+a.card { display: block; text-decoration: none; color: inherit; }
+.landing a.card:hover { border-color: var(--accent); }
+.landing .grid2 .card { margin-top: 0; }
+/* shared app chrome */
+.tabs { display: flex; gap: 4px; flex-wrap: wrap; }
+.tabs .btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent-bright); }
+.btn.danger { background: var(--red-bg); border-color: var(--red); color: #fecdd3; }
+.btn.danger:hover { background: rgba(244, 63, 94, 0.25); border-color: var(--red); }
+.proj-row { display: flex; align-items: flex-start; gap: 4px; }
+.proj-row .item { flex: 1; min-width: 0; }
+.proj-row.confirm { flex-direction: column; gap: 6px; padding: 8px; border: 1px solid var(--red); border-radius: 8px; background: var(--red-bg); margin: 2px 0; }
+.icon-btn { flex: none; font: inherit; line-height: 1; color: var(--muted-dim); background: none; border: 1px solid transparent; border-radius: 6px; padding: 6px 7px; cursor: pointer; }
+.icon-btn:hover { color: var(--red); border-color: var(--red); }
+.notice { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; padding: 8px 10px; margin-bottom: 8px; border: 1px solid var(--amber); border-left-width: 3px; border-radius: 8px; background: var(--amber-bg); font-size: 12px; }
+.block { display: block; }
+.sub { margin-top: 8px; margin-bottom: 4px; }
+.table-wrap { max-width: 100%; }
+.sr-only { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip-path: inset(50%); white-space: nowrap; border: 0; }
+/* Visible keyboard focus everywhere, including rows and cards that act as buttons. */
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+select:focus-visible, input:focus-visible, textarea:focus-visible { outline-offset: 0; }
+[role="button"] { cursor: pointer; }
+/* Desktop: the three panes scroll on their own, so the detail pane stays next to a long shot list. */
+@media (min-width: 1001px) { body.app { height: 100dvh; overflow: hidden; } }
+/* Narrow screens: panes stack and the page scrolls; nothing may be wider than the viewport. */
+@media (max-width: 1000px) {
+  .layout { grid-template-columns: minmax(0, 1fr); }
+  .pane { border: 0; border-bottom: 1px solid var(--line); overflow: visible; min-width: 0; }
+  .pane:last-child { border-left: 0; }
+  .main { overflow: visible; padding: 14px 16px; }
+  .topbar { position: static; gap: 8px; padding: 10px 12px; }
+  .topbar .spacer { display: none; }
+  .activity { max-height: 220px; overflow: auto; }
+  .table-wrap { overflow-x: auto; }
+  .landing { margin: 24px auto; padding: 0 16px; }
+  .landing h1 { font-size: 32px; }
+  .landing .grid2 { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: reduce) { *, *::before, *::after { transition: none !important; scroll-behavior: auto !important; } }

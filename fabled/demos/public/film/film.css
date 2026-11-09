@@ -1,30 +1,43 @@
-.tabs { display: flex; gap: 4px; }
-.tabs .btn.active { background: var(--accent-dim); border-color: var(--accent); color: var(--accent-bright); }
-.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(240px, 1fr)); gap: 12px; }
+.board { display: grid; grid-template-columns: repeat(auto-fill, minmax(min(240px, 100%), 1fr)); gap: 12px; }
+.board .card { cursor: pointer; margin-top: 0; }
+.board .card .desc { margin: 6px 0 0; overflow-wrap: anywhere; }
 .frame { position: relative; aspect-ratio: 16/9; background: #000; border-radius: 6px; overflow: hidden; border: 1px solid var(--line-strong); }
 .frame img, .frame video { width: 100%; height: 100%; object-fit: cover; display: block; }
 .frame .corner { position: absolute; left: 6px; top: 6px; }
-.frame .shot-id { position: absolute; right: 6px; top: 6px; font-family: var(--mono); font-size: 10.5px; background: rgba(0,0,0,.6); padding: 1px 5px; border-radius: 3px; }
+.frame .shot-id { position: absolute; right: 6px; top: 6px; font-family: var(--mono); font-size: 10.5px; background: rgba(0,0,0,.6); padding: 1px 5px; border-radius: 3px; max-width: 60%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#d-frame { margin-bottom: 8px; }
+.frame-label { margin: 4px 0 0; overflow-wrap: anywhere; }
 .card .meta { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 11.5px; color: var(--muted); }
-.player .screen { position: relative; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; }
-.player .screen img, .player .screen video { width: 100%; height: 100%; object-fit: cover; transform-origin: center; }
-.player .screen.kb-push_in img { animation: kbPush var(--dur) linear forwards; }
-.player .screen.kb-crash_zoom img { animation: kbCrash var(--dur) ease-in forwards; }
-.player .screen.kb-dolly_follow img, .player .screen.kb-tracking_handheld img { animation: kbPan var(--dur) linear forwards; }
-.player .screen.kb-aerial_drift img { animation: kbDrift var(--dur) linear forwards; }
-.player .screen.kb-crane_down img { animation: kbCrane var(--dur) linear forwards; }
-.player .screen.kb-orbit_handheld img { animation: kbOrbit var(--dur) ease-in-out forwards; }
+.player .screen { position: relative; aspect-ratio: 16/9; background: #000; border-radius: 8px; overflow: hidden; max-width: max(280px, calc((100dvh - 250px) * 16 / 9)); margin: 0 auto; }
+.player .screen img, .player .screen video { width: 100%; height: 100%; object-fit: cover; transform-origin: center; display: block; }
+/* Ken Burns moves. The class comes from MOVE_PRESET in app.js (whitelisted); --dur is the shot duration and --delay
+   is negative when playback starts part-way into a shot (seek). */
+.player .screen.kb-push_in img { animation: kbPush var(--dur) linear var(--delay, 0s) both; }
+.player .screen.kb-crash_zoom img { animation: kbCrash var(--dur) ease-in var(--delay, 0s) both; }
+.player .screen.kb-dolly_follow img, .player .screen.kb-tracking_handheld img { animation: kbPan var(--dur) linear var(--delay, 0s) both; }
+.player .screen.kb-aerial_drift img { animation: kbDrift var(--dur) linear var(--delay, 0s) both; }
+.player .screen.kb-crane_down img { animation: kbCrane var(--dur) linear var(--delay, 0s) both; }
+.player .screen.kb-orbit_handheld img { animation: kbOrbit var(--dur) ease-in-out var(--delay, 0s) both; }
 @keyframes kbPush { from { transform: scale(1); } to { transform: scale(1.18); } }
 @keyframes kbCrash { from { transform: scale(1); } to { transform: scale(1.6); } }
 @keyframes kbPan { from { transform: scale(1.1) translateX(-4%); } to { transform: scale(1.1) translateX(4%); } }
 @keyframes kbDrift { from { transform: scale(1.15) translate(3%, 2%); } to { transform: scale(1.05) translate(-3%, -2%); } }
 @keyframes kbCrane { from { transform: scale(1.1) translateY(4%); } to { transform: scale(1.1) translateY(-4%); } }
 @keyframes kbOrbit { from { transform: scale(1.12) rotate(-1.5deg); } to { transform: scale(1.12) rotate(1.5deg); } }
-.screen-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px; background: linear-gradient(transparent, rgba(0,0,0,.8)); font-size: 12px; }
-.timeline { display: flex; height: 26px; margin-top: 10px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line-strong); }
-.timeline .seg { height: 100%; border-right: 1px solid var(--bg-void); background: var(--bg-elevated); cursor: pointer; font-size: 9px; overflow: hidden; white-space: nowrap; padding: 0 3px; line-height: 26px; color: var(--muted); }
-.timeline .seg.approved { background: var(--green-bg); } .timeline .seg.redo { background: var(--red-bg); } .timeline .seg.now { outline: 2px solid var(--accent); outline-offset: -2px; color: var(--text); }
-.detail-field { display: grid; grid-template-columns: 70px 1fr; gap: 6px; align-items: center; margin: 4px 0; font-size: 12px; }
-.detail-field input, .detail-field select { width: 100%; }
-pre.code { background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 11px; overflow: auto; max-height: 300px; }
-.steps li { margin: 6px 0; }
+@media (prefers-reduced-motion: reduce) { .player .screen img { animation: none !important; transform: none !important; } }
+.screen-caption { position: absolute; left: 0; right: 0; bottom: 0; padding: 8px 12px; background: linear-gradient(transparent, rgba(0,0,0,.8)); font-size: 12px; overflow-wrap: anywhere; }
+.timeline-wrap { position: relative; margin-top: 10px; }
+.timeline { display: flex; height: 30px; border-radius: 6px; overflow: hidden; border: 1px solid var(--line-strong); }
+.timeline .seg { flex: 0 0 auto; min-width: 0; height: 100%; margin: 0; border: 0; border-right: 1px solid var(--bg-void); border-radius: 0; background: var(--bg-elevated); cursor: pointer; font: inherit; font-size: 9px; overflow: hidden; white-space: nowrap; padding: 0 3px; line-height: 28px; color: var(--muted); text-align: left; }
+.timeline .seg:hover { background: var(--bg-hover); }
+.timeline .seg.approved { background: var(--green-bg); } .timeline .seg.redo { background: var(--red-bg); }
+.timeline .seg.sel { box-shadow: inset 0 -3px 0 var(--accent); color: var(--text); }
+.timeline .seg.now { outline: 2px solid var(--accent); outline-offset: -2px; color: var(--text); }
+.timeline .seg:focus-visible { outline: 2px solid var(--focus); outline-offset: -2px; }
+.playhead { position: absolute; top: -3px; bottom: -3px; width: 2px; margin-left: -1px; background: var(--text); pointer-events: none; border-radius: 1px; }
+.detail-field { display: grid; grid-template-columns: 78px minmax(0, 1fr); gap: 6px; align-items: center; margin: 4px 0; font-size: 12px; }
+.detail-field input, .detail-field select { width: 100%; min-width: 0; }
+#f-prompt { min-height: 84px; }
+#comment-text { flex: 1; min-width: 0; }
+pre.code { background: var(--bg-card); border: 1px solid var(--line); border-radius: 8px; padding: 10px; font-size: 11px; overflow: auto; max-height: 300px; margin: 0; }
+.steps li { margin: 6px 0; overflow-wrap: anywhere; }
