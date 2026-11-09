@@ -1,0 +1,27 @@
+{
+ "schema": "fabled.sequencer_plan/0.1",
+ "plan_version": 2,
+ "fps": 24,
+ "total_frames": 96,
+ "coordinates": "absolute world cm; each shot is blocked around stage_origin for its location",
+ "subject_mark": {"x": 0, "y": 0, "z": 0},
+ "stage_spacing_cm": 5000,
+ "stages": [
+  {"location": "HARBOR", "origin": {"x": 0, "y": 0, "z": 0}},
+  {"location": "KITCHEN", "origin": {"x": 5000, "y": 0, "z": 0}}
+ ],
+ "shots": [
+  {"id": "S01-001", "start_frame": 0, "end_frame": 36, "focal_length_mm": 18,
+   "camera_start": {"x": 2500, "y": 0, "z": 900}, "camera_end": {"x": 2900, "y": -400, "z": 900},
+   "look_at": {"x": 0, "y": 0, "z": 150}, "label": "Establishing: harbor", "location": "HARBOR",
+   "stage_origin": {"x": 0, "y": 0, "z": 0}, "move": "Aerial drift", "preset": "aerial_drift"},
+  {"id": "S02-002", "start_frame": 36, "end_frame": 72, "focal_length_mm": 35,
+   "camera_start": {"x": 5239, "y": 256, "z": 160}, "camera_end": {"x": 5179, "y": 192, "z": 160},
+   "look_at": {"x": 5000, "y": 0, "z": 150}, "label": "Kitchen two-shot, push in", "location": "KITCHEN",
+   "stage_origin": {"x": 5000, "y": 0, "z": 0}, "move": "Push in", "preset": "push_in"},
+  {"id": "S03-003", "start_frame": 72, "end_frame": 96, "focal_length_mm": 50,
+   "camera_start": {"x": -196, "y": -290, "z": 160}, "camera_end": {"x": -196, "y": -290, "z": 160},
+   "look_at": {"x": 0, "y": 0, "z": 150}, "label": "Back at the harbor, locked off", "location": "HARBOR",
+   "stage_origin": {"x": 0, "y": 0, "z": 0}, "move": "Static (locked off)", "preset": "static"}
+ ]
+}

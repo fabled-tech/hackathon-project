@@ -1,0 +1,17 @@
+{
+ "schema": "fabled.sequencer_plan/0.1",
+ "fps": 24,
+ "total_frames": 120,
+ "subject_mark": {"x": 0, "y": 0, "z": 0},
+ "shots": [
+  {"id": "S01-001", "start_frame": 0, "end_frame": 48, "focal_length_mm": 24,
+   "camera_start": {"x": 1200, "y": 0, "z": 160}, "camera_end": {"x": 900, "y": 0, "z": 160},
+   "look_at": {"x": 0, "y": 0, "z": 150}, "label": "Push in along the X axis (yaw 180)"},
+  {"id": "S01-002", "start_frame": 48, "end_frame": 84, "focal_length_mm": 50,
+   "camera_start": {"x": 300, "y": 50, "z": 160}, "camera_end": {"x": 300, "y": -50, "z": 160},
+   "look_at": {"x": 0, "y": 0, "z": 150}, "label": "Lateral move that crosses the +/-180 yaw seam"},
+  {"id": "S01-003", "start_frame": 84, "end_frame": 120, "focal_length_mm": 85,
+   "camera_start": {"x": -200, "y": 350, "z": 900}, "camera_end": {"x": -200, "y": 350, "z": 900},
+   "look_at": {"x": 0, "y": 0, "z": 150}, "label": "Static high angle (pitch down)"}
+ ]
+}

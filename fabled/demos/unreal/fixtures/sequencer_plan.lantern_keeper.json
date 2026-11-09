@@ -1,0 +1,911 @@
+{
+ "schema": "fabled.sequencer_plan/0.1",
+ "plan_version": 2,
+ "fps": 24,
+ "total_frames": 1766,
+ "coordinates": "absolute world cm; each shot is blocked around stage_origin for its location",
+ "subject_mark": {
+  "x": 0,
+  "y": 0,
+  "z": 0
+ },
+ "stage_spacing_cm": 5000,
+ "stages": [
+  {
+   "location": "HARBOR TOWN",
+   "origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   }
+  },
+  {
+   "location": "LIGHTHOUSE - KITCHEN",
+   "origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   }
+  },
+  {
+   "location": "CLIFF PATH",
+   "origin": {
+    "x": 10000,
+    "y": 0,
+    "z": 0
+   }
+  }
+ ],
+ "shots": [
+  {
+   "id": "S01-001",
+   "start_frame": 0,
+   "end_frame": 72,
+   "focal_length_mm": 18,
+   "camera_start": {
+    "x": 2500,
+    "y": 0,
+    "z": 900
+   },
+   "camera_end": {
+    "x": 2900,
+    "y": -400,
+    "z": 900
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Establishing: EXT. HARBOR TOWN - DAWN",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Aerial drift",
+   "preset": "aerial_drift"
+  },
+  {
+   "id": "S01-002",
+   "start_frame": 72,
+   "end_frame": 132,
+   "focal_length_mm": 14,
+   "camera_start": {
+    "x": 1705,
+    "y": 1828,
+    "z": 900
+   },
+   "camera_end": {
+    "x": 2105,
+    "y": 1428,
+    "z": 900
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Fog rolls over the rooftops.",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Aerial drift",
+   "preset": "aerial_drift"
+  },
+  {
+   "id": "S01-003",
+   "start_frame": 132,
+   "end_frame": 192,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": -24,
+    "y": 349,
+    "z": 160
+   },
+   "camera_end": {
+    "x": -24,
+    "y": 349,
+    "z": 160
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "A lone lantern burns at the end of the pier.",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S01-004",
+   "start_frame": 192,
+   "end_frame": 252,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": -466,
+    "y": 378,
+    "z": 160
+   },
+   "camera_end": {
+    "x": -466,
+    "y": 678,
+    "z": 160
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "MARA (60s, weathered, oilskin coat) walks the length of the pier, checking each lamp.",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Dolly follow",
+   "preset": "dolly_follow"
+  },
+  {
+   "id": "S01-005",
+   "start_frame": 252,
+   "end_frame": 312,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": -347,
+    "y": -49,
+    "z": 160
+   },
+   "camera_end": {
+    "x": -347,
+    "y": -49,
+    "z": 160
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "She stops at the last one.",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S01-006",
+   "start_frame": 312,
+   "end_frame": 372,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": -201,
+    "y": -287,
+    "z": 160
+   },
+   "camera_end": {
+    "x": -201,
+    "y": -287,
+    "z": 160
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "It flickers.",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S01-007",
+   "start_frame": 372,
+   "end_frame": 418,
+   "focal_length_mm": 85,
+   "camera_start": {
+    "x": 31,
+    "y": 147,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 31,
+    "y": 147,
+    "z": 160
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "MARA: \"Not tonight. Not you too.\"",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S01-008",
+   "start_frame": 418,
+   "end_frame": 478,
+   "focal_length_mm": 100,
+   "camera_start": {
+    "x": 77,
+    "y": -46,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 77,
+    "y": -46,
+    "z": 160
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "She picks up a brass key from her belt and opens the lantern housing.",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S02-009",
+   "start_frame": 478,
+   "end_frame": 550,
+   "focal_length_mm": 24,
+   "camera_start": {
+    "x": 6154,
+    "y": 331,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 5866,
+    "y": 248,
+    "z": 160
+   },
+   "look_at": {
+    "x": 5000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Establishing: INT. LIGHTHOUSE - KITCHEN - MORNING",
+   "location": "LIGHTHOUSE - KITCHEN",
+   "stage_origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Slow push-in",
+   "preset": "push_in"
+  },
+  {
+   "id": "S02-010",
+   "start_frame": 550,
+   "end_frame": 610,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": 5159,
+    "y": 312,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 5159,
+    "y": 312,
+    "z": 160
+   },
+   "look_at": {
+    "x": 5000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "A small, cluttered room.",
+   "location": "LIGHTHOUSE - KITCHEN",
+   "stage_origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S02-011",
+   "start_frame": 610,
+   "end_frame": 670,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": 4880,
+    "y": 329,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 4880,
+    "y": 329,
+    "z": 160
+   },
+   "look_at": {
+    "x": 5000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Charts on the walls.",
+   "location": "LIGHTHOUSE - KITCHEN",
+   "stage_origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S02-012",
+   "start_frame": 670,
+   "end_frame": 730,
+   "focal_length_mm": 50,
+   "camera_start": {
+    "x": 4678,
+    "y": 137,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 4678,
+    "y": 137,
+    "z": 160
+   },
+   "look_at": {
+    "x": 5000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "TOMAS (20s, soaked, nervous) sits at the table with a cup of tea he has not touched.",
+   "location": "LIGHTHOUSE - KITCHEN",
+   "stage_origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S02-013",
+   "start_frame": 730,
+   "end_frame": 804,
+   "focal_length_mm": 50,
+   "camera_start": {
+    "x": 4726,
+    "y": 122,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 4726,
+    "y": 122,
+    "z": 160
+   },
+   "look_at": {
+    "x": 5000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "TOMAS: \"They said the ferry stopped running. Years ago.\"",
+   "location": "LIGHTHOUSE - KITCHEN",
+   "stage_origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S02-014",
+   "start_frame": 804,
+   "end_frame": 840,
+   "focal_length_mm": 50,
+   "camera_start": {
+    "x": 4902,
+    "y": -284,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 4902,
+    "y": -284,
+    "z": 160
+   },
+   "look_at": {
+    "x": 5000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "MARA: \"It did.\"",
+   "location": "LIGHTHOUSE - KITCHEN",
+   "stage_origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S02-015",
+   "start_frame": 840,
+   "end_frame": 895,
+   "focal_length_mm": 50,
+   "camera_start": {
+    "x": 5141,
+    "y": 265,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 5141,
+    "y": 265,
+    "z": 160
+   },
+   "look_at": {
+    "x": 5000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "TOMAS: \"Then how did I get here?\"",
+   "location": "LIGHTHOUSE - KITCHEN",
+   "stage_origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S02-016",
+   "start_frame": 895,
+   "end_frame": 955,
+   "focal_length_mm": 85,
+   "camera_start": {
+    "x": 5145,
+    "y": -39,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 5109,
+    "y": -29,
+    "z": 160
+   },
+   "look_at": {
+    "x": 5000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Mara looks out the window.",
+   "location": "LIGHTHOUSE - KITCHEN",
+   "stage_origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Slow push-in",
+   "preset": "push_in"
+  },
+  {
+   "id": "S02-017",
+   "start_frame": 955,
+   "end_frame": 1015,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": 5297,
+    "y": 185,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 5297,
+    "y": 185,
+    "z": 160
+   },
+   "look_at": {
+    "x": 5000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "The fog has not lifted.",
+   "location": "LIGHTHOUSE - KITCHEN",
+   "stage_origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S02-018",
+   "start_frame": 1015,
+   "end_frame": 1106,
+   "focal_length_mm": 50,
+   "camera_start": {
+    "x": 5057,
+    "y": 294,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 5057,
+    "y": 294,
+    "z": 160
+   },
+   "look_at": {
+    "x": 5000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "MARA: \"The lamps don't bring boats in. They keep something out.\"",
+   "location": "LIGHTHOUSE - KITCHEN",
+   "stage_origin": {
+    "x": 5000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S03-019",
+   "start_frame": 1106,
+   "end_frame": 1178,
+   "focal_length_mm": 18,
+   "camera_start": {
+    "x": 8531,
+    "y": 2023,
+    "z": 900
+   },
+   "camera_end": {
+    "x": 8931,
+    "y": 1623,
+    "z": 900
+   },
+   "look_at": {
+    "x": 10000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Establishing: EXT. CLIFF PATH - NIGHT",
+   "location": "CLIFF PATH",
+   "stage_origin": {
+    "x": 10000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Aerial drift",
+   "preset": "aerial_drift"
+  },
+  {
+   "id": "S03-020",
+   "start_frame": 1178,
+   "end_frame": 1238,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": 9653,
+    "y": 43,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 9653,
+    "y": 43,
+    "z": 160
+   },
+   "look_at": {
+    "x": 10000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Wind.",
+   "location": "CLIFF PATH",
+   "stage_origin": {
+    "x": 10000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S03-021",
+   "start_frame": 1238,
+   "end_frame": 1298,
+   "focal_length_mm": 24,
+   "camera_start": {
+    "x": 9540,
+    "y": -386,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 9540,
+    "y": -86,
+    "z": 160
+   },
+   "look_at": {
+    "x": 10000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Mara runs along the cliff path, lantern swinging.",
+   "location": "CLIFF PATH",
+   "stage_origin": {
+    "x": 10000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Tracking (handheld)",
+   "preset": "tracking_handheld"
+  },
+  {
+   "id": "S03-022",
+   "start_frame": 1298,
+   "end_frame": 1358,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": 9982,
+    "y": -350,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 9982,
+    "y": -350,
+    "z": 160
+   },
+   "look_at": {
+    "x": 10000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Behind her, the harbor lights go out one by one.",
+   "location": "CLIFF PATH",
+   "stage_origin": {
+    "x": 10000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S03-023",
+   "start_frame": 1358,
+   "end_frame": 1418,
+   "focal_length_mm": 24,
+   "camera_start": {
+    "x": 10834,
+    "y": -863,
+    "z": 560
+   },
+   "camera_end": {
+    "x": 10834,
+    "y": -863,
+    "z": 160
+   },
+   "look_at": {
+    "x": 10000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "She falls, catches herself, keeps going.",
+   "location": "CLIFF PATH",
+   "stage_origin": {
+    "x": 10000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Crane down",
+   "preset": "crane_down"
+  },
+  {
+   "id": "S03-024",
+   "start_frame": 1418,
+   "end_frame": 1454,
+   "focal_length_mm": 50,
+   "camera_start": {
+    "x": 10350,
+    "y": 6,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 10350,
+    "y": 6,
+    "z": 160
+   },
+   "look_at": {
+    "x": 10000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "TOMAS (V.O.): \"Mara! The last one!\"",
+   "location": "CLIFF PATH",
+   "stage_origin": {
+    "x": 10000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S03-025",
+   "start_frame": 1454,
+   "end_frame": 1514,
+   "focal_length_mm": 18,
+   "camera_start": {
+    "x": 10803,
+    "y": 892,
+    "z": 160
+   },
+   "camera_end": {
+    "x": 10321,
+    "y": 357,
+    "z": 160
+   },
+   "look_at": {
+    "x": 10000,
+    "y": 0,
+    "z": 150
+   },
+   "label": "The pier lantern explodes in a shower of glass.",
+   "location": "CLIFF PATH",
+   "stage_origin": {
+    "x": 10000,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Crash zoom",
+   "preset": "crash_zoom"
+  },
+  {
+   "id": "S04-026",
+   "start_frame": 1514,
+   "end_frame": 1586,
+   "focal_length_mm": 18,
+   "camera_start": {
+    "x": -218,
+    "y": 2490,
+    "z": 900
+   },
+   "camera_end": {
+    "x": 182,
+    "y": 2090,
+    "z": 900
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Establishing: EXT. HARBOR TOWN - DAWN (CONTINUOUS)",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Aerial drift",
+   "preset": "aerial_drift"
+  },
+  {
+   "id": "S04-027",
+   "start_frame": 1586,
+   "end_frame": 1646,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": -276,
+    "y": 215,
+    "z": 160
+   },
+   "camera_end": {
+    "x": -276,
+    "y": 215,
+    "z": 160
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Silence.",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S04-028",
+   "start_frame": 1646,
+   "end_frame": 1706,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": -346,
+    "y": -55,
+    "z": 160
+   },
+   "camera_end": {
+    "x": -346,
+    "y": -55,
+    "z": 160
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "The fog is gone.",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  },
+  {
+   "id": "S04-029",
+   "start_frame": 1706,
+   "end_frame": 1766,
+   "focal_length_mm": 35,
+   "camera_start": {
+    "x": -196,
+    "y": -290,
+    "z": 160
+   },
+   "camera_end": {
+    "x": -196,
+    "y": -290,
+    "z": 160
+   },
+   "look_at": {
+    "x": 0,
+    "y": 0,
+    "z": 150
+   },
+   "label": "Tomas stands alone on the pier, holding the brass key.",
+   "location": "HARBOR TOWN",
+   "stage_origin": {
+    "x": 0,
+    "y": 0,
+    "z": 0
+   },
+   "move": "Static (locked off)",
+   "preset": "static"
+  }
+ ]
+}

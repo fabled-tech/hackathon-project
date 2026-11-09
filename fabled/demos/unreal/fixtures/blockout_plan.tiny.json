@@ -1,0 +1,17 @@
+{
+ "schema": "fabled.blockout_plan/0.1",
+ "title": "Tiny blockout",
+ "spawn": {"x": 0, "y": -1200, "z": 0, "yaw": 90},
+ "grid_cm": 100,
+ "actors": [
+  {"label": "SM_Crate_a001", "mesh_path": "/Game/Fabled/SM_Crate/SM_Crate", "imported": true,
+   "location": {"x": 100, "y": 200, "z": 0}, "rotation": {"pitch": 0, "yaw": 45, "roll": 0}, "scale": 1.5,
+   "placeholder_box_cm": {"x": 100, "y": 100, "z": 100}, "category": "prop"},
+  {"label": "SM_Gate_b002", "mesh_path": "/Game/Fabled/SM_Gate/SM_Gate", "imported": false,
+   "location": {"x": 1400, "y": 0, "z": 20}, "rotation": {"pitch": 0, "yaw": 270, "roll": 0}, "scale": 1,
+   "placeholder_box_cm": {"x": 400, "y": 250, "z": 500}, "category": "environment"},
+  {"label": "SM_Troll_c003", "mesh_path": "/Game/Fabled/SM_Troll/SM_Troll", "imported": false,
+   "location": {"x": -300, "y": -600, "z": 0}, "rotation": {"pitch": 0, "yaw": 180, "roll": 0}, "scale": 2,
+   "placeholder_box_cm": {"x": 80, "y": 60, "z": 190}, "category": "creature"}
+ ]
+}

@@ -1,0 +1,521 @@
+{
+ "schema": "fabled.blockout_plan/0.1",
+ "title": "Mossgate",
+ "created_at": "2026-11-09T21:04:29.220Z",
+ "spawn": {
+  "x": 0,
+  "y": -1200,
+  "z": 0,
+  "yaw": 90
+ },
+ "grid_cm": 100,
+ "skipped_items": 0,
+ "actors": [
+  {
+   "label": "SM_Bridge_o691",
+   "mesh_path": "/Game/Fabled/SM_Bridge/SM_Bridge",
+   "imported": false,
+   "location": {
+    "x": 1400,
+    "y": 0,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 0,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 400,
+    "y": 400,
+    "z": 500
+   },
+   "category": "environment"
+  },
+  {
+   "label": "SM_MushroomCottage_6uzf",
+   "mesh_path": "/Game/Fabled/SM_MushroomCottage/SM_MushroomCottage",
+   "imported": false,
+   "location": {
+    "x": 873,
+    "y": 1095,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 309,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 400,
+    "y": 400,
+    "z": 500
+   },
+   "category": "environment"
+  },
+  {
+   "label": "SM_RuinedGate_4fdu",
+   "mesh_path": "/Game/Fabled/SM_RuinedGate/SM_RuinedGate",
+   "imported": false,
+   "location": {
+    "x": -312,
+    "y": 1365,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 257,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 400,
+    "y": 400,
+    "z": 500
+   },
+   "category": "environment"
+  },
+  {
+   "label": "SM_Shrine_qjxa",
+   "mesh_path": "/Game/Fabled/SM_Shrine/SM_Shrine",
+   "imported": false,
+   "location": {
+    "x": -1261,
+    "y": 607,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 206,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 400,
+    "y": 400,
+    "z": 500
+   },
+   "category": "environment"
+  },
+  {
+   "label": "SM_Tavern_w9bm",
+   "mesh_path": "/Game/Fabled/SM_Tavern/SM_Tavern",
+   "imported": false,
+   "location": {
+    "x": -1261,
+    "y": -607,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 154,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 400,
+    "y": 400,
+    "z": 500
+   },
+   "category": "environment"
+  },
+  {
+   "label": "SM_Well_u795",
+   "mesh_path": "/Game/Fabled/SM_Well/SM_Well",
+   "imported": false,
+   "location": {
+    "x": -312,
+    "y": -1365,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 103,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 400,
+    "y": 400,
+    "z": 500
+   },
+   "category": "environment"
+  },
+  {
+   "label": "SM_Windmill_y684",
+   "mesh_path": "/Game/Fabled/SM_Windmill/SM_Windmill",
+   "imported": false,
+   "location": {
+    "x": 873,
+    "y": -1095,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 51,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 400,
+    "y": 400,
+    "z": 500
+   },
+   "category": "environment"
+  },
+  {
+   "label": "SM_Barrel_6iyz",
+   "mesh_path": "/Game/Fabled/SM_Barrel/SM_Barrel",
+   "imported": false,
+   "location": {
+    "x": -600,
+    "y": -600,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 0,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 50
+   },
+   "category": "prop"
+  },
+  {
+   "label": "SM_Cart_75cx",
+   "mesh_path": "/Game/Fabled/SM_Cart/SM_Cart",
+   "imported": false,
+   "location": {
+    "x": -300,
+    "y": -600,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 0,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 50
+   },
+   "category": "prop"
+  },
+  {
+   "label": "SM_Lantern_ntt5",
+   "mesh_path": "/Game/Fabled/SM_Lantern/SM_Lantern",
+   "imported": false,
+   "location": {
+    "x": 0,
+    "y": -600,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 0,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 50
+   },
+   "category": "prop"
+  },
+  {
+   "label": "SM_PotionFlask_j8zs",
+   "mesh_path": "/Game/Fabled/SM_PotionFlask/SM_PotionFlask",
+   "imported": false,
+   "location": {
+    "x": 300,
+    "y": -600,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 0,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 50
+   },
+   "category": "prop"
+  },
+  {
+   "label": "SM_Shield_1t36",
+   "mesh_path": "/Game/Fabled/SM_Shield/SM_Shield",
+   "imported": false,
+   "location": {
+    "x": -600,
+    "y": -300,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 0,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 50
+   },
+   "category": "prop"
+  },
+  {
+   "label": "SM_Sword_v1hy",
+   "mesh_path": "/Game/Fabled/SM_Sword/SM_Sword",
+   "imported": false,
+   "location": {
+    "x": -300,
+    "y": -300,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 0,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 50
+   },
+   "category": "prop"
+  },
+  {
+   "label": "SM_TreasureChest_kaqb",
+   "mesh_path": "/Game/Fabled/SM_TreasureChest/SM_TreasureChest",
+   "imported": false,
+   "location": {
+    "x": 0,
+    "y": -300,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 0,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 50
+   },
+   "category": "prop"
+  },
+  {
+   "label": "SM_Boss_az7n",
+   "mesh_path": "/Game/Fabled/SM_Boss/SM_Boss",
+   "imported": false,
+   "location": {
+    "x": -800,
+    "y": -900,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 180,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 185
+   },
+   "category": "character"
+  },
+  {
+   "label": "SM_Farmer_nppt",
+   "mesh_path": "/Game/Fabled/SM_Farmer/SM_Farmer",
+   "imported": false,
+   "location": {
+    "x": -600,
+    "y": -900,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 180,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 185
+   },
+   "category": "character"
+  },
+  {
+   "label": "SM_FogKnight_lyjf",
+   "mesh_path": "/Game/Fabled/SM_FogKnight/SM_FogKnight",
+   "imported": false,
+   "location": {
+    "x": -400,
+    "y": -900,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 180,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 185
+   },
+   "category": "character"
+  },
+  {
+   "label": "SM_Knight_xnmc",
+   "mesh_path": "/Game/Fabled/SM_Knight/SM_Knight",
+   "imported": false,
+   "location": {
+    "x": -200,
+    "y": -900,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 180,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 185
+   },
+   "category": "character"
+  },
+  {
+   "label": "SM_Merchant_blno",
+   "mesh_path": "/Game/Fabled/SM_Merchant/SM_Merchant",
+   "imported": false,
+   "location": {
+    "x": 0,
+    "y": -900,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 180,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 185
+   },
+   "category": "character"
+  },
+  {
+   "label": "SM_Villager_e0k1",
+   "mesh_path": "/Game/Fabled/SM_Villager/SM_Villager",
+   "imported": false,
+   "location": {
+    "x": 200,
+    "y": -900,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 180,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 60,
+    "y": 60,
+    "z": 185
+   },
+   "category": "character"
+  },
+  {
+   "label": "SM_Fox_m6jt",
+   "mesh_path": "/Game/Fabled/SM_Fox/SM_Fox",
+   "imported": false,
+   "location": {
+    "x": 400,
+    "y": -900,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 180,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 40,
+    "y": 60,
+    "z": 33
+   },
+   "category": "creature"
+  },
+  {
+   "label": "SM_Slime_4z99",
+   "mesh_path": "/Game/Fabled/SM_Slime/SM_Slime",
+   "imported": false,
+   "location": {
+    "x": 600,
+    "y": -900,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 180,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 40,
+    "y": 60,
+    "z": 33
+   },
+   "category": "creature"
+  },
+  {
+   "label": "SM_Wolf_xiaz",
+   "mesh_path": "/Game/Fabled/SM_Wolf/SM_Wolf",
+   "imported": false,
+   "location": {
+    "x": 800,
+    "y": -900,
+    "z": 0
+   },
+   "rotation": {
+    "pitch": 0,
+    "yaw": 180,
+    "roll": 0
+   },
+   "scale": 1,
+   "placeholder_box_cm": {
+    "x": 40,
+    "y": 60,
+    "z": 33
+   },
+   "category": "creature"
+  }
+ ]
+}
