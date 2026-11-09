@@ -77,7 +77,8 @@ function keepScroll(fn) {
   try { fn(); } finally { els.forEach((e, i) => { if (e.scrollTop !== before[i][0]) e.scrollTop = before[i][0]; if (e.scrollLeft !== before[i][1]) e.scrollLeft = before[i][1]; }); }
 }
 const guard = (name, fn) => { try { fn(); } catch (e) { console.error(`render ${name} failed`, e); } };
-const localTime = (at) => { const d = new Date(typeof at === 'string' ? at : NaN); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); };
+// Local HH:MM of an ISO timestamp; '' for anything else (Date() alone would happily parse free text).
+const localTime = (at) => { const d = new Date(typeof at === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(at) ? at : NaN); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); };
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode / disabled storage */ } } };
 function toast(msg, err = false, ms = 5000) {
   const t = $('#toast');
@@ -405,9 +406,12 @@ function takeLayout(L, sig = layoutSig(L)) {
 }
 function adoptLayout(p) {
   const theirs = serverLayout(p), sig = layoutSig(theirs);
-  if (!lay.dirty || sig === layoutSig(lay)) takeLayout(theirs, sig);     // nothing local to lose
-  else if (sig !== lay.base) lay.theirs = { ...theirs, sig };            // someone saved a layout under our unsaved edits
-  else lay.theirs = null;                                                // server layout is still the one we started from
+  if (!lay.dirty || sig === layoutSig(lay)) return takeLayout(theirs, sig); // nothing local to lose
+  if (sig !== lay.base) lay.theirs = { ...theirs, sig };                    // someone saved a layout under our unsaved edits
+  else lay.theirs = null;                                                   // server layout is still the one we started from
+  // The local items stay, but what the server derives from the asset (name, category, footprint) follows the server.
+  const fresh = new Map(theirs.items.map((it) => [it.id, it]));
+  for (const it of lay.items) { const f = fresh.get(it.id); if (f) Object.assign(it, { asset_name: f.asset_name, category: f.category, footprint_cm: f.footprint_cm }); }
 }
 // Call after every local edit.
 function touch() {

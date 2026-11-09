@@ -16,7 +16,7 @@ const { chromium } = (() => { for (const m of ['playwright', 'playwright-core', 
 const BASE = (process.argv[2] || 'http://127.0.0.1:5181').replace(/\/$/, '');
 const OUT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..', 'screenshots');
 fs.mkdirSync(OUT, { recursive: true });
-for (const f of fs.readdirSync(OUT)) if (f.endsWith('.png')) fs.rmSync(path.join(OUT, f));
+for (const f of fs.readdirSync(OUT)) if (/^fail-.*\.png$/.test(f)) fs.rmSync(path.join(OUT, f)); // stale failure shots only
 
 // ---- harness ----------------------------------------------------------------------------------------------------------
 const results = [], notes = [], errors = [];
@@ -27,9 +27,10 @@ const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const slug = (s) => s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '').slice(0, 60);
 let page;
 const shot = (name, p = page) => p.screenshot({ path: path.join(OUT, `${name}.png`) });
-async function check(name, fn, { expectErrors = [] } = {}) {
+// `needs` names the project a check depends on; when creating it failed the check fails at once instead of timing out.
+async function check(name, fn, { expectErrors = [], needs } = {}) {
   tolerated = expectErrors;
-  try { await fn(); results.push({ name, ok: true }); console.log(`ok    ${name}`); } catch (e) {
+  try { if (needs && !needs()) throw new Error('skipped: the project this check needs was not created'); await fn(); results.push({ name, ok: true }); console.log(`ok    ${name}`); } catch (e) {
     results.push({ name, ok: false, error: e.message }); console.log(`FAIL  ${name}\n      ${String(e.message).split('\n').join('\n      ')}`);
     await shot(`fail-${slug(name)}`).catch(() => {});
   }
@@ -82,6 +83,7 @@ const trackRequests = (p) => p.on('request', (r) => { if (r.method() !== 'GET' &
 
 const browser = await chromium.launch();
 const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, deviceScaleFactor: 1 });
+ctx.setDefaultTimeout(15000);
 page = await ctx.newPage(); watch(page, 'desktop'); trackRequests(page);
 
 await check('landing page loads', async () => { await page.goto(`${BASE}/`); await page.waitForSelector('.landing a.card'); await shot('00-landing'); });
@@ -110,7 +112,7 @@ await check('film: role selector persists across reload (localStorage) and the p
   await page.waitForSelector('#shot-table tbody tr');
   eq(await page.inputValue('#role'), 'dp', 'role after reload');
   await assertClean(page, 'project list with a hostile title', FILM_IMG);
-});
+}, { needs: () => film });
 
 await check('film: keyboard: Tab reaches a shot row, arrows move, Enter selects, focus ring is visible', async () => {
   await page.locator('.brand .logo').focus();
@@ -121,9 +123,9 @@ await check('film: keyboard: Tab reaches a shot row, arrows move, Enter selects,
   await page.keyboard.press('Enter');
   await page.waitForFunction((x) => document.querySelector('#shot-table tbody tr.active')?.dataset.id === x, id);
   eq(await page.locator('#shot-table tbody tr.active').count(), 1, 'one active row');
-  assert((await page.innerText('#d-title')).includes(id), 'detail pane shows the shot selected with Enter');
+  assert((await page.textContent('#d-title')).includes(id), 'detail pane shows the shot selected with Enter');
   eq(await page.evaluate(() => document.activeElement.dataset.id), id, 'focus stays on the selected row after re-render');
-});
+}, { needs: () => film });
 
 await check('film: approve from the detail pane; mutating requests are JSON and conditional (If-Match)', async () => {
   sent.length = 0;
@@ -133,7 +135,7 @@ await check('film: approve from the detail pane; mutating requests are JSON and 
   assert(patch, 'a PATCH was sent');
   assert(/^application\/json/.test(patch.headers['content-type'] || ''), 'PATCH has Content-Type: application/json');
   assert(/^\d+$/.test(patch.headers['if-match'] || ''), `PATCH carries If-Match: <rev>, got "${patch.headers['if-match']}"`);
-});
+}, { needs: () => film });
 
 let filmShots = [];
 await check('film: a remote change does not wipe a half-typed prompt or comment, focus, caret or scroll', async () => {
@@ -162,15 +164,23 @@ await check('film: a remote change does not wipe a half-typed prompt or comment,
   await page.waitForFunction(() => document.querySelector('#shot-table tbody').innerText.includes('REMOTE EDIT two'), null, { timeout: 12000 });
   eq(await page.inputValue('#comment-text'), 'Tighter on her hands here', 'comment text while focused');
   eq(await page.evaluate(() => document.activeElement.id), 'comment-text', 'comment box keeps focus');
-  // post it with Enter, then save the prompt with Ctrl+Enter
-  await page.keyboard.press('Enter');
+  // the draft belongs to this shot: it is not shown on another shot and is back when we return
+  await page.locator(`#shot-table tbody tr[data-id="${other.id}"]`).click();
+  eq(await page.inputValue('#comment-text'), '', 'another shot starts with an empty comment box');
+  await page.locator(`#shot-table tbody tr[data-id="${mine}"]`).click();
+  eq(await page.inputValue('#comment-text'), 'Tighter on her hands here', 'comment draft is restored when coming back to the shot');
+  eq(await page.inputValue('#f-prompt'), 'A prompt I am still typing', 'prompt was saved when the field was left');
+  // post it with Enter; edit the prompt again and save it with Ctrl+Enter
+  await page.click('#comment-text'); await page.keyboard.press('Enter');
   await page.waitForFunction(() => document.querySelector('#d-comments').innerText.includes('Tighter on her hands here'));
   eq(await page.inputValue('#comment-text'), '', 'comment box is cleared after posting');
-  await page.click('#f-prompt'); await page.keyboard.press('Control+Enter');
+  await page.click('#f-prompt'); await page.keyboard.press('End'); await page.keyboard.type(', v2');
+  assert(await page.evaluate(() => document.querySelector('#f-prompt').classList.contains('unsaved')), 'edited prompt is marked unsaved');
+  await page.keyboard.press('Control+Enter');
   await page.waitForFunction(() => !document.querySelector('#f-prompt').classList.contains('unsaved'));
-  eq((await filmProject()).shots.find((s) => s.id === mine).prompt, 'A prompt I am still typing', 'prompt stored on the server');
+  eq((await filmProject()).shots.find((s) => s.id === mine).prompt, 'A prompt I am still typing, v2', 'prompt stored on the server');
   await page.evaluate(() => { document.querySelector('#main').scrollTop = 0; });
-});
+}, { needs: () => film });
 
 await check('film: server 400 shows the error and reverts the control; 409 applies the server copy and says so', async () => {
   const stored = await page.inputValue('#f-size');
@@ -200,7 +210,7 @@ await check('film: server 400 shows the error and reverts the control; 409 appli
   assert(applied !== told, `either the edit is applied or the conflict notice shows (applied=${applied}, notice=${told})`);
   eq(await page.inputValue('#f-assignee'), applied ? 'producer' : (await filmProject()).shots.find((s) => s.id === mine).assignee, 'assignee control matches the server');
   notes.push(`film If-Match on a stale rev: ${told ? 'server answered 409, notice shown, edit not applied' : 'server applied the edit (no rev check)'}`);
-}, { expectErrors: [/status of 400/, /status of 409/] });
+}, { needs: () => film, expectErrors: [/status of 400/, /status of 409/] });
 
 await check('film: move drives the animation preset through one client-side map', async () => {
   await page.selectOption('#f-move', 'Crash zoom');
@@ -212,7 +222,7 @@ await check('film: move drives the animation preset through one client-side map'
   eq(await page.evaluate(() => getComputedStyle(document.querySelector('#screen-img')).animationName), 'none', 'animation under prefers-reduced-motion');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await page.click('#stop'); await page.click('[data-tab="shots"]');
-});
+}, { needs: () => film });
 
 await check('film: placeholder frame is uploaded as PNG, served by url or data URI, and can be removed', async () => {
   sent.length = 0;
@@ -238,7 +248,23 @@ await check('film: placeholder frame is uploaded as PNG, served by url or data U
     await page.waitForFunction(() => /^(data:image\/png|http)/.test(document.querySelector('#d-frame img').src));
   }
   notes.push(`film Remove frame: ${removed ? 'DELETE accepted, placeholder is back' : 'server has no DELETE yet, client said so and kept the frame'}`);
-}, { expectErrors: [/status of 40[45]/] });
+}, { needs: () => film, expectErrors: [/status of 40[45]/] });
+
+await check('film: attach a still: a PNG is uploaded as a real frame, other file types are refused in the page', async () => {
+  const PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==';
+  let [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#btn-upload')]);
+  await chooser.setFiles({ name: 'frame.png', mimeType: 'image/png', buffer: Buffer.from(PNG, 'base64') });
+  await page.waitForFunction(() => document.querySelector('#toast').textContent === 'still attached');
+  eq(await page.locator('#d-frame .badge-mockup').count(), 0, 'an uploaded still carries no CONCEPT MOCKUP badge');
+  assert((await page.innerText('#shot-table tbody tr.active td:last-child')).includes('still'), 'shot list marks the frame as a still');
+  sent.length = 0;
+  [chooser] = await Promise.all([page.waitForEvent('filechooser'), page.click('#btn-upload')]);
+  await chooser.setFiles({ name: 'frame.svg', mimeType: 'image/svg+xml', buffer: Buffer.from('<svg xmlns="http://www.w3.org/2000/svg" onload="window.__xss=1"/>') });
+  await page.waitForFunction(() => document.querySelector('#toast').textContent.includes('PNG, JPEG or WebP'));
+  eq(sent.length, 0, 'an SVG is refused before any request is made');
+  await page.click('#btn-placeholder'); // back to the labeled placeholder for the storyboard shots below
+  await page.waitForSelector('#d-frame .badge-mockup');
+}, { needs: () => film });
 
 await check('film: storyboard cards are keyboard-operable', async () => {
   await page.click('[data-tab="board"]'); await page.waitForSelector('#board .card');
@@ -250,7 +276,7 @@ await check('film: storyboard cards are keyboard-operable', async () => {
   eq(await page.evaluate(() => document.activeElement.dataset.id), id, 'focus stays on the activated card');
   await page.waitForFunction(() => [...document.querySelectorAll('#board img')].slice(0, 6).every((i) => i.complete && i.naturalWidth > 0));
   await shot('11-film-storyboard');
-});
+}, { needs: () => film });
 
 await check('film: animatic keeps playing through a remote update, shows total runtime, seeks on timeline click', async () => {
   await page.click('[data-tab="animatic"]');
@@ -279,14 +305,14 @@ await check('film: animatic keeps playing through a remote update, shows total r
   assert(tcSeconds(await page.innerText('#timecode')) > t3, 'timecode keeps advancing after the seek');
   await page.click('#stop');
   eq(await page.getAttribute('#play', 'aria-pressed'), 'false', 'stopped');
-});
+}, { needs: () => film });
 
 await check('film: Unreal & export tab keeps plain download links', async () => {
   await page.click('[data-tab="unreal"]');
   await page.waitForFunction(() => document.querySelector('#plan-preview')?.textContent.includes('"schema"'));
   for (const f of ['shotlist.csv', 'shotlist.json', 'sequencer_plan.json', 'unreal.py']) eq(await page.locator(`#tab-unreal a[href$="/export/${f}"]`).count(), 1, `plain link to ${f}`);
   await shot('13-film-unreal');
-});
+}, { needs: () => film });
 
 await check('film: hostile project values are rendered as text, never as markup, class names or URLs', async () => {
   // through the API where the server takes them …
@@ -327,7 +353,7 @@ await check('film: hostile project values are rendered as text, never as markup,
   await page.click('[data-tab="shots"]');
   await page.waitForFunction((h) => document.querySelector('#shot-table tbody tr td:nth-child(2)')?.textContent !== h, HOSTILE, { timeout: 12000 });
   await assertClean(page, 'film after recovery (API-injected values)', FILM_IMG);
-});
+}, { needs: () => film });
 
 await check('film: polling is single-flight, shows offline, backs off and recovers by itself', async () => {
   let started = 0, release = null;
@@ -341,7 +367,7 @@ await check('film: polling is single-flight, shows offline, backs off and recove
   await page.waitForFunction(() => /retrying in 12 s/.test(document.querySelector('#sync').textContent), null, { timeout: 9000 });
   await page.unroute('**/api/film/projects/*/clips*');
   await page.waitForFunction(() => document.querySelector('#sync').textContent === 'synced', null, { timeout: 16000 });
-}, { expectErrors: [/Failed to load resource/] });
+}, { needs: () => film, expectErrors: [/Failed to load resource/] });
 
 await check('film: a project can be deleted from the list after a confirm step', async () => {
   const row = page.locator('#projects .proj-row', { hasText: 'Delete me' });
@@ -357,7 +383,7 @@ await check('film: a project can be deleted from the list after a confirm step',
   assert(!list.some((p) => String(p.title).includes('Delete me')), 'project is gone on the server');
   assert(list.some((p) => p.id === film), 'the open project is untouched');
   assert(await page.locator('#shot-table tbody tr').count(), 'the open project is still showing');
-});
+}, { needs: () => film });
 
 // ============================================================ Fabled Forge ============================================
 let game = null;
@@ -388,8 +414,8 @@ await check('game: role persists; kanban cards are keyboard-operable with a visi
   await page.keyboard.press('Enter');
   await page.waitForFunction((x) => document.querySelector('#kanban .card.active')?.dataset.id === x, id);
   const name = (await gameProject()).assets.find((a) => a.id === id).asset_name;
-  assert((await page.innerText('#d-title')).includes(name), 'detail pane shows the asset selected with Enter');
-});
+  assert((await page.textContent('#d-title')).includes(name), 'detail pane shows the asset selected with Enter');
+}, { needs: () => game });
 
 await check('game: a comment draft and an edited prompt survive a generation running to the end', async () => {
   await page.fill('#comment-text', 'needs a chunkier silhouette');
@@ -410,20 +436,47 @@ await check('game: a comment draft and an edited prompt survive a generation run
   await page.waitForSelector('#d-gen-extra a[download]');
   assert(await page.locator('#d-gen .badge-mockup').count(), 'mock generation keeps the CONCEPT MOCKUP badge');
   await shot('21-game-generated');
-});
+}, { needs: () => game });
 
-let dragged = '';
+await check('game: a poll answer without a project (unchanged + progress) only moves the progress indicators', async () => {
+  const asset = (await gameProject()).assets[7];
+  eq((await remote('POST', `/api/game/projects/${game}/assets/${asset.id}/generate?as=vendor`, { provider: 'mock' })).status, 202, 'remote generate accepted');
+  const card = `#kanban .card[data-id="${asset.id}"]`;
+  await page.waitForSelector(`${card} .progress`, { timeout: 12000 });
+  await page.locator(card).click();
+  await page.fill('#comment-text', 'typing while it generates');
+  let progress = 42;
+  await page.route('**/api/game/projects/*/generations*', async (route) => route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify({ ok: true, unchanged: true, rev: (await gameProject()).rev, progress: [{ id: asset.id, status: 'running', progress }, { id: 'nobody', status: HOSTILE, progress: HOSTILE }] }) }));
+  await page.waitForSelector(`${card} .progress[aria-valuenow="42"]`, { timeout: 12000 });
+  assert((await page.innerText('#d-gen')).includes('42%'), `detail pane shows the progress: "${await page.innerText('#d-gen')}"`);
+  progress = 77;
+  await page.waitForSelector(`${card} .progress[aria-valuenow="77"]`, { timeout: 12000 });
+  eq(await page.evaluate((c) => document.querySelector(`${c} .progress i`).style.width, card), '77%', 'progress bar width');
+  eq(await page.inputValue('#comment-text'), 'typing while it generates', 'comment draft is untouched by progress updates');
+  eq(await page.evaluate(() => document.activeElement.id), 'comment-text', 'focus is untouched by progress updates');
+  await page.unroute('**/api/game/projects/*/generations*');
+  await page.waitForFunction((n) => [...document.querySelectorAll('#kanban .col')][2].innerText.includes(n), asset.asset_name, { timeout: 30000 });
+  await page.fill('#comment-text', '');
+}, { needs: () => game });
+
+let dragged = '', mineId = '', pos = { x: 0, y: 0 };
+const at = (x, y) => `x ${x / 100} m, y ${y / 100} m`;
 await check('game: a dragged layout item and the unsaved indicator survive a mock generation', async () => {
   await page.click('[data-tab="layout"]'); await page.waitForSelector('#layout-list [data-item]');
   eq(await firesBeforeUnload(), false, 'no beforeunload prompt while the layout is saved');
+  const L = (await gameProject()).layout;
+  const item = L.items.find((it) => it.category === 'prop' && it.x % L.grid_cm === 0 && it.y % L.grid_cm === 0);
+  assert(item, 'the starter layout has a prop on the grid to drag');
+  mineId = item.id; pos = { x: item.x + 300, y: item.y + 200 };
   const box = await page.locator('#layout-canvas').boundingBox();
-  await page.mouse.move(box.x + box.width * 0.5, box.y + box.height * 0.5); await page.mouse.down();
-  await page.mouse.move(box.x + box.width * 0.6, box.y + box.height * 0.4, { steps: 6 }); await page.mouse.up();
+  const px = (x, y) => [box.x + (x / L.size_cm + 0.5) * box.width, box.y + (-y / L.size_cm + 0.5) * box.height];
+  await page.mouse.move(...px(item.x, item.y)); await page.mouse.down();
+  await page.mouse.move(...px(pos.x, pos.y), { steps: 6 }); await page.mouse.up();
   dragged = await selectedItem();
-  assert(/x 4 m, y 4 m/.test(dragged), `dragged item reports its new position: "${dragged}"`);
+  assert(dragged.includes(at(pos.x, pos.y)), `dragged item reports its new position ${at(pos.x, pos.y)}: "${dragged}"`);
   assert(await page.locator('#layout-dirty').isVisible(), 'unsaved indicator shows after the drag');
   eq(await firesBeforeUnload(), true, 'beforeunload prompt while the layout has unsaved changes');
-  const p = await gameProject(), asset = p.assets[5];
+  const asset = (await gameProject()).assets[5];
   eq((await remote('POST', `/api/game/projects/${game}/assets/${asset.id}/generate?as=vendor`, { provider: 'mock' })).status, 202, 'remote generate accepted');
   const t0 = Date.now();
   for (;;) { const a = (await gameProject()).assets.find((x) => x.id === asset.id); if (a.status === 'generated') break; assert(Date.now() - t0 < 30000, 'mock generation finishes within 30 s'); await sleep(500); }
@@ -431,39 +484,45 @@ await check('game: a dragged layout item and the unsaved indicator survive a moc
   eq(await selectedItem(), dragged, 'dragged position after the generation finished');
   assert(await page.locator('#layout-dirty').isVisible(), 'unsaved indicator still shows');
   assert(await page.locator('#layout-conflict').isHidden(), 'no conflict notice: nobody changed the layout');
-  assert(!(await gameProject()).layout.items.some((it) => it.x === 400 && it.y === 400), 'the drag has not been saved behind the user\'s back');
-});
+  const stored = (await gameProject()).layout.items.find((it) => it.id === mineId);
+  assert(stored.x === item.x && stored.y === item.y, 'the drag has not been saved behind the user\'s back');
+}, { needs: () => game });
 
 await check('game: layout keyboard: arrows nudge (Shift ×5), R rotates, modifiers and Backspace do nothing', async () => {
   await page.locator('#layout-canvas').focus();
   await page.keyboard.press('Tab'); await page.keyboard.press('Shift+Tab'); // arrive by keyboard so :focus-visible applies
   eq(await page.evaluate(() => document.activeElement.id), 'layout-canvas', 'canvas is in the Tab order');
   assert(await focusRing(page), 'canvas shows a focus ring');
-  await page.keyboard.press('ArrowRight');
-  assert(/x 5 m, y 4 m/.test(await selectedItem()), `ArrowRight moves one grid step: "${await selectedItem()}"`);
-  await page.keyboard.press('Shift+ArrowUp');
-  assert(/x 5 m, y 9 m/.test(await selectedItem()), `Shift+ArrowUp moves five steps: "${await selectedItem()}"`);
+  await page.keyboard.press('ArrowRight'); pos.x += 100;
+  assert((await selectedItem()).includes(at(pos.x, pos.y)), `ArrowRight moves one grid step to ${at(pos.x, pos.y)}: "${await selectedItem()}"`);
+  await page.keyboard.press('Shift+ArrowUp'); pos.y += 500;
+  assert((await selectedItem()).includes(at(pos.x, pos.y)), `Shift+ArrowUp moves five steps to ${at(pos.x, pos.y)}: "${await selectedItem()}"`);
   const n = await page.locator('#layout-list [data-item]').count();
   const before = await selectedItem();
-  for (const k of ['Backspace', 'Control+Delete', 'Alt+Delete', 'Control+=', 'Alt+-', 'Control+ArrowLeft']) await page.keyboard.press(k);
+  for (const k of ['Backspace', 'Control+Delete', 'Alt+Delete', 'Control+=', 'Alt+-', 'Control+ArrowLeft', 'Control+r']) await page.keyboard.press(k);
   eq(await page.locator('#layout-list [data-item]').count(), n, 'Backspace / modified Delete remove nothing');
   eq(await selectedItem(), before, 'modified keys change nothing');
+  const yaw = (t) => Number(/yaw (-?\d+)°/.exec(t)[1]);
   await page.keyboard.press('r');
-  assert(/yaw 195°|yaw 15°/.test(await selectedItem()), `R rotates 15°: "${await selectedItem()}"`);
+  eq(yaw(await selectedItem()), (yaw(before) + 15) % 360, 'R rotates 15°');
   await page.keyboard.press('Shift+R');
   eq(await selectedItem(), before, 'Shift+R rotates back');
-  assert((await page.getAttribute('#layout-canvas', 'aria-label')).includes('x 5 m, y 9 m'), 'canvas aria-label describes the selection');
+  await page.keyboard.press('+');
+  assert((await selectedItem()).includes('scale 1.1'), '+ scales up');
+  await page.keyboard.press('-');
+  eq(await selectedItem(), before, '- scales back down');
+  assert((await page.getAttribute('#layout-canvas', 'aria-label')).includes(at(pos.x, pos.y)), 'canvas aria-label describes the selection');
   assert((await page.innerText('#layout-status')).includes('Unsaved changes'), 'status line announces unsaved changes');
   await page.keyboard.press(']');
   assert((await selectedItem()) !== before, '] selects the next item');
   await page.keyboard.press('[');
   eq(await selectedItem(), before, '[ selects the previous item');
   dragged = before;
-});
+}, { needs: () => game });
 
 await check('game: a remote layout save while dirty offers Keep mine / Load theirs instead of replacing', async () => {
   const theirs = (await gameProject()).layout;
-  const moved = theirs.items[theirs.items.length - 1];
+  const moved = theirs.items.find((it) => it.id !== mineId);
   moved.x = -1500; moved.y = 1500;
   eq((await remote('PUT', `/api/game/projects/${game}/layout?as=designer`, { items: theirs.items, spawn: theirs.spawn })).status, 200, 'remote layout save');
   await page.waitForSelector('#layout-conflict:not([hidden])', { timeout: 12000 });
@@ -478,20 +537,21 @@ await check('game: a remote layout save while dirty offers Keep mine / Load thei
   const put = sent.find((r) => r.method === 'PUT');
   assert(put && /^\d+$/.test(put.headers['if-match'] || ''), 'layout save is conditional (If-Match)');
   const saved = (await gameProject()).layout.items;
-  assert(saved.some((it) => it.x === 500 && it.y === 900), 'my position is what got saved');
+  const me = saved.find((it) => it.id === mineId);
+  assert(me && me.x === pos.x && me.y === pos.y, `my position is what got saved (${JSON.stringify(me && [me.x, me.y])})`);
   assert(!saved.some((it) => it.x === -1500 && it.y === 1500), 'Keep mine replaced their layout on save');
   eq(await firesBeforeUnload(), false, 'no beforeunload prompt after saving');
   // second round: Load theirs
   await page.locator('#layout-canvas').focus(); await page.keyboard.press('ArrowLeft');
   assert(await page.locator('#layout-dirty').isVisible(), 'dirty again after a nudge');
-  const again = (await gameProject()).layout; again.items[again.items.length - 1].x = -1700;
+  const again = (await gameProject()).layout; again.items.find((it) => it.id !== mineId).x = -1700;
   await remote('PUT', `/api/game/projects/${game}/layout?as=designer`, { items: again.items, spawn: again.spawn });
   await page.waitForSelector('#layout-conflict:not([hidden])', { timeout: 12000 });
   await page.click('#btn-load-theirs');
   assert(await page.locator('#layout-dirty').isHidden(), 'clean after Load theirs');
   assert((await page.innerText('#layout-list')).includes('x -17 m'), 'their layout is showing');
-  assert(/x 5 m, y 9 m/.test(await selectedItem()), 'my un-saved nudge was dropped');
-});
+  assert((await selectedItem()).includes(at(pos.x, pos.y)), 'my un-saved nudge was dropped');
+}, { needs: () => game });
 
 await check('game: Place asset uses the next free grid spot, never a stack at the centre', async () => {
   const before = (await gameProject()).layout.items.length;
@@ -504,9 +564,19 @@ await check('game: Place asset uses the next free grid spot, never a stack at th
   assert(!(a.x === 0 && a.y === 0) || !(b.x === 0 && b.y === 0), 'the two placements are not stacked at the centre');
   assert(a.x % 100 === 0 && a.y % 100 === 0 && b.x % 100 === 0 && b.y % 100 === 0, 'new items sit on the 1 m grid');
   assert(await page.locator('#layout-dirty').isHidden(), 'placing with a clean layout leaves nothing unsaved');
+  // placing while there are unsaved edits keeps the edits, adds the item, and does not raise a conflict with ourselves
+  await page.locator('#layout-canvas').focus(); await page.keyboard.press('ArrowRight');
+  assert(await page.locator('#layout-dirty').isVisible(), 'dirty after nudging the new item');
+  await page.click('#btn-add'); await page.waitForFunction((n) => document.querySelectorAll('#layout-list [data-item]').length === n + 3, before);
+  assert(await page.locator('#layout-dirty').isVisible(), 'still dirty after placing another item');
+  assert(await page.locator('#layout-conflict').isHidden(), 'own placement is not reported as someone else\'s change');
+  await page.click('#btn-revert-layout');
+  assert(await page.locator('#layout-dirty').isHidden(), 'Discard clears the unsaved state');
+  eq(await page.locator('#layout-list [data-item]').count(), before + 3, 'all three placements are stored on the server');
+  eq((await gameProject()).layout.items.length, before + 3, 'server agrees');
   await page.waitForFunction(() => document.querySelector('#toast').textContent === '', null, { timeout: 8000 });
   await shot('23-game-layout');
-});
+}, { needs: () => game });
 
 await check('game: import profiles and Unreal tabs; plain export links', async () => {
   await page.click('[data-tab="profiles"]'); await page.waitForSelector('#tab-profiles tbody tr');
@@ -517,7 +587,7 @@ await check('game: import profiles and Unreal tabs; plain export links', async (
   await page.waitForFunction(() => document.querySelector('#plan-preview')?.textContent.includes('"schema"'));
   for (const f of ['kit.json', 'layout.json', 'import_profiles.json', 'blockout_plan.json', 'unreal.py']) eq(await page.locator(`#tab-unreal a[href$="/export/${f}"]`).count(), 1, `plain link to ${f}`);
   await shot('25-game-unreal');
-});
+}, { needs: () => game });
 
 await check('game: hostile project values are rendered as text, never as markup, class names, styles or URLs', async () => {
   const real = await gameProject();
@@ -555,14 +625,14 @@ await check('game: hostile project values are rendered as text, never as markup,
   await page.unroute('**/api/game/projects/*/generations*');
   await page.waitForFunction((h) => document.querySelector('#kit-summary h2')?.textContent !== h, HOSTILE, { timeout: 12000 });
   await assertClean(page, 'game after recovery (API-injected values)', '^$');
-});
+}, { needs: () => game });
 
 await check('game: polling shows offline and recovers by itself', async () => {
   await page.route('**/api/game/projects/*/generations*', (route) => route.abort());
   await page.waitForFunction(() => document.querySelector('#sync').textContent.startsWith('offline'), null, { timeout: 8000 });
   await page.unroute('**/api/game/projects/*/generations*');
   await page.waitForFunction(() => document.querySelector('#sync').textContent === 'synced', null, { timeout: 16000 });
-}, { expectErrors: [/Failed to load resource/] });
+}, { needs: () => game, expectErrors: [/Failed to load resource/] });
 
 await check('game: a project can be deleted from the list after a confirm step', async () => {
   const extra = (await remote('POST', '/api/game/projects', { text: 'Title: Delete me too\nGenre: test\nProps: crate, barrel\n' })).json.project;
@@ -573,10 +643,11 @@ await check('game: a project can be deleted from the list after a confirm step',
   await page.waitForFunction(() => !document.querySelector('#projects').innerText.includes('Delete me too'));
   eq((await remote('GET', `/api/game/projects/${extra.id}`)).status, 404, 'project is gone on the server');
   assert(await page.locator('#kanban .card').count(), 'the open project is still showing');
-});
+}, { needs: () => game });
 
 // ============================================================ phone width =============================================
 const phoneCtx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true });
+phoneCtx.setDefaultTimeout(15000);
 const phone = await phoneCtx.newPage(); watch(phone, 'phone');
 await check('phone 390×844: no horizontal page scroll on /, /film/ and /game/ with a project open', async () => {
   await phone.goto(`${BASE}/`); await phone.waitForSelector('.landing a.card'); await noOverflow(phone, 'landing'); await shot('30-phone-landing', phone);
@@ -595,8 +666,8 @@ await check('phone 390×844: no horizontal page scroll on /, /film/ and /game/ w
     if (tab === 'board') { await phone.locator('#kanban').scrollIntoViewIfNeeded(); await shot('34-phone-game-board', phone); }
     if (tab === 'layout') { await phone.locator('#layout-canvas').scrollIntoViewIfNeeded(); await shot('35-phone-game-layout', phone); }
   }
-  const stacked = await phone.evaluate(() => { const [a, m, d] = ['.pane', '.main', '#detail'].map((s) => document.querySelector(s).getBoundingClientRect()); return a.bottom <= m.top + 1 && m.bottom <= d.top + 1 && Math.round(m.width) === window.innerWidth; });
-  assert(stacked, 'panes stack vertically at phone width');
+  const stacked = await phone.evaluate(() => { const [a, m, d, k] = ['#projects', '.main', '#detail', '#kit-summary'].map((s) => document.querySelector(s).getBoundingClientRect()); return a.bottom <= m.top + 1 && m.bottom <= d.top + 1 && d.bottom <= k.top + 1 && Math.round(m.width) === window.innerWidth; });
+  assert(stacked, 'panes stack vertically at phone width: projects, main, detail, then summary and activity');
   // touch drag on the layout canvas works and marks the layout unsaved
   await phone.tap('[data-tab="layout"]'); await phone.locator('#layout-canvas').scrollIntoViewIfNeeded();
   const item = (await (await fetch(`${BASE}/api/game/projects/${game}`)).json()).project.layout.items[0];
@@ -609,9 +680,10 @@ await check('phone 390×844: no horizontal page scroll on /, /film/ and /game/ w
   await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   assert(await phone.locator('#layout-dirty').isVisible(), 'touch drag marks the layout unsaved');
   await noOverflow(phone, 'game layout after a touch drag');
+  await sleep(700); // Chromium drops the click of a synthetic tap that follows a raw touch sequence too closely
   await phone.tap('#btn-revert-layout');
   assert(await phone.locator('#layout-dirty').isHidden(), 'Discard clears the unsaved state');
-});
+}, { needs: () => film && game });
 
 await browser.close();
 

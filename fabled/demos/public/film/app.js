@@ -76,7 +76,8 @@ function keepScroll(fn) {
   try { fn(); } finally { els.forEach((e, i) => { if (e.scrollTop !== before[i][0]) e.scrollTop = before[i][0]; if (e.scrollLeft !== before[i][1]) e.scrollLeft = before[i][1]; }); }
 }
 const guard = (name, fn) => { try { fn(); } catch (e) { console.error(`render ${name} failed`, e); } };
-const localTime = (at) => { const d = new Date(typeof at === 'string' ? at : NaN); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); };
+// Local HH:MM of an ISO timestamp; '' for anything else (Date() alone would happily parse free text).
+const localTime = (at) => { const d = new Date(typeof at === 'string' && /^\d{4}-\d\d-\d\dT\d\d:\d\d/.test(at) ? at : NaN); return Number.isNaN(d.getTime()) ? '' : d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: false }); };
 const store = { get(k) { try { return localStorage.getItem(k); } catch { return null; } }, set(k, v) { try { localStorage.setItem(k, v); } catch { /* private mode / disabled storage */ } } };
 function toast(msg, err = false, ms = 5000) {
   const t = $('#toast');
@@ -132,7 +133,7 @@ const STATUSES = ['proposed', 'approved', 'redo'];
 const CLIP_STATUSES = ['queued', 'running', 'succeeded', 'failed'];
 const ROLES = ['director', 'dp', 'previs artist', 'producer'];
 const FRAME_TYPES = ['image/png', 'image/jpeg', 'image/webp'];
-const FRAME_MAX_BYTES = 10 * 1024 * 1024;
+let frameMaxBytes = 10 * 1024 * 1024; // replaced by /api/status limits.frame_bytes when the server reports it
 const FREE_TEXT = ['description', 'prompt'];
 const CONFLICT_MSG = 'Someone else changed this; your edit was not applied';
 
@@ -193,6 +194,7 @@ function normalize(p) {
 async function loadStatus() {
   const s = await api('/api/status');
   state.providers = arr(s.providers).filter((p) => isObj(p) && arr(p.kinds).includes('image-to-video'));
+  if (num(s.limits?.frame_bytes) >= 1048576) frameMaxBytes = num(s.limits.frame_bytes);
   const on = state.providers.filter((p) => p.configured).map((p) => String(p.name));
   $('#prov-pill').textContent = on.length ? `providers: ${on.join(', ')}` : 'providers: none configured';
   $('#prov-pill').title = on.length ? 'Image→video providers configured on this server' : `Set ${state.providers.map((p) => arr(p.env).join('/')).join(' or ')} in the server environment to animate frames`;
@@ -411,8 +413,8 @@ function buildDetail(s) {
     <div class="row" id="d-status"></div>
     <div class="detail-field"><label for="f-size">Size</label><select id="f-size" data-k="size"></select></div>
     <div class="detail-field"><label for="f-move">Move</label><select id="f-move" data-k="move"></select></div>
-    <div class="detail-field"><label for="f-lens">Lens <span class="muted">mm</span></label><input type="number" id="f-lens" data-k="lens_mm" min="8" max="400" step="1" required /></div>
-    <div class="detail-field"><label for="f-dur">Duration <span class="muted">s</span></label><input type="number" id="f-dur" data-k="duration_s" min="0.5" max="600" step="0.5" required /></div>
+    <div class="detail-field"><label for="f-lens">Lens <span class="muted">mm</span></label><input type="number" id="f-lens" data-k="lens_mm" min="4" max="1200" step="any" required /></div>
+    <div class="detail-field"><label for="f-dur">Duration <span class="muted">s</span></label><input type="number" id="f-dur" data-k="duration_s" min="0.1" max="600" step="0.1" required /></div>
     <div class="detail-field"><label for="f-assignee">Assignee</label><select id="f-assignee" data-k="assignee"></select></div>
     <div class="detail-field"><label for="f-desc">Action</label><input type="text" id="f-desc" data-k="description" maxlength="2000" /></div>
     <label class="small muted block" for="f-prompt">Generation prompt (edit freely)</label><textarea id="f-prompt" data-k="prompt" maxlength="2000"></textarea>
@@ -431,7 +433,8 @@ function buildDetail(s) {
   const prov = $('#clip-provider');
   if (state.providers.length) prov.replaceChildren(...state.providers.map((pr) => { const o = new Option(`${pr.name}${pr.configured ? '' : ' (not configured)'}`, String(pr.id)); o.disabled = !pr.configured; return o; }));
   else { const o = new Option('no image→video provider', ''); o.disabled = true; prov.replaceChildren(o); }
-  const first = state.providers.find((pr) => pr.configured); if (first) prov.value = String(first.id);
+  const first = state.providers.find((pr) => pr.configured);
+  if (first) prov.value = String(first.id); else prov.selectedIndex = 0; // show the first name even though it cannot be picked
   $('#btn-clip').disabled = !first;
   if (!first) $('#btn-clip').title = 'No image→video provider is configured on this server';
 }
@@ -516,7 +519,7 @@ async function attachStill(file) {
   const id = uploadFor;
   if (!file || !state.project || !shotById(id)) return;
   if (!FRAME_TYPES.includes(file.type)) return toast('The still must be a PNG, JPEG or WebP image', true);
-  if (file.size > FRAME_MAX_BYTES) return toast('The still must be 10 MB or less', true);
+  if (file.size > frameMaxBytes) return toast(`The still must be ${Math.floor(frameMaxBytes / 1048576)} MB or less`, true);
   let data_uri;
   try { data_uri = await new Promise((res, rej) => { const r = new FileReader(); r.onload = () => res(r.result); r.onerror = () => rej(new Error('could not read the file')); r.readAsDataURL(file); }); } catch (e) { return toast(e.message, true); }
   if ((await uploadFrame(id, { data_uri, label: file.name.slice(0, 80), concept_mockup: false })).ok) toast('still attached');

@@ -45,6 +45,7 @@ textarea { width: 100%; min-height: 220px; font-family: var(--mono); font-size: 
 .pane:last-child { border-right: 0; border-left: 1px solid var(--line); }
 .main { overflow: auto; padding: 16px 20px; min-width: 0; }
 .section { padding: 12px 14px; border-bottom: 1px solid var(--line); }
+.section:empty { display: none; }
 .section h2 { font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); margin: 0 0 8px; font-weight: 600; }
 .card { background: var(--bg-card); border: 1px solid var(--line); border-radius: 10px; padding: 12px; }
 .card h3 { margin: 0 0 6px; }
@@ -112,6 +113,13 @@ select:focus-visible, input:focus-visible, textarea:focus-visible { outline-offs
   .layout { grid-template-columns: minmax(0, 1fr); }
   .pane { border: 0; border-bottom: 1px solid var(--line); overflow: visible; min-width: 0; }
   .pane:last-child { border-left: 0; }
+  /* Reading order on a phone: project list, the work area, the selected item, then summary and activity. The first
+     pane dissolves into the grid so its sections can be ordered around the main and detail panes. */
+  .layout > .pane:first-child { display: contents; }
+  .layout > .pane:first-child > .section { background: var(--bg-panel); min-width: 0; }
+  .layout > .main { order: 1; }
+  .layout > .pane:last-child { order: 2; border-top: 1px solid var(--line); }
+  .layout > .pane:first-child > .section:nth-child(n+3) { order: 3; }
   .main { overflow: visible; padding: 14px 16px; }
   .topbar { position: static; gap: 8px; padding: 10px 12px; }
   .topbar .spacer { display: none; }
