@@ -210,6 +210,24 @@ async function main() {
     const reloaded = new TaskStore(path.join(tmp, 'tasks.json'), { env: {} });
     assert.equal(reloaded.list().length, 1, 'tasks persist across restarts');
   });
+  await test('TaskStore: 40 concurrent saves all succeed and leave one valid file and no temp files', async () => {
+    const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'fabled-save-'));
+    const store = new TaskStore(path.join(dir, 'tasks.json'), { env: { FABLED_PROVIDER_MOCK: 'on' } });
+    await Promise.all(Array.from({ length: 12 }, (_, i) => store.create('mock', { kind: 'text-to-3d', prompt: `p${i}` })));
+    await Promise.all(Array.from({ length: 40 }, () => store.save()));
+    assert.equal(JSON.parse(fs.readFileSync(path.join(dir, 'tasks.json'), 'utf8')).tasks.length, 12);
+    assert.deepEqual(fs.readdirSync(dir), ['tasks.json']);
+  });
+  await test('downloadModel stops reading at the cap when the response has no Content-Length', async () => {
+    let pulled = 0;
+    const body = new ReadableStream({ pull(c) { pulled++; c.enqueue(new Uint8Array(1024)); if (pulled > 5000) c.close(); } });
+    const fetchImpl = async () => ({ ok: true, status: 200, headers: new Headers(), body, arrayBuffer: async () => { throw new Error('must not buffer the whole body'); } });
+    const task = { id: 'gen-capcap', provider: 'p', kind: 'text-to-3d', outputs: [{ type: 'model', format: 'glb', url: 'https://cdn.example/m.glb' }] };
+    await assert.rejects(downloadModel(task, tmp, { fetchImpl, maxBytes: 10 * 1024 }), /over the 10240 byte cap/);
+    assert(pulled < 100, `stopped early (pulled ${pulled} chunks)`);
+    const small = async () => ({ ok: true, status: 200, headers: new Headers(), body: new ReadableStream({ start(c) { c.enqueue(new Uint8Array([1, 2, 3])); c.close(); } }) });
+    assert.equal(fs.statSync(await downloadModel(task, tmp, { fetchImpl: small, maxBytes: 10 * 1024 })).size, 3);
+  });
   await test('downloadModel refuses http URLs and local files outside the allowed roots', async () => {
     const roots = [path.join(UI_DIR, 'samples')];
     await assert.rejects(downloadModel({ id: 'gen-x', provider: 'p', kind: 'text-to-3d', outputs: [{ type: 'model', format: 'glb', url: 'http://insecure.example/m.glb' }] }, tmp, { localRoots: roots }), /non-https/);

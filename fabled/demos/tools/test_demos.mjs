@@ -423,6 +423,7 @@ try {
     gid = x.project.id; aid = x.project.assets.find((a) => a.asset_name === 'SM_Knight').id; assert.equal(x.project.layout.items.length, x.project.assets.length);
     const [gs, gx] = await j(`/api/game/projects/${gid}/assets/${aid}/generate?as=vendor`, { method: 'POST', body: { provider: 'mock' } }); assert.equal(gs, 202); assert.equal(gx.task.concept_mockup, true); assert.equal(gx.asset.status, 'generating');
     assert.equal((await j(`/api/game/projects/${gid}/assets/${aid}/generate`, { method: 'POST', body: { provider: 'meshy' } }))[0], 409);
+    const [rs, rx] = await j(`/api/game/projects/${gid}/assets/${aid}/generate`, { method: 'POST', body: { provider: 'mock' } }); assert.equal(rs, 409, 'a second start while one is running is refused'); assert.equal(rx.code, 'generation_running');
     // Revision churn: the mock ramps progress for 1.9 s. An early poll sees progress but no status change, which must
     // be persisted without a new rev; the whole run may bump rev only for status transitions (queued → running → succeeded).
     const rev0 = gx.project.rev; await sleep(100);

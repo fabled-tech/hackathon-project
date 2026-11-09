@@ -9,7 +9,7 @@ Fabled turns high-poly 3D sculpts into Unreal-ready static-mesh assets (retopo, 
 | `validator/` | `fabled_validator` package (pre-import check), `profiles/`, `schema/report.schema.json`, `fixtures/`, `tests/` |
 | `ui/` | Local demo UI: `server.mjs` (Node, no deps) + `public/` (ES modules, three.js 0.169). `stub/`, `samples/`, `tools/`, `INTERFACES.md` |
 | `unreal/` | `import_fabled_asset.py` (Unreal Editor Python, **UNTESTED DRAFT**), `CAPTURE_NOTES.md` |
-| `demos/` | Industry demos on one Node server: **Fabled Shots** (film: screenplay → shot list → animatic → Higgsfield clips → Sequencer plan) and **Fabled Forge** (games: pitch → asset kit → generate → layout → blockout plan). `demos/unreal/*.py` are **UNTESTED DRAFTS**. Research: `../docs/research/`. |
+| `demos/` | Industry demos on one Node server: **Fabled Shots** (film: screenplay → shot list → animatic → Higgsfield clips → Sequencer plan) and **Fabled Forge** (games: pitch → asset kit → generate → layout → blockout plan). `demos/unreal/*.py` pass stand-in tests but are **UNTESTED IN ENGINE**. Research: `../docs/research/`. |
 | `docs/demo/fabled_demo_script_storyboard.md` | Demo script + shot list (v1 draft; numbers are placeholders until captured) |
 | `landing-mockup/` | Static `index.html` + PNG, bannered CONCEPT MOCKUP |
 
@@ -20,7 +20,7 @@ Never edit anything in the parent `cinema_project/` root — that is the separat
 - Pipeline: `cd pipeline && python3 fabled_pipeline.py --input <mesh> --out <dir> --config config/default.json [--validator-profile ...] [--freeze]`. Needs Blender 4.5 (`--blender` or `$FABLED_BLENDER`).
 - UI: `cd ui && npm install && npm start` (http://127.0.0.1:5178/) or `npm run start:stub`.
 - Unreal: `unreal/import_fabled_asset.py --manifest <manifest.json>` inside UE — never run yet.
-- Demos: `cd demos && npm start` (http://127.0.0.1:5181/, `/film/` and `/game/`), `npm test`, `npm run test:screens`.
+- Demos: `cd demos && npm start` (http://127.0.0.1:5181/, `/film/` and `/game/`), `npm test`, `npm run test:unreal`, `npm run test:screens`.
 
 ## Conventions
 - Anything stubbed, previewed, mocked or synthetic is labeled **CONCEPT MOCKUP** (UI badge, `concept_mockup:true` in JSON, filenames `*.CONCEPT_MOCKUP.json`, `synthetic_*` fixtures). Placeholder profiles say **DEMO PLACEHOLDER VALUES**.

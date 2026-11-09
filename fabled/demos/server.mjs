@@ -354,6 +354,8 @@ async function refreshTasks(ids) {
   await Promise.all([...new Set(ids)].map(async (id) => { try { out.set(id, (await tasks.refresh(id)) || LOST_TASK); } catch { /* keep the stored state */ } }));
   return out;
 }
+// A second click on an item whose generation is still queued or running must not start another paid one.
+const isRunning = (g) => !!g && (g.status === 'queued' || g.status === 'running');
 const startsInFlight = new Set(); // "<project>:<shot|asset>" while a provider create call is running (no double paid starts)
 async function startOnce(key, fn) {
   if (startsInFlight.has(key)) throw new HttpError(409, 'a generation is already being started for this item', { code: 'generation_starting' });
@@ -533,6 +535,7 @@ async function filmApi({ req, res, parts, url, method }) {
       const fresh = loadFilm(id); // after the body read: the frame may have just been attached
       if (ifMatch !== null && fresh.rev !== ifMatch) throw revConflict(fresh, ifMatch);
       const shot1 = findShot(fresh);
+      if (isRunning(shot1.clip) && body.force !== true) return send(res, 409, { ok: false, code: 'generation_running', error: `a clip is already ${shot1.clip.status} for ${shot1.id}; wait for it to finish, or send force:true to start another (providers bill per generation)` });
       if (!shot1.frame) return send(res, 400, { ok: false, error: 'attach a frame to the shot first (image→video needs a still)' });
       const data_uri = await readFrameDataUri(id, shot1);
       if (!data_uri) return send(res, 400, { ok: false, error: 'the frame file for this shot is missing; attach the still again' });
@@ -764,6 +767,7 @@ async function gameApi({ req, res, parts, url, method }) {
       const fresh = games.load(id);
       if (ifMatch !== null && fresh.rev !== ifMatch) throw revConflict(fresh, ifMatch);
       const a1 = findAsset(fresh);
+      if (isRunning(a1.generation) && body.force !== true) return send(res, 409, { ok: false, code: 'generation_running', error: `a generation is already ${a1.generation.status} for ${a1.asset_name}; wait for it to finish, or send force:true to start another (providers bill per generation)` });
       const prompt = (body.prompt === undefined || body.prompt === null ? '' : textField(body.prompt, 'prompt', 2000))
         || cleanText(`${a1.name}, ${String(fresh.style || 'stylized').toLowerCase()} game asset, ${a1.category}, clean silhouette, single object, neutral pose`, 2000);
       let task;

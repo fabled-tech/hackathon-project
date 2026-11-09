@@ -48,12 +48,21 @@ export class TaskStore {
   get(id) { const t = this.tasks.get(id); return t ? publicTask(t) : null; }
   raw(id) { return this.tasks.get(id) || null; }
 
-  async save() {
-    const tasks = [...this.tasks.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, MAX_TASKS);
-    await fsp.mkdir(path.dirname(this.file), { recursive: true });
-    const tmp = `${this.file}.tmp.${process.pid}.${Date.now()}`;
-    await fsp.writeFile(tmp, JSON.stringify({ schema: 'fabled.provider_tasks/0.1', tasks }, null, 2));
-    await fsp.rename(tmp, this.file);
+  // Saves are serialized and each uses its own temp file: two saves in the same millisecond used to share a temp
+  // name, so one rename could fail and create() would report an error after a paid generation had already started.
+  save() {
+    const run = async () => {
+      const tasks = [...this.tasks.values()].sort((a, b) => String(b.created_at).localeCompare(String(a.created_at))).slice(0, MAX_TASKS);
+      await fsp.mkdir(path.dirname(this.file), { recursive: true });
+      const tmp = `${this.file}.tmp.${process.pid}.${crypto.randomBytes(6).toString('hex')}`;
+      try {
+        await fsp.writeFile(tmp, JSON.stringify({ schema: 'fabled.provider_tasks/0.1', tasks }, null, 2));
+        await fsp.rename(tmp, this.file);
+      } catch (e) { await fsp.rm(tmp, { force: true }).catch(() => {}); throw e; }
+    };
+    const next = (this._saving || Promise.resolve()).then(run, run);
+    this._saving = next.catch(() => {}); // a failed save must not block later ones
+    return next;
   }
 
   async create(providerId, { kind, prompt = '', image = null, image_label = null, source_asset_id = null } = {}) {
@@ -132,8 +141,22 @@ export async function downloadModel(task, destDir, { localRoots = [], fetchImpl 
   if (!res.ok) throw new Error(`model download answered HTTP ${res.status}`);
   const len = Number(res.headers.get('content-length') || 0);
   if (len > maxBytes) throw new Error(`model is ${len} bytes, over the ${maxBytes} byte cap`);
-  const buf = Buffer.from(await res.arrayBuffer());
-  if (buf.length > maxBytes) throw new Error(`model is over the ${maxBytes} byte cap`);
+  // Read in chunks and stop at the cap: a response without Content-Length must not be buffered whole first.
+  let buf;
+  if (res.body && typeof res.body.getReader === 'function') {
+    const reader = res.body.getReader(); const chunks = []; let n = 0;
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      n += value.length;
+      if (n > maxBytes) { await reader.cancel().catch(() => {}); throw new Error(`model is over the ${maxBytes} byte cap`); }
+      chunks.push(Buffer.from(value));
+    }
+    buf = Buffer.concat(chunks);
+  } else {
+    buf = Buffer.from(await res.arrayBuffer());
+    if (buf.length > maxBytes) throw new Error(`model is over the ${maxBytes} byte cap`);
+  }
   await fsp.writeFile(dest, buf);
   return dest;
 }
